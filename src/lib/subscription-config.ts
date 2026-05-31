@@ -5,6 +5,10 @@ export type MealSlotConfig = {
   maxItemsPerDelivery: number
   dishIds: string[]
   defaultDishIds: string[]
+  /** Max portions of a dish per delivery within this slot. Key = dishId. */
+  dishLimits?: Record<string, number>
+  /** Subscription-eligible option value ids available in this slot. */
+  optionIds?: string[]
 }
 
 export type SubscriptionCommerceConfig = {
@@ -76,6 +80,16 @@ function parseMealSlotConfig(raw: unknown, fallback: MealSlotConfig): MealSlotCo
     defaultDishIds: Array.isArray(raw.defaultDishIds)
       ? (raw.defaultDishIds as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
       : [...fallback.defaultDishIds],
+    dishLimits: isRecord(raw.dishLimits)
+      ? Object.fromEntries(
+          Object.entries(raw.dishLimits)
+            .map(([k, v]) => [String(k).trim(), Math.max(1, Math.min(10, Math.round(Number(v) || 1)))])
+            .filter(([k]) => k)
+        )
+      : { ...(fallback.dishLimits ?? {}) },
+    optionIds: Array.isArray(raw.optionIds)
+      ? (raw.optionIds as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
+      : [...(fallback.optionIds ?? [])],
   }
 }
 

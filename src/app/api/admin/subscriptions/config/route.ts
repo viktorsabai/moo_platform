@@ -13,19 +13,69 @@ export async function GET() {
     const ctx = requireRestaurantAdmin(await getRestaurantContext())
     const config = await loadSubscriptionConfig(ctx.restaurantId)
 
-    const dishes = await prisma.dish.findMany({
-      where: { restaurantId: ctx.restaurantId, subscriptionEligible: true, isAvailable: true },
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        costPrice: true,
-        categoryId: true,
-        image: true,
-        emoji: true,
-      },
-      orderBy: [{ category: { order: 'asc' } }, { name: 'asc' }],
-    })
+    const [dishes, categories, optionLinks] = await Promise.all([
+      prisma.dish.findMany({
+        where: { restaurantId: ctx.restaurantId, subscriptionEligible: true, isAvailable: true },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          costPrice: true,
+          categoryId: true,
+          image: true,
+          emoji: true,
+          category: { select: { name: true } },
+        },
+        orderBy: [{ category: { order: 'asc' } }, { name: 'asc' }],
+      }),
+      prisma.category.findMany({
+        where: { restaurantId: ctx.restaurantId },
+        select: { id: true, name: true, slug: true },
+        orderBy: { order: 'asc' },
+      }),
+      prisma.dishOptionValue.findMany({
+        where: {
+          restaurantId: ctx.restaurantId,
+          subscriptionEligible: true,
+          isAvailable: true,
+        },
+        select: {
+          optionValueId: true,
+          priceAdjust: true,
+          costPrice: true,
+          dishId: true,
+          optionValue: { select: { name: true } },
+          dish: { select: { name: true, category: { select: { name: true } } } },
+        },
+        orderBy: [{ dish: { name: 'asc' } }, { order: 'asc' }],
+      }),
+    ])
+
+    const products = [
+      ...dishes.map((d) => ({
+        kind: 'dish' as const,
+        id: d.id,
+        name: d.name,
+        emoji: d.emoji,
+        categoryName: d.category?.name ?? 'меню',
+        price: Number(d.price),
+        costPrice: d.costPrice == null ? null : Number(d.costPrice),
+        image: d.image,
+        dishId: d.id,
+      })),
+      ...optionLinks.map((o) => ({
+        kind: 'option' as const,
+        id: o.optionValueId,
+        name: o.optionValue?.name ?? 'опция',
+        emoji: o.optionValue?.name ? '🥄' : '🥄',
+        categoryName: o.dish?.category?.name ?? 'опция',
+        price: Number(o.priceAdjust),
+        costPrice: o.costPrice == null ? null : Number(o.costPrice),
+        image: null as string | null,
+        dishId: o.dishId,
+        parentDishName: o.dish?.name ?? null,
+      })),
+    ]
 
     return NextResponse.json({
       ok: true,
@@ -39,6 +89,8 @@ export async function GET() {
         image: d.image,
         emoji: d.emoji,
       })),
+      products,
+      categories,
     })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
@@ -65,6 +117,10 @@ export async function POST(request: Request) {
     const ctx = requireRestaurantAdmin(await getRestaurantContext())
     const body = await request.json().catch(() => ({}))
     const config = await loadSubscriptionConfig(ctx.restaurantId)
+    const commerce =
+      body?.commerce && typeof body.commerce === 'object'
+        ? { ...config.commerce, ...body.commerce }
+        : config.commerce
 
     const items = Array.isArray(body?.items) ? body.items : []
     const deliveryDays = Array.isArray(body?.deliveryDays) ? body.deliveryDays.length : config.minDaysPerWeek
@@ -112,7 +168,7 @@ export async function POST(request: Request) {
       deliveryDaysPerWeek: deliveryDays,
       periodDays,
       personCount,
-      commerce: config.commerce,
+      commerce,
       dishes: dishMap,
       modifiers: modMap,
       ownerPriceOverride: body?.ownerPriceOverride != null ? Number(body.ownerPriceOverride) : config.ownerPriceOverride ?? null,
