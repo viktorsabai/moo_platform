@@ -1,0 +1,853 @@
+// Prisma Schema для базы данных
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Пользователь
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  name          String?
+  passwordHash  String?   @db.Text
+  telegramId        String?   @unique
+  telegramUsername  String?
+  telegramFirstName String?
+  telegramLastName  String?
+  telegramPhotoUrl  String?
+  platformRole  PlatformRole @default(NONE)
+  role          UserRole  @default(CUSTOMER)
+  phone         String?
+  address       Address[]
+  avatar        String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  orders        Order[]
+  subscriptions Subscription[]
+  cart          Cart?
+  sessions      Session[]
+  accounts      Account[]
+  memberships   RestaurantMember[]
+  invitesCreated RestaurantInvite[] @relation("RestaurantInvitesCreated")
+  favoriteDishes FavoriteDish[]
+  serviceLeads   ServiceLead[]
+  activityEvents UserActivityEvent[]
+  assignedCampaigns Campaign[]        @relation("CampaignAssignedUser")
+  campaignRedemptions CampaignRedemption[]
+}
+
+model Restaurant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  address   String?  @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  botIntegrations BotIntegration[]
+  members         RestaurantMember[]
+  invites         RestaurantInvite[]
+
+  categories       Category[]
+  dishes           Dish[]
+  storeCategories  StoreCategory[]
+  storeProducts    StoreProduct[]
+  storeVariants    StoreVariant[]
+  orders           Order[]
+  subscriptions    Subscription[]
+  settings         AppSettings?
+  homeBanners      HomeBanner[]
+  campaigns        Campaign[]
+  campaignRedemptions CampaignRedemption[]
+  subscriptionPlanTemplates SubscriptionPlanTemplate[]
+  menuOptionGroups MenuOptionGroup[]
+  menuOptionValues MenuOptionValue[]
+  dishOptionValues DishOptionValue[]
+  favoriteDishes   FavoriteDish[]
+  serviceLeads     ServiceLead[]
+  activityEvents   UserActivityEvent[]
+}
+
+model BotIntegration {
+  id           String   @id @default(cuid())
+  restaurantId String
+  botUsername  String?
+  botToken     String?  @db.Text
+  // Telegram startapp payload (unique per restaurant bot)
+  startParam   String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+model RestaurantMember {
+  id           String         @id @default(cuid())
+  restaurantId String
+  userId       String
+  role         RestaurantRole @default(STAFF)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, userId])
+  @@index([userId])
+}
+
+model RestaurantInvite {
+  id                String                 @id @default(cuid())
+  restaurantId    String
+  invitedTelegramId String
+  role              RestaurantRole         @default(STAFF)
+  status            RestaurantInviteStatus @default(PENDING)
+  createdByUserId   String
+  createdAt         DateTime               @default(now())
+  resolvedAt        DateTime?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("RestaurantInvitesCreated", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@index([invitedTelegramId, status])
+}
+
+// Глобальные настройки приложения (singleton)
+model AppSettings {
+  id              String   @id @default(cuid())
+  restaurantId    String   @unique @default("default")
+  // catalog toggles: готовые блюда (Dish), магазин (Store), подписки
+  menuEnabled      Boolean  @default(false)
+  storeEnabled    Boolean  @default(true)
+  subscriptionEnabled Boolean @default(true)
+  // delivery fee rules
+  deliveryFee     Int      @default(100)
+  freeDeliveryFrom Int     @default(500)
+  // hours (local time, MVP as strings)
+  openTime        String   @default("10:00")
+  closeTime       String   @default("22:00")
+  // manual override: if set, overrides computed open/closed state
+  isOpenOverride  Boolean?
+  // paymentMethodsJson: способы оплаты (slug, enabled, title, instruction, qrImageUrl, rubPerThb) — lib/payment-methods
+  paymentMethodsJson Json?
+  // subscriptionConfigJson: meal slots, commerce, limits — lib/subscription-config
+  subscriptionConfigJson Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+// Баннеры/акции на главной (горизонтальные чипы и вертикальные рилы)
+model HomeBanner {
+  id           String   @id @default(cuid())
+  restaurantId String
+  title        String
+  description  String?  @db.Text
+  image        String?  @db.Text
+  href         String   // ссылка: /menu, /subscriptions/new, /orders?from=profile и т.д.
+  cta          String   @default("Открыть") // текст кнопки
+  type         String   @default("chip")    // chip = горизонтальная карточка, reel = вертикальная
+  targetType   String?
+  targetId     String?
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive, order])
+}
+
+// Шаблоны планов подписки (продавец настраивает название, цену, тип плана)
+model SubscriptionPlanTemplate {
+  id                 String   @id @default(cuid())
+  restaurantId       String
+  name               String   // например "Standard", "Fit", "Family"
+  description        String?  @db.Text // описание для пользователя (у пресетов — из DEFAULT_SUBSCRIPTION_PLANS)
+  coverImageUrl      String?  @db.Text
+  price              Decimal  @db.Decimal(10,2) // цена за период (неделя/месяц по плану)
+  plan               SubscriptionPlan @default(WEEKLY) // WEEKLY | BIWEEKLY | MONTHLY
+  planMode           String   @default("READY")
+  pricingMode        String   @default("FIXED")
+  menuDiscountPercent Decimal? @db.Decimal(5,2)
+  availablePeriods   Int[]    @default([7, 14, 28])
+  cycleDaysMin       Int?
+  cycleDaysMax       Int?
+  configuration      Json?
+  presetSlug         String?  // ссылка на DEFAULT_SUBSCRIPTION_PLANS: standard | fit | family
+  allowedCategoryIds     String[] @default([]) // category IDs (для preset — по slug)
+  categoryLimits         Json?    // { "categoryId": N } — макс блюд на категорию
+  minDishesPerDelivery   Int?     // мин. блюд на одну доставку
+  maxDishesPerDelivery   Int?     // макс. блюд на одну доставку
+  minDaysPerWeek         Int?     // мин. дней доставки в неделю
+  maxDaysPerWeek         Int?     // макс. дней доставки в неделю
+  order              Int      @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive, order])
+}
+
+// Аутентификация (NextAuth)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Адрес доставки
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  street      String
+  city        String
+  zipCode     String
+  country     String   @default("Russia")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@index([userId])
+}
+
+// Категория блюд
+model Category {
+  id                    String   @id @default(cuid())
+  restaurantId          String   @default("default")
+  name                  String
+  slug                  String
+  emoji                 String?
+  description           String?
+  image                 String?
+  order                 Int      @default(0)
+  prepTimeMinutes       Int?
+  maxOrderQuantity      Int?
+  availableForSubscription Boolean @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dishes     Dish[]
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+}
+
+// Блюдо
+model Dish {
+  id          String   @id @default(cuid())
+  restaurantId String  @default("default")
+  name        String
+  slug        String
+  emoji       String?
+  description String?
+  weightLabel String?
+  price       Decimal   @db.Decimal(10,2)
+  costPrice   Decimal?  @db.Decimal(10,2)
+  image       String?
+  categoryId  String
+  isAvailable Boolean  @default(true)
+  calories    Int?
+  allergens   String[]
+  tags        String[] @default([])  // hit, new, vegan, vegetarian, spicy, healthy, chef-choice, popular
+  prepTimeMinutes Int?  @default(30)
+  subscriptionEligible Boolean @default(true)
+  maxOrderQuantity Int? @default(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  modifiers   DishModifier[]
+  optionValues DishOptionValue[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  subscriptionItems SubscriptionItem[]
+  favoritedBy FavoriteDish[]
+
+  @@index([categoryId])
+  @@index([restaurantId])
+  @@index([isAvailable])
+  @@unique([restaurantId, slug])
+}
+
+model MenuOptionGroup {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  slug         String
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  values     MenuOptionValue[]
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive, order])
+}
+
+model MenuOptionValue {
+  id                   String   @id @default(cuid())
+  restaurantId         String
+  groupId              String
+  name                 String
+  slug                 String
+  subscriptionImageUrl String?  @db.Text
+  order                Int      @default(0)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  group      MenuOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  dishOptions DishOptionValue[]
+
+  @@unique([groupId, slug])
+  @@index([restaurantId])
+  @@index([groupId])
+  @@index([groupId, isActive, order])
+}
+
+model DishOptionValue {
+  id            String   @id @default(cuid())
+  restaurantId  String
+  dishId        String
+  optionValueId String
+  priceAdjust   Decimal  @db.Decimal(10,2) @default(0)
+  costPrice     Decimal? @db.Decimal(10,2)
+  order         Int      @default(0)
+  isAvailable   Boolean  @default(true)
+  subscriptionEligible Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  restaurant  Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dish        Dish            @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  optionValue MenuOptionValue @relation(fields: [optionValueId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, optionValueId])
+  @@index([restaurantId])
+  @@index([dishId])
+  @@index([optionValueId])
+}
+
+model FavoriteDish {
+  id           String   @id @default(cuid())
+  restaurantId String
+  userId       String
+  dishId       String
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, userId, dishId])
+  @@index([restaurantId, userId, createdAt])
+  @@index([dishId])
+}
+
+// Модификатор блюда (убрать лук, добавить соус и т.д.)
+model DishModifier {
+  id         String   @id @default(cuid())
+  dishId     String
+  name       String   // "без лука", "доп. соус"
+  type       String   @default("REMOVE") // REMOVE | ADD
+  priceAdjust Decimal @db.Decimal(10,2) @default(0) // доплата для ADD
+  costPrice  Decimal? @db.Decimal(10,2)
+  subscriptionEligible Boolean @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@index([dishId])
+}
+
+// Store категории (товары магазина: полуфабрикаты, соленья и тд)
+model StoreCategory {
+  id          String   @id @default(cuid())
+  restaurantId String  @default("default")
+  name        String
+  slug        String
+  emoji       String?
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  products    StoreProduct[]
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+}
+
+// Store товар
+model StoreProduct {
+  id          String   @id @default(cuid())
+  restaurantId String  @default("default")
+  name        String
+  slug        String
+  emoji       String?
+  description String?
+  image       String?
+  isActive    Boolean  @default(true)
+  categoryId  String
+  tags        String[] @default([])
+  autoHideIfZeroStock Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category    StoreCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants    StoreVariant[]
+
+  @@index([categoryId])
+  @@index([restaurantId])
+  @@index([isActive])
+  @@unique([restaurantId, slug])
+}
+
+// Store вариант (SKU) с точным остатком
+model StoreVariant {
+  id        String   @id @default(cuid())
+  restaurantId String @default("default")
+  productId String
+  name      String
+  sku       String?
+  price     Decimal  @db.Decimal(10,2)
+  qty       Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product   StoreProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@index([restaurantId])
+  @@index([isActive])
+  @@index([qty])
+  @@unique([restaurantId, sku])
+}
+
+// Корзина
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+}
+
+// Элемент корзины
+model CartItem {
+  id          String   @id @default(cuid())
+  cartId      String
+  dishId      String
+  quantity    Int      @default(1)
+  modifierIds String[] @default([]) // выбранные модификаторы (DishModifier.id)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  dish      Dish     @relation(fields: [dishId], references: [id])
+
+  @@index([cartId, dishId])
+}
+
+// Заказ
+model Order {
+  id              String      @id @default(cuid())
+  clientRequestId String?     @unique
+  userId          String
+  restaurantId    String      @default("default")
+  addressId       String
+  status          OrderStatus @default(PENDING)
+  itemsCount      Int         @default(0)
+  totalAmount     Decimal   @db.Decimal(10,2)
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentMethod   String?
+  paymentOptionSlug String?
+  campaignId      String?
+  campaignCode    String?
+  discountAmount  Decimal? @db.Decimal(10,2)
+  discountDetailsJson Json?
+  paymentIntentId String?
+  paymentAmountRub Decimal? @db.Decimal(12, 2)
+  fxRubPerThb     Decimal? @db.Decimal(12, 6)
+  receiptUrl      String?  @db.Text
+  receiptUploadedAt DateTime?
+  deliveryTime    DateTime?
+  createdAt       DateTime    @default(now())
+
+  user            User        @relation(fields: [userId], references: [id])
+  restaurant      Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  address         Address     @relation(fields: [addressId], references: [id])
+  campaign        Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  redemptions     CampaignRedemption[]
+
+  @@index([userId])
+  @@index([restaurantId])
+  @@index([status])
+  @@index([campaignId])
+}
+
+model Campaign {
+  id               String                @id @default(cuid())
+  restaurantId     String
+  name             String
+  code             String?
+  kind             CampaignKind          @default(PROMOCODE)
+  status           CampaignStatus        @default(DRAFT)
+  visibility       CampaignVisibility    @default(PUBLIC)
+  targetType       CampaignTargetType    @default(ORDER_TOTAL)
+  rewardType       CampaignRewardType    @default(FIXED)
+  rewardValue      Decimal               @db.Decimal(10,2)
+  rewardCap        Decimal?              @db.Decimal(10,2)
+  giftTitle        String?
+  giftPayloadJson  Json?
+  minSubtotal      Decimal?              @db.Decimal(10,2)
+  firstOrderOnly   Boolean               @default(false)
+  usageLimitTotal  Int?
+  usageLimitPerUser Int?                 @default(1)
+  assignedUserId   String?
+  assignedTelegramId String?
+  validFrom        DateTime?
+  validTo          DateTime?
+  metadataJson     Json?
+  notifyOnPublish  Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  restaurant       Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  assignedUser     User?                 @relation("CampaignAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  orders           Order[]
+  redemptions      CampaignRedemption[]
+
+  @@index([restaurantId, status, validFrom, validTo])
+  @@index([restaurantId, code])
+  @@index([assignedUserId])
+  @@index([assignedTelegramId])
+  @@unique([restaurantId, code])
+}
+
+model CampaignRedemption {
+  id              String                   @id @default(cuid())
+  campaignId      String
+  orderId         String
+  userId          String
+  restaurantId    String
+  codeSnapshot    String?
+  discountAmount  Decimal                  @db.Decimal(10,2)
+  status          CampaignRedemptionStatus @default(APPLIED)
+  detailsJson     Json?
+  createdAt       DateTime                 @default(now())
+
+  campaign        Campaign                 @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  order           Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant               @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, orderId])
+  @@index([userId, campaignId])
+  @@index([restaurantId, createdAt])
+}
+
+// Элемент заказа
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  dishId      String?
+  storeVariantId String?
+  quantity    Int
+  price       Decimal   @db.Decimal(10,2)
+  modifierIds String[]  @default([]) // выбранные модификаторы для блюда
+  createdAt   DateTime @default(now())
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish      Dish?    @relation(fields: [dishId], references: [id])
+  storeVariant StoreVariant? @relation(fields: [storeVariantId], references: [id])
+
+  @@index([orderId])
+  @@index([dishId])
+  @@index([storeVariantId])
+}
+
+// Подписка
+model Subscription {
+  id               String             @id @default(cuid())
+  clientRequestId  String?            @unique
+  userId           String
+  restaurantId     String             @default("default")
+  planTemplateId   String?            // ссылка на SubscriptionPlanTemplate
+  name             String
+  plan             SubscriptionPlan
+  status           SubscriptionStatus @default(ACTIVE)
+  price           Decimal   @db.Decimal(10,2)
+  deliveryDays    Int[]              // Дни недели для доставки (0-6, где 0 = воскресенье)
+  deliveryTime    String?            // Время доставки (например, "18:00")
+  personCount     Int                @default(1)
+  periodDays      Int                @default(28)
+  startDate       DateTime
+  endDate         DateTime?
+  nextDelivery    DateTime?
+  paymentIntentId String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  user            User               @relation(fields: [userId], references: [id])
+  restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  planTemplate    SubscriptionPlanTemplate? @relation(fields: [planTemplateId], references: [id], onDelete: SetNull)
+  items           SubscriptionItem[]
+  deliveries      SubscriptionDelivery[]
+
+  @@index([userId])
+  @@index([planTemplateId])
+  @@index([restaurantId])
+  @@index([status])
+  @@index([status, nextDelivery])
+}
+
+// Элемент подписки
+// dayOfWeek: 0=Вс..6=Сб. null = применяется ко всем дням доставки (одинаковый рацион каждый день)
+model SubscriptionItem {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  dishId         String
+  quantity       Int          @default(1)
+  dayOfWeek      Int?         // День недели для этого блюда (рационность по дням). null = все дни
+  mealSlot       String?
+  modifierIds    String[]     @default([]) // выбранные модификаторы для блюда
+  createdAt      DateTime     @default(now())
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  dish           Dish         @relation(fields: [dishId], references: [id])
+
+  @@index([subscriptionId])
+}
+
+// Доставка подписки
+model SubscriptionDelivery {
+  id             String      @id @default(cuid())
+  subscriptionId String
+  orderId        String?     @unique // Связь с Order, если создан заказ
+  scheduledDate  DateTime
+  deliveredAt    DateTime?
+  status         DeliveryStatus @default(SCHEDULED)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([scheduledDate])
+  @@index([status, scheduledDate])
+}
+
+model ServiceLead {
+  id           String   @id @default(cuid())
+  restaurantId String
+  userId       String?
+  telegramId   String?
+  name         String
+  phone        String?
+  type         String
+  title        String?
+  guestCount   Int?
+  eventDate    DateTime?
+  note         String?  @db.Text
+  source       String   @default("home")
+  status       String   @default("NEW")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, status])
+  @@index([userId])
+}
+
+model UserActivityEvent {
+  id           String   @id
+  restaurantId String
+  userId       String?
+  telegramId   String?
+  type         String
+  path         String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, type, createdAt])
+  @@index([userId])
+  @@index([telegramId])
+}
+
+// Enum типы
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  AWAITING_RECEIPT
+  UNDER_REVIEW
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionPlan {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum DeliveryStatus {
+  SCHEDULED
+  CONFIRMED
+  DELIVERED
+  SKIPPED
+  CANCELLED
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  OWNER
+  SUPERADMIN
+}
+
+enum PlatformRole {
+  NONE
+  SUPERADMIN
+}
+
+enum RestaurantRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum RestaurantInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum CampaignKind {
+  PROMOCODE
+  AUTO
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  EXPIRED
+  ARCHIVED
+}
+
+enum CampaignVisibility {
+  PUBLIC
+  HIDDEN
+  ASSIGNED_ONLY
+}
+
+enum CampaignTargetType {
+  ORDER_TOTAL
+  DELIVERY_FEE
+  CATEGORY
+  ITEM
+}
+
+enum CampaignRewardType {
+  FIXED
+  PERCENT
+  GIFT
+}
+
+enum CampaignRedemptionStatus {
+  APPLIED
+  REVERSED
+}
+

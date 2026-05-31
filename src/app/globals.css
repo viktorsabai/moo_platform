@@ -1,0 +1,613 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap&subset=latin,cyrillic');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Yuliana';
+  src: url('/fonts/Yuliana-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+  ufo ui v1 (soft & clean)
+  goals:
+  - off-white background, graphite text
+  - soft coral accent
+  - glassy surfaces, gentle shadows
+  - consistent radii + spacing
+*/
+
+:root {
+  /* Colors */
+  --bg: #f8f7f5;              /* warm off-white */
+  --surface: rgba(255,255,255,.72);
+  --surface-strong: rgba(255,255,255,.92);
+  --stroke: rgba(15, 23, 42, .10);
+  --stroke-strong: rgba(15, 23, 42, .16);
+
+  --text: #111827;            /* graphite - h1/h2/body */
+  --muted: rgba(17, 24, 39, .62);  /* subtitle/meta */
+
+  /* palette v2 (premium): monochrome */
+  --primary: #111827;         /* graphite */
+  --primary-strong: #0b1220;
+
+  --accent: #111827;          /* same as primary (clean) */
+  --accent-strong: #0b1220;   /* hover */
+
+  /* Spacing System (STRICT: 8/12/16/24 only) */
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  /* Radius System (soft rounded, iOS-like — consistent everywhere) */
+  --radius-small: 12px;
+  --radius-medium: 16px;
+  --radius-large: 20px;
+  --radius-pill: 999px;
+  /* Aliases for card/surface (same as large) */
+  --radius-xl: 20px;
+  --radius-lg: 16px;
+
+  /* Shadows (consistent) */
+  --shadow-soft: 0 4px 16px rgba(15, 23, 42, .04);
+  --shadow-card: 0 2px 12px rgba(15, 23, 42, .06);
+  --shadow-sticky: 0 2px 8px rgba(15, 23, 42, .04);
+
+  /* Background gradients */
+  --bg-grad-a: rgba(17, 24, 39, .045);
+  --bg-grad-b: rgba(17, 24, 39, .03);
+  --sticky-bg: rgba(248, 247, 245, .85);
+  --bottom-bg: rgba(255,255,255,.75);
+}
+
+html.dark {
+  --bg: #0e1117;              /* softer deep slate */
+  --surface: rgba(31, 36, 48, .74);
+  --surface-strong: rgba(36, 42, 56, .92);
+  --stroke: rgba(255, 255, 255, .14);
+  --stroke-strong: rgba(255, 255, 255, .22);
+
+  --text: rgba(245, 247, 255, .96);
+  --muted: rgba(226, 232, 245, .72);
+  --primary: #7f96ff;
+  --primary-strong: #6f86f0;
+  --accent: #7f96ff;
+  --accent-strong: #6f86f0;
+
+  --bg-grad-a: rgba(127, 157, 255, .10);
+  --bg-grad-b: rgba(88, 99, 255, .08);
+  --sticky-bg: rgba(17, 21, 30, .86);
+  --bottom-bg: rgba(19, 24, 34, .88);
+
+  /* Stronger elevation on dark bg (light-mode tokens are nearly invisible here) */
+  --shadow-soft: 0 4px 22px rgba(0, 0, 0, .42);
+  --shadow-card: 0 8px 28px rgba(0, 0, 0, .38);
+  --shadow-sticky: 0 2px 14px rgba(0, 0, 0, .35);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 800px at 20% 0%, var(--bg-grad-a), transparent 55%),
+      radial-gradient(900px 700px at 85% 20%, var(--bg-grad-b), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    @apply antialiased;
+    font-feature-settings: "ss01";
+  }
+
+  /* nicer default selection */
+  ::selection {
+    background: rgba(17, 24, 39, .16);
+  }
+
+  /* checkboxes: graphite (brand), not blue */
+  input[type='checkbox'] {
+    accent-color: var(--primary);
+  }
+
+  /* Emergency dark-mode compatibility for legacy Tailwind classes. */
+  html.dark [class*=' text-black'],
+  html.dark [class^='text-black'] {
+    color: var(--text) !important;
+  }
+
+  html.dark [class*=' text-black/'],
+  html.dark [class^='text-black/'] {
+    color: var(--muted) !important;
+  }
+
+  html.dark [class*=' border-black/'],
+  html.dark [class^='border-black/'] {
+    border-color: var(--stroke) !important;
+  }
+
+  html.dark [class*=' bg-black/'],
+  html.dark [class^='bg-black/'] {
+    background-color: color-mix(in srgb, var(--surface-strong) 86%, transparent) !important;
+  }
+}
+
+@layer components {
+  /* page scaffold */
+  .ui-page {
+    @apply min-h-screen;
+    padding-bottom: 92px; /* space for bottom bar */
+  }
+
+  /* unified second-level screen rhythm */
+  .ui-screen {
+    @apply pt-5 pb-4;
+  }
+
+  .ui-screen-stack {
+    @apply space-y-4;
+  }
+
+  .ui-surface-card {
+    @apply overflow-hidden border p-4;
+    border-color: var(--stroke);
+    background: var(--surface-strong);
+    border-radius: var(--radius-large);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .ui-kicker {
+    @apply text-[13px] font-extrabold tracking-tight;
+    color: var(--text);
+  }
+
+  .ui-sticky-sheet {
+    border-radius: var(--radius-large);
+    border: 1px solid var(--stroke);
+    background: var(--bottom-bg);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .ui-header {
+    @apply flex items-center justify-between;
+    padding: 12px 0 8px;
+  }
+
+  /* Кнопка «назад»: только стрелка (минимализм) */
+  .ui-back-button {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center transition active:opacity-80;
+    color: var(--muted);
+  }
+
+  /* Typography System (3 levels exactly) */
+  .ui-h1 {
+    @apply text-[20px] font-extrabold tracking-tight;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .ui-h2 {
+    @apply text-[16px] font-extrabold tracking-tight;
+    line-height: 1.25;
+    color: var(--text);
+  }
+
+  .ui-body {
+    @apply text-[15px] font-medium;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .ui-muted {
+    @apply text-[13px] font-medium;
+    line-height: 1.3;
+    color: var(--muted);
+  }
+
+  /* Legacy (keep for compatibility) */
+  .ui-title {
+    @apply ui-h1;
+  }
+
+  .ui-subtitle {
+    @apply ui-muted;
+  }
+
+  /* compact controls/header helpers (avoid “толстый” UI) */
+  .ui-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--sticky-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--stroke);
+  }
+
+  .ui-controls {
+    @apply flex items-center;
+    gap: 10px;
+  }
+
+  .ui-titleMeta {
+    @apply text-xs font-semibold;
+    color: var(--muted);
+    line-height: 1.2;
+  }
+
+  .ui-section {
+    margin-top: var(--space-6);
+    padding: 0 var(--space-4);
+  }
+
+  /* menu page: same grid as home/subscriptions (single horizontal padding from container only) */
+  .menu-page.ui-container .ui-section {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .ui-section-title {
+    @apply mb-2 text-sm font-extrabold tracking-tight;
+    line-height: 1.15;
+  }
+
+  /* section head pattern (title + meta) */
+  .ui-sectionHead {
+    @apply flex items-end justify-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .ui-sectionTitle {
+    @apply text-sm font-extrabold tracking-tight;
+    line-height: 1.15;
+  }
+
+  .ui-sectionMeta {
+    @apply text-xs font-semibold;
+    color: var(--muted);
+    line-height: 1.2;
+  }
+
+  /* bento grid helpers */
+  .ui-bento {
+    @apply grid gap-3;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .ui-bento-item {
+    grid-column: span 12;
+  }
+
+  @media (min-width: 640px) {
+    .ui-bento-item {
+      grid-column: span 6;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .ui-bento-item {
+      grid-column: span 4;
+    }
+  }
+
+  /* layout */
+  .ui-container {
+    @apply mx-auto w-full px-4 sm:px-5;
+    max-width: 1120px;
+  }
+
+  /* surfaces (soft rounded cards) */
+  .ui-surface {
+    background: var(--surface);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-large);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .ui-surface-strong {
+    background: var(--surface-strong);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-large);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* card template */
+  .card {
+    @apply p-5;
+    background: var(--surface-strong);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-large);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* inputs */
+  .input {
+    @apply w-full px-4;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-medium);
+    color: var(--text);
+    outline: none;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  /* pill input variant (more compact) */
+  .input--pill {
+    border-radius: 999px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+
+  .input::placeholder {
+    color: color-mix(in srgb, var(--muted) 72%, transparent);
+  }
+
+  .input:focus {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  /* buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 font-semibold transition;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border-radius: var(--radius-medium);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transform: translateZ(0);
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .btn:active {
+    transform: scale(.98);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: white;
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .btn-primary:hover {
+    filter: saturate(1.03) brightness(.98);
+  }
+
+  .btn-primary:disabled {
+    opacity: 1;
+    filter: none;
+    cursor: not-allowed;
+    background: color-mix(in srgb, var(--accent) 44%, var(--muted) 56%);
+    color: rgba(255, 255, 255, 0.94);
+    box-shadow: none;
+  }
+
+  .btn-soft {
+    background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+    color: var(--text);
+    border: 1px solid var(--stroke);
+  }
+
+  .btn-soft:hover {
+    background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+    border-color: var(--stroke-strong);
+  }
+
+  /* Legacy alias */
+  .btn-secondary {
+    @apply btn-soft;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+  }
+
+  .btn-ghost:hover {
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+  }
+
+  /* unified pills/chips (filters, category tabs, small badges) */
+  .ui-pill {
+    @apply inline-flex items-center gap-1.5 px-3 font-semibold;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--stroke) 96%, transparent);
+    color: color-mix(in srgb, var(--muted) 90%, var(--text) 10%);
+    font-size: 12.5px;
+    line-height: 1.1;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  }
+
+  .ui-pill--selected {
+    background: color-mix(in srgb, var(--accent) 28%, var(--surface-strong));
+    border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  /* backward-compatible aliases */
+  .chip {
+    @apply ui-pill;
+  }
+
+  .chip-accent {
+    @apply ui-pill--selected;
+  }
+
+  /* bottom bar helper (visual only; wiring later) */
+  .bottom-bar {
+    background: var(--bottom-bg);
+    border-top: 1px solid var(--stroke);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  /* scroll-aware floating bar (used by CartSummary) */
+  [data-scroll-hide] {
+    will-change: transform, opacity;
+    transform: translate3d(-50%, 0, 0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  [data-scroll-hide].is-hidden {
+    transform: translate3d(-50%, 46px, 0);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* content-first list (no-cards by default) */
+  .ufo-list {
+    @apply mt-3;
+  }
+
+  .ufo-row {
+    @apply flex items-start justify-between gap-4;
+    padding: 12px 0;
+  }
+
+  .ufo-row--divider {
+    border-bottom: 1px solid var(--stroke);
+  }
+
+  /* inline counter (minimal, tech) */
+  .ufo-counter {
+    @apply inline-flex items-center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+    border: 1px solid var(--stroke);
+  }
+
+  .ufo-counter__btn {
+    @apply grid place-items-center font-semibold transition;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    color: var(--muted);
+  }
+
+  .ufo-counter__btn:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+  }
+
+  .ufo-counter__val {
+    @apply tabular-nums text-[13px] font-semibold;
+    min-width: 18px;
+    text-align: center;
+    color: var(--text);
+  }
+
+  /* subtle animated emoji (not a circus) */
+  .ufo-emoji {
+    display: inline-block;
+    transform: translateZ(0);
+    transition: transform 140ms ease, opacity 140ms ease, filter 140ms ease;
+    line-height: 1;
+  }
+
+  .ufo-emoji--subtle {
+    filter: saturate(0.65);
+    opacity: 0.85;
+  }
+
+  .ufo-emoji--active {
+    animation: ufo-emoji-pop 520ms ease-out 1;
+  }
+
+  .district-tip {
+    background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+    border: 1px solid var(--stroke);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .district-tip--active {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+    border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+    color: var(--text);
+  }
+
+  @keyframes ufo-emoji-pop {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+}
+
+@layer utilities {
+  .font-yuliana {
+    font-family: 'Yuliana', 'Snell Roundhand', 'Segoe Script', cursive;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+
+  .ufo-note-in {
+    animation: ufo-note-in 320ms ease-out both;
+  }
+
+  .ufo-drift-in {
+    animation: ufo-drift-in 380ms cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  .ufo-float-soft {
+    animation: ufo-float-soft 3.8s ease-in-out infinite;
+  }
+
+  .text-muted {
+    color: var(--muted);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .stroke {
+    border-color: var(--stroke);
+  }
+}
+
+@keyframes ufo-note-in {
+  0% { opacity: 0; transform: translateY(8px) scale(.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ufo-drift-in {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ufo-float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
