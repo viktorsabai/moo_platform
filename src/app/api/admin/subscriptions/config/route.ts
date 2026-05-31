@@ -30,7 +30,7 @@ export async function GET() {
       }),
       prisma.category.findMany({
         where: { restaurantId: ctx.restaurantId },
-        select: { id: true, name: true, slug: true },
+        select: { id: true, name: true, slug: true, emoji: true },
         orderBy: { order: 'asc' },
       }),
       prisma.dishOptionValue.findMany({
@@ -57,6 +57,7 @@ export async function GET() {
         id: d.id,
         name: d.name,
         emoji: d.emoji,
+        categoryId: d.categoryId,
         categoryName: d.category?.name ?? 'меню',
         price: Number(d.price),
         costPrice: d.costPrice == null ? null : Number(d.costPrice),
@@ -67,8 +68,9 @@ export async function GET() {
         kind: 'option' as const,
         id: o.optionValueId,
         name: o.optionValue?.name ?? 'опция',
-        emoji: o.optionValue?.name ? '🥄' : '🥄',
-        categoryName: o.dish?.category?.name ?? 'опция',
+        emoji: '🥄',
+        categoryId: `opt:${o.dishId}`,
+        categoryName: o.dish?.category?.name ?? 'опции',
         price: Number(o.priceAdjust),
         costPrice: o.costPrice == null ? null : Number(o.costPrice),
         image: null as string | null,
