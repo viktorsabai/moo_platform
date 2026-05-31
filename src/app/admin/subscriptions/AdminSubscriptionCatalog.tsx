@@ -86,6 +86,7 @@ export function AdminSubscriptionCatalog() {
             deliveryDays: config.minDaysPerWeek,
             periodDays: config.defaultPeriodDays,
             personCount: 1,
+            ownerPriceOverride: config.ownerPriceOverride ?? null,
           }),
         })
         const data = await res.json().catch(() => null)
@@ -95,7 +96,7 @@ export function AdminSubscriptionCatalog() {
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [previewItems, config.minDaysPerWeek, config.defaultPeriodDays])
+  }, [previewItems, config.minDaysPerWeek, config.defaultPeriodDays, config.ownerPriceOverride])
 
   async function save(next?: SubscriptionConfig) {
     const payload = next ?? config
@@ -363,23 +364,45 @@ export function AdminSubscriptionCatalog() {
             className="mt-4 rounded-xl p-3 text-[13px]"
             style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', borderRadius: 'var(--radius-medium)' }}
           >
-            <p>
-              <span className="text-[color:var(--muted)]">Рекомендуемая цена / период:</span>{' '}
-              <strong>{formatPrice(quote.recommendedPrice)}</strong>
+            <p className="font-semibold">
+              При типичном рационе:{' '}
+              <strong>{formatPrice(quote.guestPrice)}</strong>
+              <span className="font-normal text-[color:var(--muted)]"> / {config.defaultPeriodDays} дн.</span>
             </p>
             <p className="mt-1">
-              <span className="text-[color:var(--muted)]">Гость платит:</span>{' '}
-              <strong>{formatPrice(quote.guestPrice)}</strong>
+              Маржа: <strong>{Math.round(quote.ownerMarginPercent)}%</strong>
               {quote.guestSavingsPercent > 0 ? (
-                <span className="ml-2 text-[color:var(--accent)]">−{Math.round(quote.guestSavingsPercent)}% vs розница</span>
+                <span className="ml-2 text-[color:var(--accent)]">
+                  · гость экономит {Math.round(quote.guestSavingsPercent)}% vs разовые заказы
+                </span>
               ) : null}
             </p>
             <p className="mt-1 text-[12px] text-[color:var(--muted)]">
-              Маржа владельца: {formatPrice(quote.ownerMargin)} ({Math.round(quote.ownerMarginPercent)}%)
+              Рекомендуемая: {formatPrice(quote.recommendedPrice)}
               {quote.missingCostCount > 0 ? ` · ${quote.missingCostCount} поз. без себестоимости` : ''}
             </p>
           </div>
         ) : null}
+        <label className="mt-4 block text-[12px]">
+          <span className="font-semibold text-[color:var(--muted)]">Финальная цена за период, ฿ (опционально)</span>
+          <input
+            type="number"
+            min={0}
+            placeholder="авто из маржи"
+            value={config.ownerPriceOverride ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value.trim()
+              setConfig((p) => ({
+                ...p,
+                ownerPriceOverride: raw === '' ? null : Math.max(0, Math.round(Number(raw) || 0)) || null,
+              }))
+            }}
+            className="input mt-1 w-full rounded-lg px-3 py-2 text-[13px]"
+          />
+          <span className="mt-1 block text-[11px] text-[color:var(--muted)]">
+            Не ниже мин. маржи ({config.commerce.minMarginPercent}%). Пусто — считаем автоматически.
+          </span>
+        </label>
       </div>
 
       <button

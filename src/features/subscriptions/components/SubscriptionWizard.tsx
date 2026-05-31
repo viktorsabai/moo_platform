@@ -258,7 +258,7 @@ export function SubscriptionWizard() {
   const [planTemplates, setPlanTemplates] = useState<PlanTemplate[]>([])
   const [plansReason, setPlansReason] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
-  const [buildMode, setBuildMode] = useState<SubscriptionBuildMode>('from_plan')
+  const [buildMode, setBuildMode] = useState<SubscriptionBuildMode>('custom')
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all')
   const [goal, setGoal] = useState<GoalId | null>(null)
   const [daysPerWeek, setDaysPerWeek] = useState(3)
@@ -286,8 +286,14 @@ export function SubscriptionWizard() {
     guestSavingsPercent: number
     deliveriesInPeriod: number
   } | null>(null)
+  const [favoriteDishIds, setFavoriteDishIds] = useState<string[]>([])
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false)
 
   const isUnifiedCreate = !isEditMode
+  const catalogActive = useMemo(
+    () => subConfigLoaded && getEnabledMealSlots(subConfig).length > 0,
+    [subConfigLoaded, subConfig]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -319,7 +325,28 @@ export function SubscriptionWizard() {
   }, [isEditMode])
 
   useEffect(() => {
-    if (isEditMode || !subConfigLoaded || dishPrefillDoneRef.current) return
+    let cancelled = false
+    fetch('/api/favorites', {
+      cache: 'no-store',
+      credentials: 'include',
+      headers: { ...telegramInitHeaderRecord() },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data?.ok) return
+        setFavoriteDishIds(Array.isArray(data.ids) ? data.ids.map(String) : [])
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setFavoritesLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isEditMode || !subConfigLoaded || !favoritesLoaded || dishPrefillDoneRef.current) return
     if (buildMode !== 'custom' && selectedTemplateId) return
     const slots = getEnabledMealSlots(subConfig)
     if (!slots.length || !dishes.length) return
@@ -332,7 +359,8 @@ export function SubscriptionWizard() {
         personCount,
         periodDays,
         goal,
-      }
+      },
+      favoriteDishIds
     )
     if (!prefill.length) return
     dishPrefillDoneRef.current = true
@@ -344,7 +372,7 @@ export function SubscriptionWizard() {
         modifierIds: p.modifierIds ?? [],
       }))
     )
-  }, [isEditMode, subConfigLoaded, buildMode, selectedTemplateId, subConfig, dishes, selectedDays, personCount, periodDays, goal])
+  }, [isEditMode, subConfigLoaded, favoritesLoaded, buildMode, selectedTemplateId, subConfig, dishes, selectedDays, personCount, periodDays, goal, favoriteDishIds])
 
   useEffect(() => {
     if (selectedDishes.length === 0) {
@@ -1172,6 +1200,18 @@ export function SubscriptionWizard() {
               </span>
             </summary>
             <div className="mt-3 space-y-3 border-t border-[color:var(--stroke)] pt-3">
+              {catalogActive && buildMode === 'custom' ? (
+                <p className="ui-muted text-[13px]">
+                  Рацион из каталога заведения: слоты {getEnabledMealSlots(subConfig).map((s) => MEAL_SLOT_LABEL[s]).join(', ')}.
+                  Состав ниже можно править в рамках лимитов.
+                </p>
+              ) : null}
+              {hasPlans ? (
+                <details open={!catalogActive && buildMode === 'from_plan'} className="rounded-xl border border-[color:var(--stroke)] p-3">
+                  <summary className="cursor-pointer text-[13px] font-semibold text-[color:var(--text)]">
+                    {catalogActive ? 'готовые рационы (опционально)' : 'выбор формата'}
+                  </summary>
+                  <div className="mt-3 space-y-3">
               <div
                 className="grid grid-cols-2 rounded-full border p-1"
                 style={{ borderColor: 'var(--stroke)', borderRadius: 'var(--radius-pill)', background: 'var(--surface)' }}
@@ -1303,6 +1343,13 @@ export function SubscriptionWizard() {
                   Соберите свой рацион: дни, блюда и опции сформируют карточку подписки ниже.
                 </p>
               )}
+                  </div>
+                </details>
+              ) : !catalogActive ? (
+                <p className="ui-muted text-[13px]">
+                  Соберите свой рацион: дни, блюда и опции сформируют карточку подписки ниже.
+                </p>
+              ) : null}
             </div>
           </details>
           {!isUnifiedCreate ? (
@@ -1883,7 +1930,7 @@ export function SubscriptionWizard() {
           deliveriesPerMonth={deliveriesPerMonth}
           perDelivery={subscriptionPrice.perDelivery}
           perWeek={subscriptionPrice.perWeek}
-          retailPerMonth={Math.round(subscriptionPrice.perDelivery * deliveriesPerMonth)}
+          retailPerMonth={liveQuote?.periodRetail ?? Math.round(subscriptionPrice.perDelivery * deliveriesPerMonth)}
           subscriptionPerMonth={Math.round(effectivePricePerMonth)}
           hasTemplate={buildMode === 'from_plan' && Boolean(selectedTemplate)}
           dishCount={selectedCount}

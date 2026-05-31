@@ -60,30 +60,41 @@ export function SubscriptionConstructorSummaryBar({
             ~доставок/мес:{' '}
             <span className="font-semibold tabular-nums text-[color:var(--text)]">{deliveriesPerMonth}</span>
           </span>
-          {hasTemplate ? (
-            <span className="text-[color:var(--muted)]">
-              по плану:{' '}
-              <span className="font-semibold tabular-nums text-[color:var(--text)]">{formatPrice(subscriptionPerMonth)}</span>
-              <span className="font-medium">/мес</span>
+          {subscriptionPerMonth > 0 ? (
+            <span className="font-semibold tabular-nums text-[color:var(--text)]">
+              {formatPrice(subscriptionPerMonth)}
+              <span className="font-medium text-[color:var(--muted)]">/мес</span>
+              {savingsPercent > 0 ? (
+                <span className="ml-2 text-[11px] font-semibold text-[color:var(--accent)]">
+                  · экономия {savingsPercent}%
+                </span>
+              ) : null}
             </span>
           ) : null}
         </div>
       ) : (
         <div className="space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
-            <span className="text-[color:var(--muted)]">
-              за доставку:{' '}
+            {subscriptionPerMonth > 0 ? (
               <span className="font-semibold tabular-nums text-[color:var(--text)]">
-                {dishCount > 0 ? formatPrice(perDelivery) : '—'}
+                {formatPrice(subscriptionPerMonth)}
+                <span className="font-medium text-[color:var(--muted)]">/мес</span>
               </span>
-            </span>
+            ) : (
+              <span className="text-[color:var(--muted)]">
+                за доставку:{' '}
+                <span className="font-semibold tabular-nums text-[color:var(--text)]">
+                  {dishCount > 0 ? formatPrice(perDelivery) : '—'}
+                </span>
+              </span>
+            )}
             <span className="text-[color:var(--muted)]">
               ~в неделю:{' '}
               <span className="font-semibold tabular-nums text-[color:var(--text)]">
                 {dishCount > 0 ? formatPrice(perWeek) : '—'}
               </span>
             </span>
-            {savingsPercent > 0 && hasTemplate ? (
+            {savingsPercent > 0 ? (
               <span
                 className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                 style={{

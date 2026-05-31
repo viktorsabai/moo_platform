@@ -881,9 +881,14 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
               <div className="mt-6 rounded-2xl border p-4" style={{ borderColor: 'var(--stroke)', borderRadius: 'var(--radius-large)' }}>
                 <AdminSubscriptionCatalog />
               </div>
-              <div className="mt-6">
-                <p className="mb-3 text-[13px] font-extrabold tracking-tight text-black/70">шаблоны планов</p>
-                <p className="ui-muted mb-3 text-[12px]">Быстрый старт — пресет, затем цена и «добавить». Или заполните вручную.</p>
+              <details className="mt-8 rounded-2xl border p-4" style={{ borderColor: 'var(--stroke)', borderRadius: 'var(--radius-large)' }}>
+                <summary className="cursor-pointer text-[14px] font-extrabold tracking-tight text-black/70">
+                  шаблоны планов (устаревший режим)
+                </summary>
+                <p className="ui-muted mt-2 text-[12px]">
+                  Standard/Fit/Family — для визарда «готовый рацион». Основной поток — каталог выше.
+                </p>
+                <div className="mt-4">
                 <div className="mb-4 flex flex-wrap gap-2">
                   {DEFAULT_SUBSCRIPTION_PLANS.map((pr) => (
                     <button
@@ -1030,7 +1035,6 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                     </div>
                   )}
                 </details>
-              </div>
               {plans.length > 0 && (
                 <div className="mt-4">
                   <div
@@ -1195,6 +1199,8 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
               {plans.length === 0 && (
                 <p className="ui-muted mt-2 text-[12px]">Пока нет шаблонов. Добавьте план выше.</p>
               )}
+                </div>
+              </details>
             </>
           )}
           <div className="mt-8">

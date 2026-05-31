@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       commerce: config.commerce,
       dishes: dishMap,
       modifiers: modMap,
-      ownerPriceOverride: body?.ownerPriceOverride != null ? Number(body.ownerPriceOverride) : null,
+      ownerPriceOverride: body?.ownerPriceOverride != null ? Number(body.ownerPriceOverride) : config.ownerPriceOverride ?? null,
     })
 
     return NextResponse.json({ ok: true, quote })

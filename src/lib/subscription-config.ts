@@ -23,6 +23,8 @@ export type SubscriptionConfig = {
   maxPersons: number
   defaultPeriodDays: number
   availablePeriods: number[]
+  /** Owner override for typical subscription price (period total, THB). Clamped to min margin in pricing engine. */
+  ownerPriceOverride?: number | null
 }
 
 export const DEFAULT_COMMERCE: SubscriptionCommerceConfig = {
@@ -113,6 +115,10 @@ export function parseSubscriptionConfig(raw: unknown): SubscriptionConfig {
     return Number.isFinite(v) ? Math.max(min, Math.min(max, Math.round(v))) : (base[key] as number)
   }
 
+  const ownerRaw = Number(raw.ownerPriceOverride)
+  const ownerPriceOverride =
+    Number.isFinite(ownerRaw) && ownerRaw > 0 ? Math.round(ownerRaw) : null
+
   return {
     mealSlots,
     commerce: parseCommerce(raw.commerce),
@@ -122,6 +128,7 @@ export function parseSubscriptionConfig(raw: unknown): SubscriptionConfig {
     maxPersons: intField('maxPersons', 1, 10),
     defaultPeriodDays: intField('defaultPeriodDays', 7, 90),
     availablePeriods: periods.length ? [...new Set(periods)].sort((a, b) => a - b) : base.availablePeriods,
+    ownerPriceOverride,
   }
 }
 
