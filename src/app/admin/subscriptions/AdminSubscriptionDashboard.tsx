@@ -42,6 +42,23 @@ function countSlotDishes(config: SubscriptionConfig, slot: MealSlot) {
   return config.mealSlots[slot]?.dishIds.length ?? 0
 }
 
+/** Локальный пример одной доставки (1 блюдо) — как в pricing engine. */
+function previewOneDelivery(
+  retail: number,
+  cost: number | null,
+  commerce: SubscriptionConfig['commerce']
+) {
+  const c = cost != null && cost > 0 ? cost : 0
+  const byDiscount = retail * (1 - commerce.subscriptionDiscountPercent / 100)
+  const byMargin = c > 0 ? c * (1 + commerce.targetMarginPercent / 100) : 0
+  const floor = c > 0 ? c * (1 + commerce.minMarginPercent / 100) : 0
+  let guest = Math.max(byDiscount, byMargin, floor, 0)
+  guest = Math.round(guest)
+  const profit = c > 0 ? guest - c : null
+  const drivenBy = byMargin >= byDiscount && c > 0 ? 'margin' : 'discount'
+  return { retail, guest, profit, drivenBy, hasCost: c > 0 }
+}
+
 export function AdminSubscriptionDashboard() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -51,7 +68,6 @@ export function AdminSubscriptionDashboard() {
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [categoryFilter, setCategoryFilter] = useState(ALL_FILTER)
   const [activeSlot, setActiveSlot] = useState<MealSlot>('lunch')
-  const [limitsOpen, setLimitsOpen] = useState(false)
 
   const dishes = useMemo(() => products.filter((p) => p.kind === 'dish'), [products])
 
@@ -96,6 +112,27 @@ export function AdminSubscriptionDashboard() {
     if (categoryFilter === ALL_FILTER) return 'все блюда'
     return categories.find((c) => c.id === categoryFilter)?.name ?? 'категория'
   }, [categoryFilter, categories])
+
+  const exampleDish = useMemo(() => {
+    const sc = config.mealSlots[activeSlot]
+    const pickId =
+      sc.defaultDishIds.find((id) => sc.dishIds.includes(id)) ?? sc.dishIds[0] ?? null
+    if (!pickId) return null
+    return dishes.find((d) => d.id === pickId) ?? null
+  }, [config, activeSlot, dishes])
+
+  const missingCostInSlot = useMemo(() => {
+    const ids = config.mealSlots[activeSlot].dishIds
+    return ids.filter((id) => {
+      const d = dishes.find((x) => x.id === id)
+      return !d || d.costPrice == null || d.costPrice <= 0
+    }).length
+  }, [config, activeSlot, dishes])
+
+  const pricePreview = useMemo(() => {
+    if (!exampleDish) return null
+    return previewOneDelivery(exampleDish.price, exampleDish.costPrice, config.commerce)
+  }, [exampleDish, config.commerce])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -294,8 +331,6 @@ export function AdminSubscriptionDashboard() {
     )
   }
 
-  const slotConfig = config.mealSlots[activeSlot]
-
   return (
     <main className="ui-container ui-screen !pb-28 pt-1">
       <header className="mb-3">
@@ -423,9 +458,80 @@ export function AdminSubscriptionDashboard() {
       </section>
 
       <section className="mb-4 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
-        <label className="block">
+        <p className="text-[13px] font-bold">экономика</p>
+        <p className="ui-muted mt-1 text-[12px] leading-snug">
+          Себестоимость — в меню. Здесь задаёте, сколько хотите заработать и какую скидку дать гостю.
+        </p>
+
+        {slotDishCount === 0 ? (
+          <p className="ui-muted mt-3 text-[12px]">Добавьте блюда в слот — покажем пример расчёта.</p>
+        ) : pricePreview && exampleDish ? (
+          <div className="mt-3 rounded-xl bg-black/[0.03] p-3">
+            <p className="text-[11px] font-semibold text-[color:var(--muted)]">
+              пример · {exampleDish.name}
+            </p>
+            <div className="mt-2 flex items-baseline justify-between gap-2">
+              <div>
+                <p className="text-[11px] text-[color:var(--muted)]">гость платит за 1 доставку</p>
+                <p className="text-[22px] font-extrabold tabular-nums text-[color:var(--primary)]">
+                  {formatPrice(pricePreview.guest)}
+                </p>
+              </div>
+              <div className="text-right text-[12px] tabular-nums text-[color:var(--muted)]">
+                <p>розница {formatPrice(pricePreview.retail)}</p>
+                {pricePreview.profit != null ? (
+                  <p className="font-semibold text-[color:var(--text)]">
+                    ваша прибыль {formatPrice(pricePreview.profit)}
+                  </p>
+                ) : (
+                  <p className="text-amber-700">нет себест. в меню</p>
+                )}
+              </div>
+            </div>
+            {pricePreview.hasCost ? (
+              <p className="mt-2 text-[11px] text-[color:var(--muted)]">
+                {pricePreview.drivenBy === 'margin'
+                  ? 'Цена от маржи — скидка не опускает ниже вашего заработка.'
+                  : 'Цена от скидки — маржа выше минимума.'}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {missingCostInSlot > 0 ? (
+          <p className="mt-2 text-[12px] text-amber-700">
+            {missingCostInSlot} блюд без себестоимости —{' '}
+            <Link href="/admin/menu" className="font-semibold underline">
+              заполнить в меню
+            </Link>
+          </p>
+        ) : null}
+
+        <label className="mt-4 block">
           <div className="mb-2 flex justify-between text-[13px] font-semibold">
-            <span>скидка абонемента</span>
+            <span>целевая маржа</span>
+            <span className="tabular-nums">{config.commerce.targetMarginPercent}%</span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={70}
+            step={1}
+            value={config.commerce.targetMarginPercent}
+            onChange={(e) =>
+              patchConfig({
+                ...config,
+                commerce: { ...config.commerce, targetMarginPercent: Number(e.target.value) },
+              })
+            }
+            className="h-1.5 w-full accent-[color:var(--primary)]"
+          />
+          <p className="ui-muted mt-1 text-[11px]">Наценка на себестоимость — ваш заработок с блюда.</p>
+        </label>
+
+        <label className="mt-4 block">
+          <div className="mb-2 flex justify-between text-[13px] font-semibold">
+            <span>скидка гостю vs розница</span>
             <span className="tabular-nums">−{config.commerce.subscriptionDiscountPercent}%</span>
           </div>
           <input
@@ -442,73 +548,10 @@ export function AdminSubscriptionDashboard() {
             }
             className="h-1.5 w-full accent-[color:var(--primary)]"
           />
+          <p className="ui-muted mt-1 text-[11px]">
+            Итоговая цена — что больше: маржа или скидка. У каждого гостя своя сумма (рацион × дни).
+          </p>
         </label>
-        <p className="ui-muted mt-2 text-[12px] leading-snug">
-          Цена у каждого гостя своя — из его рациона и дней доставки, минус эта скидка.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => setLimitsOpen((v) => !v)}
-          className="mt-3 flex w-full items-center justify-between text-[12px] font-semibold text-[color:var(--muted)]"
-        >
-          <span>лимиты (редко нужны)</span>
-          <span>{limitsOpen ? '▲' : '▼'}</span>
-        </button>
-        {limitsOpen ? (
-          <div className="mt-2 space-y-3 border-t border-[color:var(--stroke)] pt-3">
-            <div className="flex flex-wrap gap-2">
-              <span className="w-full text-[11px] font-semibold text-[color:var(--muted)]">макс. блюд за одну доставку</span>
-              {([0, 3, 5, 10] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => patchSlot(activeSlot, { maxItemsPerDelivery: n, enabled: true })}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-[11px] font-semibold',
-                    slotConfig.maxItemsPerDelivery === n ? 'bg-[color:var(--primary)] text-white' : 'bg-black/[0.06]'
-                  )}
-                >
-                  {n === 0 ? 'безлимит' : n}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label>
-                <span className="text-[10px] font-semibold uppercase text-[color:var(--muted)]">мин. дней/нед</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={config.minDaysPerWeek}
-                  onChange={(e) =>
-                    patchConfig({
-                      ...config,
-                      minDaysPerWeek: Math.max(1, Math.min(7, Number(e.target.value) || 1)),
-                    })
-                  }
-                  className="input mt-1 w-full rounded-lg px-2 py-1.5 text-[13px] font-semibold tabular-nums"
-                />
-              </label>
-              <label>
-                <span className="text-[10px] font-semibold uppercase text-[color:var(--muted)]">макс. дней/нед</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={config.maxDaysPerWeek}
-                  onChange={(e) =>
-                    patchConfig({
-                      ...config,
-                      maxDaysPerWeek: Math.max(config.minDaysPerWeek, Math.min(7, Number(e.target.value) || 7)),
-                    })
-                  }
-                  className="input mt-1 w-full rounded-lg px-2 py-1.5 text-[13px] font-semibold tabular-nums"
-                />
-              </label>
-            </div>
-          </div>
-        ) : null}
       </section>
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[color:var(--stroke)] bg-[color:var(--surface)]/95 p-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-md">
