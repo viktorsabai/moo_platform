@@ -3,95 +3,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import type { Dish, SubscriptionPlan, SubscriptionStatus } from '@/types'
-import { cn, formatPrice } from '@/lib/utils'
+import type { SubscriptionPlan, SubscriptionStatus } from '@/types'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { InlineCounter } from '@/components/ui/InlineCounter'
-import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import {
   defaultSubscriptionConfig,
   getEnabledMealSlots,
-  getPeriodDiscountPercent,
-  periodLabel,
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
 import { buildPrefillItems, suggestDeliveryDays } from '@/lib/subscription-prefill'
-import { MEAL_SLOT_LABEL, type MealSlot, parseMealSlot } from '@/lib/subscription-meal-slots'
+import { parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { useSubscriptionStore } from '@/store/subscription-store'
-import { SubscriptionRationStrip } from '@/features/subscriptions/components/SubscriptionRationStrip'
-import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
 import { loadDeliveryProfile } from '@/lib/delivery-profile'
+import { SubscriptionMenuPickerPhase } from '@/features/subscriptions/components/SubscriptionMenuPickerPhase'
+import { SubscriptionCheckoutConfigPhase } from '@/features/subscriptions/components/SubscriptionCheckoutConfigPhase'
+import {
+  jsDayToWizard,
+  lineKey,
+  mapSubscriptionDish,
+  type MenuCategory,
+  type PeriodQuote,
+  type SelectedLine,
+  wizardDayToJs,
+} from '@/features/subscriptions/lib/subscription-checkout-utils'
 
-type MenuCategory = { id: string; name: string; slug: string; emoji?: string | null }
-type SelectedLine = { dishId: string; quantity: number; mealSlot: MealSlot | null; modifierIds: string[] }
-
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-
-function wizardDayToJs(d: number) {
-  return d === 6 ? 0 : d + 1
-}
-
-function jsDayToWizard(d: number) {
-  return d === 0 ? 6 : d - 1
-}
-
-function mapDish(d: any): Dish {
-  return {
-    id: d.id,
-    name: d.name,
-    description: d.description ?? undefined,
-    price: Number(d.price ?? 0),
-    costPrice: d.costPrice == null ? null : Number(d.costPrice),
-    image: d.image ?? '',
-    categoryId: d.categoryId ?? d.category?.id ?? 'uncat',
-    isAvailable: d.isAvailable !== false,
-    tags: d.tags ?? [],
-    calories: d.calories ?? undefined,
-    optionGroups: Array.isArray(d.optionGroups) ? d.optionGroups : [],
-    modifiers: Array.isArray(d.modifiers) ? d.modifiers : [],
-  }
-}
-
-function lineKey(item: SelectedLine) {
-  return `${item.dishId}:${item.mealSlot ?? 'any'}:${(item.modifierIds ?? []).join('|')}`
-}
-
-type CalendarCell = {
-  key: string
-  day: number
-  weekday: string
-  month: string
-  isDelivery: boolean
-  isStart: boolean
-}
-
-function buildPeriodCalendar(startDate: Date, periodDays: number, wizardDays: number[]): CalendarCell[] {
-  const jsDays = new Set(wizardDays.map(wizardDayToJs))
-  const cells: CalendarCell[] = []
-  for (let i = 0; i < periodDays; i++) {
-    const d = new Date(startDate)
-    d.setHours(12, 0, 0, 0)
-    d.setDate(d.getDate() + i)
-    cells.push({
-      key: d.toISOString().slice(0, 10),
-      day: d.getDate(),
-      weekday: d.toLocaleDateString('ru-RU', { weekday: 'short' }),
-      month: d.toLocaleDateString('ru-RU', { month: 'short' }),
-      isDelivery: jsDays.has(d.getDay()),
-      isStart: i === 0,
-    })
-  }
-  return cells
-}
-
-function nearestDeliveryLabel(wizardDays: number[], time = '13:00') {
-  if (!wizardDays.length) return 'выберите дни доставки'
-  const todayWizard = jsDayToWizard(new Date().getDay())
-  let next = wizardDays.find((d) => d >= todayWizard)
-  if (next == null) next = wizardDays[0]
-  return `ближайшая доставка: ${WEEKDAYS[next]} в ${time}`
-}
+type Phase = 'menu' | 'checkout'
 
 export function SubscriptionCheckoutFlow() {
   const router = useRouter()
@@ -99,14 +35,16 @@ export function SubscriptionCheckoutFlow() {
   const resumeId = searchParams.get('resume') || ''
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
 
+  const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'menu')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [subConfig, setSubConfig] = useState<SubscriptionConfig>(defaultSubscriptionConfig())
-  const [dishes, setDishes] = useState<Dish[]>([])
+  const [dishes, setDishes] = useState<ReturnType<typeof mapSubscriptionDish>[]>([])
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2])
   const [periodDays, setPeriodDays] = useState(28)
   const [personCount, setPersonCount] = useState(1)
+  const [deliveryTime, setDeliveryTime] = useState('13:00')
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 1)
@@ -116,8 +54,9 @@ export function SubscriptionCheckoutFlow() {
   const [lines, setLines] = useState<SelectedLine[]>([])
   const [name, setName] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [tagFilter, setTagFilter] = useState('all')
   const [activeSlot, setActiveSlot] = useState<MealSlot | 'all'>('all')
-  const [liveQuote, setLiveQuote] = useState<{ guestPrice: number; deliveriesInPeriod: number } | null>(null)
+  const [quotesByPeriod, setQuotesByPeriod] = useState<Record<number, PeriodQuote | undefined>>({})
   const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const createRequestIdRef = useRef<string | null>(null)
 
@@ -160,12 +99,7 @@ export function SubscriptionCheckoutFlow() {
           const prefill = buildPrefillItems(
             cfg,
             (dishData?.dishes ?? []).map((d: any) => ({ id: d.id, tags: d.tags })),
-            {
-              enabledSlots: slots,
-              deliveryDays: days,
-              personCount: cfg.minPersons ?? 1,
-              periodDays: cfg.defaultPeriodDays ?? 28,
-            },
+            { enabledSlots: slots, deliveryDays: days, personCount: cfg.minPersons ?? 1, periodDays: cfg.defaultPeriodDays ?? 28 },
             [],
           )
           if (prefill.length && !resumeId) {
@@ -179,9 +113,7 @@ export function SubscriptionCheckoutFlow() {
             )
           }
         }
-        if (dishData?.ok && Array.isArray(dishData.dishes)) {
-          setDishes(dishData.dishes.map(mapDish))
-        }
+        if (dishData?.ok && Array.isArray(dishData.dishes)) setDishes(dishData.dishes.map(mapSubscriptionDish))
         if (Array.isArray(dishData?.categories)) setCategories(dishData.categories)
       } finally {
         if (!cancelled) setLoading(false)
@@ -206,16 +138,16 @@ export function SubscriptionCheckoutFlow() {
         if (cancelled || !data?.ok || !data.subscription) return
         const s = data.subscription
         if (s.status !== 'PENDING' && s.status !== 'DRAFT') return
+        setPhase('checkout')
         setName(String(s.name || ''))
         setPeriodDays(Number(s.periodDays ?? 28))
         setPersonCount(Number(s.personCount ?? 1))
+        if (s.deliveryTime) setDeliveryTime(String(s.deliveryTime))
         if (s.startDate) {
           const sd = new Date(s.startDate)
           if (!Number.isNaN(sd.getTime())) setStartDate(sd)
         }
-        if (Array.isArray(s.deliveryDays)) {
-          setSelectedDays(s.deliveryDays.map((d: number) => jsDayToWizard(d)))
-        }
+        if (Array.isArray(s.deliveryDays)) setSelectedDays(s.deliveryDays.map((d: number) => jsDayToWizard(d)))
         if (Array.isArray(s.items)) {
           setLines(
             s.items.map((it: any) => ({
@@ -233,43 +165,61 @@ export function SubscriptionCheckoutFlow() {
     }
   }, [resumeId, loading])
 
-  const refreshQuote = useCallback(async () => {
+  const quotePayload = useMemo(
+    () => ({
+      items: lines.map((l) => ({
+        dishId: l.dishId,
+        quantity: l.quantity,
+        mealSlot: l.mealSlot,
+        modifierIds: l.modifierIds,
+      })),
+      deliveryDays: selectedDays.map(wizardDayToJs),
+      personCount,
+    }),
+    [lines, selectedDays, personCount]
+  )
+
+  const refreshQuotes = useCallback(async () => {
     if (!lines.length || !selectedDays.length) {
-      setLiveQuote(null)
+      setQuotesByPeriod({})
       return
     }
-    const res = await fetch('/api/subscriptions/quote', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'content-type': 'application/json', ...telegramInitHeaderRecord() },
-      body: JSON.stringify({
-        items: lines.map((l) => ({
-          dishId: l.dishId,
-          quantity: l.quantity,
-          mealSlot: l.mealSlot,
-          modifierIds: l.modifierIds,
-        })),
-        deliveryDays: selectedDays.map(wizardDayToJs),
-        periodDays,
-        personCount,
-      }),
-    })
-    const data = await res.json().catch(() => null)
-    if (res.ok && data?.ok && data.quote) {
-      setLiveQuote({
-        guestPrice: Number(data.quote.guestPrice ?? data.guestPrice),
-        deliveriesInPeriod: data.quote.deliveriesInPeriod,
+    const periods = subConfig.availablePeriods ?? [7, 14, 28]
+    const results = await Promise.all(
+      periods.map(async (p) => {
+        const res = await fetch('/api/subscriptions/quote', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json', ...telegramInitHeaderRecord() },
+          body: JSON.stringify({ ...quotePayload, periodDays: p }),
+        })
+        const data = await res.json().catch(() => null)
+        if (!res.ok || !data?.ok || !data.quote) return [p, undefined] as const
+        const q = data.quote
+        return [
+          p,
+          {
+            guestPrice: Number(q.guestPrice ?? 0),
+            periodRetail: Number(q.periodRetail ?? 0),
+            guestSavingsPercent: Number(q.guestSavingsPercent ?? 0),
+            deliveriesInPeriod: Number(q.deliveriesInPeriod ?? 0),
+            perDeliveryRetail: Number(q.perDeliveryRetail ?? 0),
+          },
+        ] as const
       })
-    }
-  }, [lines, selectedDays, periodDays, personCount])
+    )
+    const map: Record<number, PeriodQuote | undefined> = {}
+    for (const [p, q] of results) map[p] = q
+    setQuotesByPeriod(map)
+  }, [lines.length, quotePayload, selectedDays.length, subConfig.availablePeriods])
 
   useEffect(() => {
-    const t = setTimeout(() => void refreshQuote(), 400)
+    const t = setTimeout(() => void refreshQuotes(), phase === 'checkout' ? 300 : 600)
     return () => clearTimeout(t)
-  }, [refreshQuote])
+  }, [refreshQuotes, phase, periodDays])
 
   const dishesByCategory = useMemo(() => {
-    const map: Record<string, Dish[]> = {}
+    const map: Record<string, typeof dishes> = {}
     for (const d of dishes) {
       const cid = d.categoryId || 'uncat'
       if (!map[cid]) map[cid] = []
@@ -278,44 +228,8 @@ export function SubscriptionCheckoutFlow() {
     return map
   }, [dishes])
 
-  const visibleDishes = useMemo(() => {
-    let list = categoryFilter === 'all' ? dishes : dishesByCategory[categoryFilter] ?? []
-    if (activeSlot !== 'all') {
-      const slotCfg = subConfig.mealSlots[activeSlot]
-      const allowed = new Set(slotCfg?.dishIds ?? [])
-      list = list.filter((d) => allowed.has(d.id))
-    }
-    return list
-  }, [dishes, dishesByCategory, categoryFilter, activeSlot, subConfig])
-
-  const categoryChips = useMemo(() => {
-    const chips = [{ id: 'all', name: 'всё', emoji: null as string | null }]
-    for (const c of categories) {
-      if ((dishesByCategory[c.id]?.length ?? 0) > 0) chips.push({ id: c.id, name: c.name, emoji: c.emoji ?? null })
-    }
-    return chips
-  }, [categories, dishesByCategory])
-
-  const rationStripLines = useMemo(
-    () =>
-      lines.map((l) => {
-        const dish = dishes.find((d) => d.id === l.dishId)
-        return {
-          key: lineKey(l),
-          dishId: l.dishId,
-          quantity: l.quantity,
-          image: dish?.image,
-          name: dish?.name ?? '—',
-        }
-      }),
-    [lines, dishes]
-  )
-
-  const calendarCells = useMemo(
-    () => buildPeriodCalendar(startDate, periodDays, selectedDays),
-    [startDate, periodDays, selectedDays]
-  )
-  const deliveryCount = calendarCells.filter((c) => c.isDelivery).length
+  const activeQuote = quotesByPeriod[periodDays] ?? null
+  const perDeliveryEstimate = activeQuote?.perDeliveryRetail ?? quotesByPeriod[subConfig.defaultPeriodDays ?? 28]?.perDeliveryRetail ?? 0
 
   function toggleDay(day: number) {
     setSelectedDays((prev) => {
@@ -336,6 +250,7 @@ export function SubscriptionCheckoutFlow() {
         toast.error('уже в рационе')
         return prev
       }
+      toast.success('добавлено в рацион')
       return [...prev, item]
     })
   }
@@ -358,6 +273,15 @@ export function SubscriptionCheckoutFlow() {
     setLines((prev) => prev.map((x) => (lineKey(x) === k ? { ...x, modifierIds } : x)))
   }
 
+  function goToCheckout() {
+    if (!lines.length) {
+      toast.error('выберите хотя бы одно блюдо')
+      return
+    }
+    setPhase('checkout')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   async function submit() {
     if (!name.trim()) {
       toast.error('введите имя')
@@ -374,16 +298,17 @@ export function SubscriptionCheckoutFlow() {
     setSubmitting(true)
     try {
       const plan: SubscriptionPlan = periodDays <= 7 ? 'WEEKLY' : periodDays <= 14 ? 'BIWEEKLY' : 'MONTHLY'
+      const price = Math.round(activeQuote?.guestPrice ?? 0)
       const payload = {
         name: name.trim(),
         plan,
         personCount,
         periodDays,
         deliveryDays: selectedDays.map(wizardDayToJs),
-        deliveryTime: '13:00',
+        deliveryTime,
         startDate: startDate.toISOString(),
         nextDelivery: startDate.toISOString(),
-        price: Math.round(liveQuote?.guestPrice ?? 0),
+        price,
         items: lines.map((l) => {
           const dish = dishes.find((d) => d.id === l.dishId)
           return {
@@ -406,7 +331,7 @@ export function SubscriptionCheckoutFlow() {
             plan,
             personCount,
             periodDays,
-            price: Math.round(liveQuote?.guestPrice ?? 0),
+            price,
             deliveryDays: selectedDays.map(wizardDayToJs),
             items: payload.items,
           }),
@@ -441,9 +366,9 @@ export function SubscriptionCheckoutFlow() {
         name: name.trim(),
         plan,
         status: 'PENDING' as SubscriptionStatus,
-        price: Math.round(liveQuote?.guestPrice ?? 0),
+        price,
         deliveryDays: selectedDays.map(wizardDayToJs),
-        deliveryTime: '13:00',
+        deliveryTime,
         startDate: new Date(),
         items: lines.map((l) => ({ ...l, dish: dishes.find((d) => d.id === l.dishId) })) as any,
       } as any)
@@ -454,315 +379,69 @@ export function SubscriptionCheckoutFlow() {
     }
   }
 
-  const totalPrice = liveQuote?.guestPrice ?? 0
-  const canSubmit = Boolean(name.trim()) && lines.length > 0 && selectedDays.length >= minDays
-  const submitCta = resumeId
-    ? `сохранить · ${formatPrice(totalPrice)}`
-    : `отправить · ${formatPrice(totalPrice)}`
-
   if (loading) {
     return (
       <main className="ui-container ui-screen">
-        <PageHeader backHref="/subscriptions" title="оформление" subtitle="подписка" />
+        <PageHeader backHref="/subscriptions" title="подписка" subtitle="загрузка меню" />
         <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
       </main>
     )
   }
 
-  return (
-    <main className="ui-container ui-screen pb-[var(--ufo-scroll-pad-floating,calc(5.75rem+12px))]">
-      <PageHeader
-        backHref="/subscriptions"
-        title="оформление"
-        subtitle={resumeId ? 'редактирование заявки на подписку' : 'подписка · рацион и расписание'}
+  if (phase === 'menu') {
+    return (
+      <SubscriptionMenuPickerPhase
+        categories={categories}
+        dishes={dishes}
+        dishesByCategory={dishesByCategory}
+        lines={lines}
+        categoryFilter={categoryFilter}
+        tagFilter={tagFilter}
+        activeSlot={activeSlot}
+        enabledSlots={enabledSlots}
+        subConfig={subConfig}
+        perDeliveryEstimate={perDeliveryEstimate}
+        onCategoryFilter={setCategoryFilter}
+        onTagFilter={setTagFilter}
+        onActiveSlot={setActiveSlot}
+        onAddDish={addDish}
+        onContinue={goToCheckout}
       />
+    )
+  }
 
-      <div className="border-t border-[color:var(--stroke)]">
-        {/* рацион — как блок «заказ» в чекауте */}
-        <section className="border-b border-[color:var(--stroke)] py-3">
-          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">рацион</h3>
-          {lines.length > 0 ? (
-            <SubscriptionRationStrip lines={rationStripLines} className="mb-3" />
-          ) : (
-            <p className="mb-3 text-[13px] text-[color:var(--muted)]">выберите блюда из меню ниже</p>
-          )}
-
-          {enabledSlots.length > 1 ? (
-            <div className="mb-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveSlot('all')}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-[12px] font-semibold',
-                  activeSlot === 'all' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
-                )}
-              >
-                весь день
-              </button>
-              {enabledSlots.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setActiveSlot(s)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-[12px] font-semibold capitalize',
-                    activeSlot === s ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
-                  )}
-                >
-                  {MEAL_SLOT_LABEL[s]}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="mb-3 flex flex-wrap gap-2">
-            {categoryChips.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCategoryFilter(c.id)}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-[12px] font-semibold',
-                  categoryFilter === c.id
-                    ? 'border-[color:var(--primary)] bg-[color:var(--primary)] text-white'
-                    : 'border-[color:var(--stroke)]'
-                )}
-              >
-                {c.emoji ? `${c.emoji} ` : ''}
-                {c.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            {visibleDishes.map((d) => {
-              const inCart = lines.some((l) => l.dishId === d.id)
-              return (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => addDish(d.id)}
-                  className={cn(
-                    'overflow-hidden rounded-[var(--radius-medium)] border text-left shadow-[var(--shadow-soft)] transition active:scale-[0.98]',
-                    inCart ? 'border-[color:var(--primary)]' : 'border-[color:var(--stroke)]'
-                  )}
-                >
-                  <div className="relative aspect-[4/3] w-full bg-black/5">
-                    {d.image ? (
-                      <OptimizedImage src={d.image} alt="" className="object-cover" sizes={IMAGE_SIZES.menuGrid} />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-[28px]">🍽</div>
-                    )}
-                    {inCart ? (
-                      <span className="absolute right-2 top-2 rounded-full bg-[color:var(--primary)] px-2 py-0.5 text-[10px] font-bold text-white">
-                        ✓
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="p-2.5">
-                    <p className="line-clamp-2 text-[13px] font-semibold leading-snug">{d.name}</p>
-                    <p className="mt-1 text-[12px] font-bold tabular-nums">{formatPrice(d.price)}</p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {lines.length > 0 ? (
-            <ul className="mt-4 space-y-0 divide-y divide-[color:var(--stroke)] rounded-[var(--radius-medium)] border border-[color:var(--stroke)]">
-              {lines.map((l) => {
-                const dish = dishes.find((d) => d.id === l.dishId)
-                if (!dish) return null
-                return (
-                  <li key={lineKey(l)} className="px-3 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-medium)] bg-black/5">
-                        {dish.image ? (
-                          <OptimizedImage src={dish.image} alt="" className="object-cover" sizes={IMAGE_SIZES.checkoutThumb} />
-                        ) : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-semibold">{dish.name}</p>
-                        {l.mealSlot ? (
-                          <p className="text-[11px] text-[color:var(--muted)]">{MEAL_SLOT_LABEL[l.mealSlot]}</p>
-                        ) : null}
-                      </div>
-                      <InlineCounter value={l.quantity} onDec={() => updateQty(l, -1)} onInc={() => updateQty(l, 1)} />
-                      <button type="button" className="text-[18px] leading-none text-[color:var(--muted)]" onClick={() => removeLine(l)} aria-label="убрать">
-                        ×
-                      </button>
-                    </div>
-                    <SubscriptionDishOptionsPanel
-                      dish={dish}
-                      modifierIds={l.modifierIds ?? []}
-                      onChange={(ids) => setLineModifierIds(l, ids)}
-                    />
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
-        </section>
-
-        {/* расписание + календарь */}
-        <section className="border-b border-[color:var(--stroke)] py-3">
-          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">расписание</h3>
-          <p className="mb-3 text-[13px] text-[color:var(--text)]">{nearestDeliveryLabel(selectedDays)}</p>
-
-          <div className="mb-3 grid grid-cols-7 gap-1.5">
-            {WEEKDAYS.map((label, idx) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => toggleDay(idx)}
-                className={cn(
-                  'flex aspect-square max-h-11 items-center justify-center rounded-full text-[12px] font-semibold transition active:scale-[0.96]',
-                  selectedDays.includes(idx)
-                    ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
-                    : 'border border-[color:var(--stroke)]'
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <span className="text-[12px] font-semibold text-[color:var(--muted)]">старт подписки</span>
-            <input
-              type="date"
-              value={startDate.toISOString().slice(0, 10)}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => {
-                const d = new Date(e.target.value + 'T12:00:00')
-                if (!Number.isNaN(d.getTime())) setStartDate(d)
-              }}
-              className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-transparent px-2 py-1.5 text-[13px] font-semibold tabular-nums"
-            />
-          </div>
-
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[12px] font-semibold text-[color:var(--muted)]">календарь · {periodLabel(periodDays)}</span>
-            <span className="text-[12px] tabular-nums text-[color:var(--text)]">
-              {deliveryCount} доставок
-            </span>
-          </div>
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {calendarCells.map((cell) => (
-              <div
-                key={cell.key}
-                className={cn(
-                  'flex w-[52px] shrink-0 flex-col items-center rounded-[var(--radius-medium)] border px-1 py-2 text-center',
-                  cell.isDelivery
-                    ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]'
-                    : 'border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--muted)]',
-                  cell.isStart && 'ring-2 ring-[color:var(--primary)] ring-offset-1'
-                )}
-              >
-                <span className="text-[9px] font-bold uppercase opacity-80">{cell.weekday}</span>
-                <span className="text-[16px] font-extrabold tabular-nums">{cell.day}</span>
-                <span className="text-[9px] opacity-70">{cell.month}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex items-center justify-between border-b border-[color:var(--stroke)] py-2.5">
-            <span className="ui-muted shrink-0">персон</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="btn btn-soft h-8 w-8 rounded-full text-[16px]"
-                onClick={() => setPersonCount((n) => Math.max(subConfig.minPersons, n - 1))}
-              >
-                −
-              </button>
-              <span className="min-w-[2ch] text-center text-[15px] font-bold tabular-nums">{personCount}</span>
-              <button
-                type="button"
-                className="btn btn-soft h-8 w-8 rounded-full text-[16px]"
-                onClick={() => setPersonCount((n) => Math.min(subConfig.maxPersons, n + 1))}
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-3">
-            <span className="mb-2 block text-[12px] font-semibold text-[color:var(--muted)]">период</span>
-            <div className="flex flex-wrap gap-2">
-              {(subConfig.availablePeriods ?? [7, 14, 28]).map((d) => {
-                const extra = getPeriodDiscountPercent(subConfig.periodDiscounts, d)
-                const sel = periodDays === d
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setPeriodDays(d)}
-                    className={cn(
-                      'relative min-w-[88px] rounded-xl border px-3 py-2.5 text-center transition',
-                      sel ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]' : 'border-[color:var(--stroke)]'
-                    )}
-                  >
-                    <span className="block text-[13px] font-bold">{periodLabel(d)}</span>
-                    <span className="mt-0.5 block text-[10px] opacity-80">{d} дн.</span>
-                    {extra > 0 ? (
-                      <span className="absolute -right-1 -top-1 rounded-full bg-[color:var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
-                        −{extra}%
-                      </span>
-                    ) : null}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* контакт */}
-        <section className="border-b border-[color:var(--stroke)] py-3">
-          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">контакт</h3>
-          <div className="flex items-center justify-between border-b border-[color:var(--stroke)] py-2.5">
-            <span className="ui-muted shrink-0">имя</span>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="как к вам обращаться"
-              className="ui-body ml-3 w-[65%] border-none bg-transparent p-0 text-right outline-none placeholder:text-[color:var(--muted)]"
-            />
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="ui-muted shrink-0">telegram</span>
-            <span className="ui-body ml-3 text-right text-[14px] font-semibold">{telegramContact || 'из mini app'}</span>
-          </div>
-        </section>
-
-        {/* итого */}
-        <section className="py-3">
-          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">итого</h3>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-[14px] font-semibold">за период</span>
-            <span className="text-[22px] font-extrabold tabular-nums">{formatPrice(totalPrice)}</span>
-          </div>
-          <p className="text-[12px] text-[color:var(--muted)]">
-            {selectedDays.length} дн/нед · {periodLabel(periodDays)} · {personCount} перс. · {lines.length} блюд
-          </p>
-          <p className="mt-2 text-[12px] text-[color:var(--muted)]">
-            После отправки заведение проверит рацион и подтвердит подписку в Telegram.
-          </p>
-        </section>
-      </div>
-
-      <div className="pointer-events-none fixed bottom-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+8px)] left-1/2 z-[115] w-[min(640px,96%)] max-w-full -translate-x-1/2">
-        <button
-          type="button"
-          disabled={!canSubmit || submitting}
-          onClick={() => void submit()}
-          className="pointer-events-auto btn btn-primary h-12 w-full text-[16px] disabled:opacity-50"
-          style={{ borderRadius: 'var(--radius-pill)' }}
-        >
-          {submitting ? '…' : submitCta}
-        </button>
-      </div>
-    </main>
+  return (
+    <SubscriptionCheckoutConfigPhase
+      resumeId={resumeId}
+      lines={lines}
+      dishes={dishes}
+      selectedDays={selectedDays}
+      periodDays={periodDays}
+      personCount={personCount}
+      startDate={startDate}
+      deliveryTime={deliveryTime}
+      name={name}
+      telegramContact={telegramContact}
+      subConfig={subConfig}
+      quotesByPeriod={quotesByPeriod}
+      activeQuote={activeQuote}
+      submitting={submitting}
+      minDays={minDays}
+      maxDays={maxDays}
+      onBack={() => setPhase('menu')}
+      onToggleDay={toggleDay}
+      onPeriodDays={setPeriodDays}
+      onPersonCount={(delta) =>
+        setPersonCount((n) => Math.max(subConfig.minPersons, Math.min(subConfig.maxPersons, n + delta)))
+      }
+      onStartDate={setStartDate}
+      onDeliveryTime={setDeliveryTime}
+      onName={setName}
+      onRemoveLine={removeLine}
+      onUpdateQty={updateQty}
+      onLineModifiers={setLineModifierIds}
+      onAddMore={() => setPhase('menu')}
+      onSubmit={() => void submit()}
+    />
   )
 }
