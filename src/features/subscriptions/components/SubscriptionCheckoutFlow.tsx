@@ -21,6 +21,8 @@ import {
   jsDayToWizard,
   lineKey,
   mapSubscriptionDish,
+  parseJsonArray,
+  categoriesFromDishes,
   type MenuCategory,
   type PeriodQuote,
   type SelectedLine,
@@ -81,12 +83,25 @@ export function SubscriptionCheckoutFlow() {
     async function load() {
       setLoading(true)
       try {
-        const [cfgRes, dishRes] = await Promise.all([
+        const [cfgRes, dishRes, catRes] = await Promise.all([
           fetch('/api/subscriptions/config', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
           fetch('/api/dishes?subscriptionEligible=true', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
+          fetch('/api/categories', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
         ])
         const cfgData = await cfgRes.json().catch(() => null)
-        const dishData = await dishRes.json().catch(() => null)
+        const dishJson = await dishRes.json().catch(() => [])
+        let dishList = dishRes.ok ? parseJsonArray<any>(dishJson) : []
+        if (dishList.length === 0) {
+          const allRes = await fetch('/api/dishes', {
+            cache: 'no-store',
+            credentials: 'include',
+            headers: { ...telegramInitHeaderRecord() },
+          })
+          const allJson = await allRes.json().catch(() => [])
+          if (allRes.ok) dishList = parseJsonArray<any>(allJson)
+        }
+        const catJson = await catRes.json().catch(() => [])
+        const catData = catRes.ok ? parseJsonArray<any>(catJson) : []
         if (cancelled) return
         if (cfgData?.ok && cfgData.config) {
           const cfg = cfgData.config as SubscriptionConfig
@@ -98,7 +113,7 @@ export function SubscriptionCheckoutFlow() {
           setSelectedDays(days)
           const prefill = buildPrefillItems(
             cfg,
-            (dishData?.dishes ?? []).map((d: any) => ({ id: d.id, tags: d.tags })),
+            dishList.map((d: any) => ({ id: d.id, tags: d.tags })),
             { enabledSlots: slots, deliveryDays: days, personCount: cfg.minPersons ?? 1, periodDays: cfg.defaultPeriodDays ?? 28 },
             [],
           )
@@ -113,8 +128,15 @@ export function SubscriptionCheckoutFlow() {
             )
           }
         }
-        if (dishData?.ok && Array.isArray(dishData.dishes)) setDishes(dishData.dishes.map(mapSubscriptionDish))
-        if (Array.isArray(dishData?.categories)) setCategories(dishData.categories)
+        const mappedDishes = dishList.map(mapSubscriptionDish)
+        setDishes(mappedDishes)
+        const loadedCategories: MenuCategory[] = catData.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug ?? c.id,
+          emoji: c.emoji ?? null,
+        }))
+        setCategories(categoriesFromDishes(mappedDishes, loadedCategories))
       } finally {
         if (!cancelled) setLoading(false)
       }

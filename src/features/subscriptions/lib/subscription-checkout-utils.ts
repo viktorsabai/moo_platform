@@ -48,7 +48,8 @@ export function mapSubscriptionDish(d: any): Dish {
     calories: d.calories ?? undefined,
     optionGroups: Array.isArray(d.optionGroups) ? d.optionGroups : [],
     modifiers: Array.isArray(d.modifiers) ? d.modifiers : [],
-  }
+    ...(d.category ? { category: d.category } : {}),
+  } as Dish
 }
 
 export function primaryDishTag(tags?: string[]): string | null {
@@ -86,6 +87,31 @@ export function formatFirstDeliveryMessage(startDate: Date, wizardDays: number[]
   const todayWizard = jsDayToWizard(new Date().getDay())
   let next = wizardDays.find((d) => d >= todayWizard) ?? wizardDays[0]
   return `Ближайшая доставка: ${WEEKDAYS[next]} в ${time}`
+}
+
+export function parseJsonArray<T = unknown>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[]
+  if (data && typeof data === 'object' && Array.isArray((data as { dishes?: unknown }).dishes)) {
+    return (data as { dishes: T[] }).dishes
+  }
+  return []
+}
+
+export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[]): MenuCategory[] {
+  if (categories.length > 0) return categories
+  const map = new Map<string, MenuCategory>()
+  for (const d of dishes) {
+    const cid = d.categoryId || 'uncat'
+    if (map.has(cid)) continue
+    const cat = (d as Dish & { category?: { name?: string; emoji?: string | null } }).category
+    map.set(cid, {
+      id: cid,
+      name: cat?.name ?? 'меню',
+      slug: cid,
+      emoji: cat?.emoji ?? null,
+    })
+  }
+  return Array.from(map.values())
 }
 
 export function mealSlotShort(slot: MealSlot | null) {

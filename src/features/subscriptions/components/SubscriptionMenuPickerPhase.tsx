@@ -125,10 +125,24 @@ export function SubscriptionMenuPickerPhase({
 
   const categorySections =
     categoryFilter === 'all'
-      ? categories
-          .map((c) => ({ category: c, items: filtered.filter((d) => d.categoryId === c.id) }))
-          .filter((s) => s.items.length > 0)
-      : [{ category: categories.find((c) => c.id === categoryFilter) ?? { id: categoryFilter, name: 'меню', slug: '' }, items: filtered }]
+      ? categories.length > 0
+        ? categories
+            .map((c) => ({ category: c, items: filtered.filter((d) => d.categoryId === c.id) }))
+            .filter((s) => s.items.length > 0)
+        : filtered.length > 0
+          ? [{ category: { id: 'all', name: 'меню', slug: 'all', emoji: '🍽' }, items: filtered }]
+          : []
+      : [
+          {
+            category: categories.find((c) => c.id === categoryFilter) ?? {
+              id: categoryFilter,
+              name: 'меню',
+              slug: categoryFilter,
+              emoji: null,
+            },
+            items: filtered,
+          },
+        ]
 
   const uniqueThumbIds = [...new Set(lines.map((l) => l.dishId))].slice(0, 4)
 
@@ -220,6 +234,15 @@ export function SubscriptionMenuPickerPhase({
       ) : null}
 
       <div className="space-y-8">
+        {filtered.length === 0 ? (
+          <div className="ui-surface-card py-10 text-center">
+            <p className="text-[15px] font-bold">меню пока пустое</p>
+            <p className="mt-1 text-[13px] text-[color:var(--muted)]">
+              добавьте блюда в ЛК или отметьте «доступно для подписки»
+            </p>
+          </div>
+        ) : null}
+
         {categoryFilter === 'all' && popular.length > 0 ? (
           <section>
             <h2 className="mb-3 text-[16px] font-extrabold tracking-tight">популярное</h2>
