@@ -5,10 +5,12 @@ import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { InlineCounter } from '@/components/ui/InlineCounter'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
-import { getPeriodDiscountPercent, periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
+import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
+import { formatGuestPeriodBadge } from '@/lib/subscription-offer-labels'
 import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
 import {
   WEEKDAYS,
+  allowedOptionIdsForLine,
   type PeriodQuote,
   type SelectedLine,
   formatFirstDeliveryMessage,
@@ -169,6 +171,7 @@ export function SubscriptionCheckoutConfigPhase({
                 <SubscriptionDishOptionsPanel
                   dish={dish}
                   modifierIds={l.modifierIds ?? []}
+                  allowedOptionIds={allowedOptionIdsForLine(subConfig, l.mealSlot)}
                   onChange={(ids) => onLineModifiers(l, ids)}
                 />
               </li>
@@ -238,7 +241,7 @@ export function SubscriptionCheckoutConfigPhase({
         <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {periods.map((d) => {
             const q = quotesByPeriod[d]
-            const extra = getPeriodDiscountPercent(subConfig.periodDiscounts, d)
+            const badge = formatGuestPeriodBadge(subConfig.commerce, subConfig.periodDiscounts, d)
             const sel = periodDays === d
             return (
               <button
@@ -250,14 +253,9 @@ export function SubscriptionCheckoutConfigPhase({
                   sel ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]' : 'border-[color:var(--stroke)] bg-[color:var(--surface)]'
                 )}
               >
-                {extra > 0 ? (
-                  <span
-                    className={cn(
-                      'absolute -right-1 -top-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold',
-                      sel ? 'bg-[color:var(--accent)] text-white' : 'bg-[color:var(--accent)] text-white'
-                    )}
-                  >
-                    −{extra}%
+                {badge ? (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-[color:var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    {badge}
                   </span>
                 ) : null}
                 <span className="text-[14px] font-extrabold">{periodLabel(d)}</span>

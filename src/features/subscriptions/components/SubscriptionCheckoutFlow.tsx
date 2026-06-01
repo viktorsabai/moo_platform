@@ -11,8 +11,8 @@ import {
   getEnabledMealSlots,
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
-import { buildPrefillItems, suggestDeliveryDays } from '@/lib/subscription-prefill'
-import { parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
+import { suggestDeliveryDays } from '@/lib/subscription-prefill'
+import { MEAL_SLOT_LABEL, parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import { loadDeliveryProfile } from '@/lib/delivery-profile'
 import { SubscriptionMenuPickerPhase } from '@/features/subscriptions/components/SubscriptionMenuPickerPhase'
@@ -22,8 +22,8 @@ import {
   lineKey,
   mapSubscriptionDish,
   parseJsonArray,
-  categoriesFromDishes,
-  type MenuCategory,
+  guestCatalogDishIds,
+  allowedOptionIdsForLine,
   type PeriodQuote,
   type SelectedLine,
   wizardDayToJs,
@@ -42,7 +42,6 @@ export function SubscriptionCheckoutFlow() {
   const [submitting, setSubmitting] = useState(false)
   const [subConfig, setSubConfig] = useState<SubscriptionConfig>(defaultSubscriptionConfig())
   const [dishes, setDishes] = useState<ReturnType<typeof mapSubscriptionDish>[]>([])
-  const [categories, setCategories] = useState<MenuCategory[]>([])
   const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2])
   const [periodDays, setPeriodDays] = useState(28)
   const [personCount, setPersonCount] = useState(1)
@@ -55,9 +54,7 @@ export function SubscriptionCheckoutFlow() {
   })
   const [lines, setLines] = useState<SelectedLine[]>([])
   const [name, setName] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [tagFilter, setTagFilter] = useState('all')
-  const [activeSlot, setActiveSlot] = useState<MealSlot | 'all'>('all')
+  const [activeSlot, setActiveSlot] = useState<MealSlot>('lunch')
   const [quotesByPeriod, setQuotesByPeriod] = useState<Record<number, PeriodQuote | undefined>>({})
   const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const createRequestIdRef = useRef<string | null>(null)
@@ -83,10 +80,9 @@ export function SubscriptionCheckoutFlow() {
     async function load() {
       setLoading(true)
       try {
-        const [cfgRes, dishRes, catRes] = await Promise.all([
+        const [cfgRes, dishRes] = await Promise.all([
           fetch('/api/subscriptions/config', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
           fetch('/api/dishes?subscriptionEligible=true', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
-          fetch('/api/categories', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
         ])
         const cfgData = await cfgRes.json().catch(() => null)
         const dishJson = await dishRes.json().catch(() => [])
@@ -100,8 +96,6 @@ export function SubscriptionCheckoutFlow() {
           const allJson = await allRes.json().catch(() => [])
           if (allRes.ok) dishList = parseJsonArray<any>(allJson)
         }
-        const catJson = await catRes.json().catch(() => [])
-        const catData = catRes.ok ? parseJsonArray<any>(catJson) : []
         if (cancelled) return
         if (cfgData?.ok && cfgData.config) {
           const cfg = cfgData.config as SubscriptionConfig
@@ -109,34 +103,12 @@ export function SubscriptionCheckoutFlow() {
           setPeriodDays(cfg.defaultPeriodDays ?? 28)
           setPersonCount(cfg.minPersons ?? 1)
           const slots = getEnabledMealSlots(cfg)
+          if (slots.length) setActiveSlot(slots[0])
           const days = suggestDeliveryDays(cfg, slots)
           setSelectedDays(days)
-          const prefill = buildPrefillItems(
-            cfg,
-            dishList.map((d: any) => ({ id: d.id, tags: d.tags })),
-            { enabledSlots: slots, deliveryDays: days, personCount: cfg.minPersons ?? 1, periodDays: cfg.defaultPeriodDays ?? 28 },
-            [],
-          )
-          if (prefill.length && !resumeId) {
-            setLines(
-              prefill.map((p) => ({
-                dishId: p.dishId,
-                quantity: p.quantity,
-                mealSlot: p.mealSlot ?? null,
-                modifierIds: p.modifierIds ?? [],
-              }))
-            )
-          }
         }
         const mappedDishes = dishList.map(mapSubscriptionDish)
         setDishes(mappedDishes)
-        const loadedCategories: MenuCategory[] = catData.map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          slug: c.slug ?? c.id,
-          emoji: c.emoji ?? null,
-        }))
-        setCategories(categoriesFromDishes(mappedDishes, loadedCategories))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -240,15 +212,26 @@ export function SubscriptionCheckoutFlow() {
     return () => clearTimeout(t)
   }, [refreshQuotes, phase, periodDays])
 
-  const dishesByCategory = useMemo(() => {
-    const map: Record<string, typeof dishes> = {}
-    for (const d of dishes) {
-      const cid = d.categoryId || 'uncat'
-      if (!map[cid]) map[cid] = []
-      map[cid].push(d)
-    }
-    return map
-  }, [dishes])
+  const catalogDishes = useMemo(() => {
+    const allowed = guestCatalogDishIds(subConfig)
+    if (!allowed) return dishes
+    return dishes.filter((d) => allowed.has(d.id))
+  }, [dishes, subConfig])
+
+  const dishesForSlot = useMemo(() => {
+    const ids = subConfig.mealSlots[activeSlot]?.dishIds ?? []
+    if (ids.length === 0) return catalogDishes
+    const allowed = new Set(ids)
+    return catalogDishes.filter((d) => allowed.has(d.id))
+  }, [catalogDishes, subConfig, activeSlot])
+
+  const recommendedDishIds = useMemo(() => {
+    const sc = subConfig.mealSlots[activeSlot]
+    const defs = sc?.defaultDishIds?.length ? sc.defaultDishIds : (sc?.dishIds ?? []).slice(0, 4)
+    return defs.filter((id) => dishesForSlot.some((d) => d.id === id))
+  }, [subConfig, activeSlot, dishesForSlot])
+
+  const slotStepIndex = Math.max(0, enabledSlots.indexOf(activeSlot))
 
   const activeQuote = quotesByPeriod[periodDays] ?? null
   const perDeliveryEstimate = activeQuote?.perDeliveryRetail ?? quotesByPeriod[subConfig.defaultPeriodDays ?? 28]?.perDeliveryRetail ?? 0
@@ -265,8 +248,7 @@ export function SubscriptionCheckoutFlow() {
   }
 
   function addDish(dishId: string) {
-    const slot = activeSlot === 'all' ? enabledSlots[0] ?? null : activeSlot
-    const item: SelectedLine = { dishId, quantity: 1, mealSlot: slot, modifierIds: [] }
+    const item: SelectedLine = { dishId, quantity: 1, mealSlot: activeSlot, modifierIds: [] }
     setLines((prev) => {
       if (prev.some((x) => lineKey(x) === lineKey(item))) {
         toast.error('уже в рационе')
@@ -296,6 +278,27 @@ export function SubscriptionCheckoutFlow() {
   }
 
   function goToCheckout() {
+    if (!lines.some((l) => l.mealSlot === activeSlot)) {
+      toast.error(`выберите блюдо · ${MEAL_SLOT_LABEL[activeSlot]}`)
+      return
+    }
+    const idx = enabledSlots.indexOf(activeSlot)
+    if (idx >= 0 && idx < enabledSlots.length - 1) {
+      const nextSlot = enabledSlots[idx + 1]
+      if (!lines.some((l) => l.mealSlot === nextSlot)) {
+        setActiveSlot(nextSlot)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+    }
+    for (const slot of enabledSlots) {
+      if (!lines.some((l) => l.mealSlot === slot)) {
+        setActiveSlot(slot)
+        toast.error(`выберите блюдо · ${MEAL_SLOT_LABEL[slot]}`)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+    }
     if (!lines.length) {
       toast.error('выберите хотя бы одно блюдо')
       return
@@ -413,18 +416,14 @@ export function SubscriptionCheckoutFlow() {
   if (phase === 'menu') {
     return (
       <SubscriptionMenuPickerPhase
-        categories={categories}
-        dishes={dishes}
-        dishesByCategory={dishesByCategory}
+        dishes={dishesForSlot}
         lines={lines}
-        categoryFilter={categoryFilter}
-        tagFilter={tagFilter}
         activeSlot={activeSlot}
         enabledSlots={enabledSlots}
+        slotStepIndex={slotStepIndex}
+        recommendedDishIds={recommendedDishIds}
         subConfig={subConfig}
         perDeliveryEstimate={perDeliveryEstimate}
-        onCategoryFilter={setCategoryFilter}
-        onTagFilter={setTagFilter}
         onActiveSlot={setActiveSlot}
         onAddDish={addDish}
         onContinue={goToCheckout}

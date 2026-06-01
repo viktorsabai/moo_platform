@@ -12,7 +12,7 @@ import { allowedModifierIdsByDish, filterModifierIdsForDish } from '@/lib/dish-m
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
 import { validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
-import { calculateSubscriptionQuote } from '@/lib/subscription-pricing'
+import { computeSubscriptionQuoteForRestaurant } from '@/lib/subscription-quote-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -305,55 +305,19 @@ export async function POST(request: Request) {
     }))
   }
 
-  const allModIds = [...new Set(itemCreates.flatMap((it) => it.modifierIds))]
-  const [modifiers, optionLinks] = allModIds.length
-    ? await Promise.all([
-        prisma.dishModifier.findMany({
-          where: { id: { in: allModIds }, dish: { restaurantId } },
-          select: { id: true, priceAdjust: true, costPrice: true, subscriptionEligible: true },
-        }),
-        prisma.dishOptionValue.findMany({
-          where: { restaurantId, optionValueId: { in: allModIds } },
-          select: { optionValueId: true, priceAdjust: true, costPrice: true, subscriptionEligible: true },
-        }),
-      ])
-    : [[], []]
-
-  const dishMap = new Map(
-    existingDishes.map((d) => [d.id, { id: d.id, price: Number(d.price), costPrice: d.costPrice == null ? null : Number(d.costPrice) }])
-  )
-  const modMap = new Map<string, { id: string; priceAdjust: number; costPrice: number | null }>()
-  for (const m of modifiers) {
-    if (m.subscriptionEligible === false) continue
-    modMap.set(m.id, { id: m.id, priceAdjust: Number(m.priceAdjust), costPrice: m.costPrice == null ? null : Number(m.costPrice) })
-  }
-  for (const o of optionLinks) {
-    if (o.subscriptionEligible === false) continue
-    modMap.set(o.optionValueId, {
-      id: o.optionValueId,
-      priceAdjust: Number(o.priceAdjust),
-      costPrice: o.costPrice == null ? null : Number(o.costPrice),
-    })
-  }
-
-  const quote = calculateSubscriptionQuote({
-    items: itemCreates.map((it) => ({
-      dishId: it.dishId,
-      quantity: it.quantity,
-      mealSlot: it.mealSlot,
-      modifierIds: it.modifierIds,
-    })),
-    deliveryDaysPerWeek: deliveryDays.length || minDays,
-    periodDays,
-    personCount,
-    commerce: subConfig.commerce,
-    dishes: dishMap,
-    modifiers: modMap,
-    ownerPriceOverride: !planTemplateId ? Number(body?.price ?? 0) || null : null,
-  })
-
+  let quoteForResponse: Awaited<ReturnType<typeof computeSubscriptionQuoteForRestaurant>> = null
   if (!planTemplateId || !template || String(template.pricingMode || 'FIXED') !== 'FIXED') {
-    price = quote.guestPrice
+    const quoteResult = await computeSubscriptionQuoteForRestaurant(restaurantId, {
+      items: itemCreates,
+      deliveryDays,
+      periodDays,
+      personCount,
+    })
+    if (!quoteResult) {
+      return NextResponse.json({ ok: false, error: 'не удалось рассчитать цену подписки' }, { status: 400 })
+    }
+    quoteForResponse = quoteResult
+    price = quoteResult.quote.guestPrice
   }
 
   let subscription: { id: string }
@@ -459,15 +423,19 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       subscriptionId: subscription.id,
-      economics: {
-        perDeliveryRetail: quote.perDeliveryRetail,
-        perDeliveryCost: quote.perDeliveryCost,
-        perDeliveryMargin: Number((quote.perDeliveryRetail - quote.perDeliveryCost).toFixed(2)),
-        perDeliveryMarginPct: quote.ownerMarginPercent,
-        periodRetail: quote.periodRetail,
-        guestSavings: quote.guestSavings,
-        guestSavingsPercent: quote.guestSavingsPercent,
-      },
+      economics: quoteForResponse
+        ? {
+            perDeliveryRetail: quoteForResponse.quote.perDeliveryRetail,
+            perDeliveryCost: quoteForResponse.quote.perDeliveryCost,
+            perDeliveryMargin: Number(
+              (quoteForResponse.quote.perDeliveryRetail - quoteForResponse.quote.perDeliveryCost).toFixed(2)
+            ),
+            perDeliveryMarginPct: quoteForResponse.quote.ownerMarginPercent,
+            periodRetail: quoteForResponse.quote.periodRetail,
+            guestSavings: quoteForResponse.quote.guestSavings,
+            guestSavingsPercent: quoteForResponse.quote.guestSavingsPercent,
+          }
+        : undefined,
     })
   } catch (e: any) {
     const msg = String(e?.message || e || 'Ошибка сервера')

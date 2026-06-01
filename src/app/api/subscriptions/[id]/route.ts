@@ -5,8 +5,6 @@ import { prisma } from '@/lib/prisma'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import {
   notifySubscriptionCreatedToOwner,
-  notifySubscriptionStatusChangedToCustomer,
-  notifySubscriptionStatusChangedToOwner,
 } from '@/lib/notifications'
 import { canEditSubscription } from '@/lib/subscription-rules'
 import { getPlanRules, validateSubscriptionItemsAgainstPlan } from '@/lib/subscription-plan-rules'
@@ -14,6 +12,9 @@ import { parseMealSlot } from '@/lib/subscription-meal-slots'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
 import { formatTelegramContact } from '@/lib/telegram-contact'
 import { getNearestEventLabel } from '@/lib/utils'
+import { computeSubscriptionQuoteForRestaurant } from '@/lib/subscription-quote-server'
+import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
+import { validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -141,10 +142,10 @@ export async function PATCH(
 
   const status = typeof body?.status === 'string' ? String(body.status).toUpperCase() : ''
   if (status) {
-    if (!ALLOWED_STATUSES.includes(status as (typeof ALLOWED_STATUSES)[number])) {
-      return NextResponse.json({ ok: false, error: 'invalid status' }, { status: 400 })
-    }
-    update.status = status
+    return NextResponse.json(
+      { ok: false, error: 'Статус подписки меняет только заведение. Дождитесь подтверждения или откройте поддержку.' },
+      { status: 403 }
+    )
   }
 
   const nameRaw = typeof body?.name === 'string' ? body.name.trim() : ''
@@ -168,10 +169,6 @@ export async function PATCH(
     if (planRaw) {
       update.plan = planRaw
       shouldRenotifyOwner = sub.status === 'PENDING'
-    }
-    const priceRaw = Number((body as any)?.price)
-    if (Number.isFinite(priceRaw) && priceRaw >= 0) {
-      update.price = Math.round(priceRaw)
     }
   }
 
@@ -315,19 +312,53 @@ export async function PATCH(
   }
 
   const hasScalarUpdate = Object.keys(update).length > 0
-  if (!status && rawItems === null && deliveryDays === null && !hasScalarUpdate) {
+  if (rawItems === null && deliveryDays === null && !hasScalarUpdate) {
     return NextResponse.json({ ok: false, error: 'nothing to update' }, { status: 400 })
   }
 
   if (hasScalarUpdate || rawItems !== null) {
-    const prevResult = status ? await getSubscriptionContext(id, false, true) : null
-    const prevSub = prevResult && !('error' in prevResult) ? (prevResult as any).subscription : null
-
     if (Object.keys(update).length > 0) {
       await prisma.subscription.update({
         where: { id },
         data: update as any,
       })
+    }
+
+    if (isPendingOrDraft && (rawItems !== null || deliveryDays !== null || update.periodDays || update.personCount)) {
+      const freshSub = await prisma.subscription.findFirst({
+        where: { id, userId: result.userId, restaurantId: result.restaurantId },
+        select: {
+          periodDays: true,
+          personCount: true,
+          deliveryDays: true,
+          items: { select: { dishId: true, quantity: true, mealSlot: true, modifierIds: true } },
+        },
+      })
+      if (freshSub) {
+        const subConfig = await loadSubscriptionConfig(result.restaurantId)
+        const quoteItems = freshSub.items.map((it) => ({
+          dishId: it.dishId,
+          quantity: it.quantity,
+          mealSlot: parseMealSlot(it.mealSlot),
+          modifierIds: Array.isArray(it.modifierIds) ? (it.modifierIds as string[]) : [],
+        }))
+        const slotValidation = validateSubscriptionItemsByMealSlots(quoteItems, subConfig, new Set(quoteItems.map((i) => i.dishId)))
+        if (!slotValidation.valid) {
+          return NextResponse.json({ ok: false, error: slotValidation.error }, { status: 400 })
+        }
+        const quoteResult = await computeSubscriptionQuoteForRestaurant(result.restaurantId, {
+          items: quoteItems,
+          deliveryDays: freshSub.deliveryDays ?? [],
+          periodDays: Number(freshSub.periodDays ?? 28),
+          personCount: Number(freshSub.personCount ?? 1),
+        })
+        if (quoteResult) {
+          await prisma.subscription.update({
+            where: { id },
+            data: { price: quoteResult.quote.guestPrice },
+          })
+        }
+      }
     }
 
     if (shouldRenotifyOwner) {
@@ -369,26 +400,8 @@ export async function PATCH(
         }).catch(() => {})
       }
     }
-
-    if (status && prevSub) {
-      const userName = (prevSub.user as any)?.name ?? (prevSub.user as any)?.telegramFirstName ?? 'Клиент'
-      notifySubscriptionStatusChangedToCustomer({
-        restaurantId: result.restaurantId,
-        subscriptionId: id,
-        subscriptionName: prevSub.name ?? 'Подписка',
-        status,
-        customerTelegramId: (prevSub.user as any)?.telegramId ?? null,
-      }).catch(() => {})
-      notifySubscriptionStatusChangedToOwner({
-        restaurantId: result.restaurantId,
-        subscriptionId: id,
-        subscriptionName: prevSub.name ?? 'Подписка',
-        status,
-        userName,
-      }).catch(() => {})
-    }
   }
-  return NextResponse.json({ ok: true, ...(status ? { status } : {}) })
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(

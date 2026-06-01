@@ -1,5 +1,6 @@
 import type { Dish } from '@/types'
 import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
+import { getEnabledMealSlots, type SubscriptionConfig } from '@/lib/subscription-config'
 
 export type MenuCategory = { id: string; name: string; slug: string; emoji?: string | null }
 export type SelectedLine = { dishId: string; quantity: number; mealSlot: MealSlot | null; modifierIds: string[] }
@@ -116,4 +117,24 @@ export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[])
 
 export function mealSlotShort(slot: MealSlot | null) {
   return slot ? MEAL_SLOT_LABEL[slot] : 'весь день'
+}
+
+/** Dish ids owner assigned to any enabled meal slot. null = no restriction (show all eligible). */
+export function guestCatalogDishIds(config: SubscriptionConfig): Set<string> | null {
+  const ids = new Set<string>()
+  let restricted = false
+  for (const slot of getEnabledMealSlots(config)) {
+    const list = config.mealSlots[slot]?.dishIds ?? []
+    if (list.length > 0) {
+      restricted = true
+      for (const id of list) ids.add(id)
+    }
+  }
+  return restricted ? ids : null
+}
+
+export function allowedOptionIdsForLine(config: SubscriptionConfig, mealSlot: MealSlot | null): string[] | null {
+  if (!mealSlot) return null
+  const ids = config.mealSlots[mealSlot]?.optionIds ?? []
+  return ids.length > 0 ? ids : null
 }

@@ -13,12 +13,12 @@ import {
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
 import { EmptyStatePlaceholder } from '@/components/ui/EmptyStatePlaceholder'
-import { Chip } from '@/components/ui/Chip'
 import { PillTabToggle } from '@/components/ui/PillTabToggle'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
+import { formatPeriodDiscountBreakdown } from '@/lib/subscription-offer-labels'
+import { SubscriptionGuestPeriodPreview } from '@/features/subscriptions/components/SubscriptionGuestPeriodPreview'
 import { AdminSubscriptionNav } from './AdminSubscriptionNav'
-
-const ALL_FILTER = '__all__'
+import { AdminSubscriptionDishPickerSheet } from './AdminSubscriptionDishPickerSheet'
 
 export type CatalogProduct = {
   kind: 'dish' | 'option'
@@ -66,17 +66,25 @@ export function AdminSubscriptionDashboard() {
   const [saving, setSaving] = useState(false)
   const [subscriptionEnabled, setSubscriptionEnabled] = useState(false)
   const [config, setConfig] = useState<SubscriptionConfig>(defaultSubscriptionConfig())
+  const [savedConfigJson, setSavedConfigJson] = useState('')
   const [products, setProducts] = useState<CatalogProduct[]>([])
   const [categories, setCategories] = useState<MenuCategory[]>([])
-  const [categoryFilter, setCategoryFilter] = useState(ALL_FILTER)
   const [activeSlot, setActiveSlot] = useState<MealSlot>('lunch')
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const dishes = useMemo(() => products.filter((p) => p.kind === 'dish'), [products])
 
-  const filteredDishes = useMemo(() => {
-    if (categoryFilter === ALL_FILTER) return dishes
-    return dishes.filter((p) => p.categoryId === categoryFilter)
-  }, [dishes, categoryFilter])
+  const slotSelectedDishes = useMemo(() => {
+    const ids = config.mealSlots[activeSlot]?.dishIds ?? []
+    return ids
+      .map((id) => dishes.find((d) => d.id === id))
+      .filter((d): d is CatalogProduct => Boolean(d))
+  }, [config, activeSlot, dishes])
+
+  const slotSelectedIdSet = useMemo(
+    () => new Set(config.mealSlots[activeSlot]?.dishIds ?? []),
+    [config, activeSlot]
+  )
 
   const optionsByDishId = useMemo(() => {
     const map = new Map<string, CatalogProduct[]>()
@@ -99,21 +107,6 @@ export function AdminSubscriptionDashboard() {
       }),
     [config]
   )
-
-  const filterChips = useMemo(() => {
-    const chips: { id: string; name: string; emoji?: string | null }[] = [{ id: ALL_FILTER, name: 'всё' }]
-    for (const c of categories) {
-      if (dishes.some((p) => p.categoryId === c.id)) {
-        chips.push({ id: c.id, name: c.name, emoji: c.emoji })
-      }
-    }
-    return chips
-  }, [categories, dishes])
-
-  const activeCategoryLabel = useMemo(() => {
-    if (categoryFilter === ALL_FILTER) return 'все блюда'
-    return categories.find((c) => c.id === categoryFilter)?.name ?? 'категория'
-  }, [categoryFilter, categories])
 
   const exampleDish = useMemo(() => {
     const sc = config.mealSlots[activeSlot]
@@ -149,7 +142,9 @@ export function AdminSubscriptionDashboard() {
         setSubscriptionEnabled(Boolean(settingsData.settings?.subscriptionEnabled))
       }
       if (cfgRes.ok && cfgData?.ok) {
-        setConfig(cfgData.config ?? defaultSubscriptionConfig())
+        const loaded = cfgData.config ?? defaultSubscriptionConfig()
+        setConfig(loaded)
+        setSavedConfigJson(JSON.stringify(loaded))
         setProducts(Array.isArray(cfgData.products) ? cfgData.products : [])
         setCategories(Array.isArray(cfgData.categories) ? cfgData.categories : [])
         const slots = getEnabledMealSlots(cfgData.config ?? defaultSubscriptionConfig())
@@ -241,40 +236,6 @@ export function AdminSubscriptionDashboard() {
     })
   }
 
-  function bulkToggleCategory(assign: boolean) {
-    const targets =
-      categoryFilter === ALL_FILTER
-        ? filteredDishes
-        : dishes.filter((p) => p.categoryId === categoryFilter)
-
-    setConfig((prev) => {
-      const sc = prev.mealSlots[activeSlot]
-      let dishIds = [...sc.dishIds]
-      let defaultDishIds = [...sc.defaultDishIds]
-
-      for (const p of targets) {
-        if (assign) {
-          if (!dishIds.includes(p.id)) dishIds.push(p.id)
-        } else {
-          dishIds = dishIds.filter((id) => id !== p.id)
-          defaultDishIds = defaultDishIds.filter((id) => id !== p.id)
-        }
-      }
-      if (assign && defaultDishIds.length === 0 && dishIds.length > 0) {
-        defaultDishIds = [dishIds[0]]
-      }
-
-      return {
-        ...prev,
-        mealSlots: {
-          ...prev.mealSlots,
-          [activeSlot]: { ...sc, enabled: true, dishIds, defaultDishIds },
-        },
-      }
-    })
-    toast.success(assign ? `Добавлено в ${MEAL_SLOT_LABEL[activeSlot]}` : 'Убрано')
-  }
-
   async function saveAll() {
     setSaving(true)
     try {
@@ -290,13 +251,24 @@ export function AdminSubscriptionDashboard() {
         return
       }
       setConfig(data.config)
-      toast.success('Сохранено')
+      setSavedConfigJson(JSON.stringify(data.config))
+      toast.success('Каталог сохранён — гости увидят блюда в подписке')
     } catch {
       toast.error('Ошибка сети')
     } finally {
       setSaving(false)
     }
   }
+
+  const isDirty = useMemo(() => JSON.stringify(config) !== savedConfigJson, [config, savedConfigJson])
+
+  const totalCatalogDishes = useMemo(() => {
+    const ids = new Set<string>()
+    for (const slot of MEAL_SLOT_IDS) {
+      for (const id of config.mealSlots[slot]?.dishIds ?? []) ids.add(id)
+    }
+    return ids.size
+  }, [config])
 
   if (loading) {
     return (
@@ -337,130 +309,134 @@ export function AdminSubscriptionDashboard() {
     <main className="ui-container ui-screen !pb-28 pt-1">
       <header className="mb-3">
         <AdminSubscriptionNav />
+        {isDirty ? (
+          <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-900">
+            Есть несохранённые изменения — нажмите «сохранить каталог» внизу экрана
+          </div>
+        ) : totalCatalogDishes > 0 ? (
+          <p className="ui-muted mt-2 text-[12px]">
+            В каталоге подписки {totalCatalogDishes} блюд · гости видят сохранённый набор
+          </p>
+        ) : (
+          <p className="ui-muted mt-2 text-[12px]">Нажмите на блюда, затем сохраните каталог</p>
+        )}
       </header>
 
       <section className="mb-3">
         <PillTabToggle className="w-full" options={slotTabs} value={activeSlot} onChange={(v) => setActiveSlot(v as MealSlot)} />
         <p className="ui-muted mt-2 text-[12px]">
           {slotDishCount === 0
-            ? `Нажмите на блюдо — добавить в ${MEAL_SLOT_LABEL[activeSlot]}`
-            : `${slotDishCount} блюд · скидка −${config.commerce.subscriptionDiscountPercent}%`}
+            ? `Добавьте блюда в ${MEAL_SLOT_LABEL[activeSlot]} — гость увидит только их`
+            : `${slotDishCount} в каталоге · базовая скидка −${config.commerce.subscriptionDiscountPercent}%`}
         </p>
       </section>
 
-      <section className="mb-3">
+      <section className="mb-4 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          {categoryFilter !== ALL_FILTER && filteredDishes.length > 0 ? (
-            <div className="flex gap-3">
-              <button type="button" onClick={() => bulkToggleCategory(true)} className="text-[12px] font-semibold text-[color:var(--primary)]">
-                все
-              </button>
-              <button type="button" onClick={() => bulkToggleCategory(false)} className="text-[12px] font-semibold text-[color:var(--muted)]">
-                снять
-              </button>
-            </div>
-          ) : (
-            <span />
-          )}
+          <p className="text-[13px] font-bold">в подписке · {MEAL_SLOT_LABEL[activeSlot]}</p>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="text-[12px] font-semibold text-[color:var(--primary)]"
+          >
+            + добавить
+          </button>
         </div>
-        <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex gap-2 px-0.5">
-            {filterChips.map((c) => (
-              <button key={c.id} type="button" onClick={() => setCategoryFilter(c.id)} className="shrink-0 transition active:scale-[0.98]">
-                <Chip accent={categoryFilter === c.id} className="whitespace-nowrap px-3.5 py-2 text-[13px]">
-                  {c.emoji ? <span className="mr-1.5 text-[1.2em] leading-none" aria-hidden>{c.emoji}</span> : null}
-                  {c.name}
-                </Chip>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      <section className="mb-5">
-        {filteredDishes.length === 0 ? (
-          <p className="ui-muted text-[13px]">В «{activeCategoryLabel}» нет блюд для подписки.</p>
+        {slotSelectedDishes.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="flex w-full flex-col items-center rounded-[var(--radius-medium)] border border-dashed border-[color:var(--stroke)] py-8 text-[13px] font-semibold text-[color:var(--muted)]"
+          >
+            <span className="text-[28px] font-light leading-none">+</span>
+            <span className="mt-2">выбрать блюда</span>
+          </button>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5">
-            {filteredDishes.map((dish) => {
-              const inSlot = isInSlot(dish)
+          <ul className="space-y-2">
+            {slotSelectedDishes.map((dish) => {
               const firstPick = isFirstPick(dish)
               const dishOptions = optionsByDishId.get(dish.id) ?? []
-
               return (
-                <article
+                <li
                   key={dish.id}
-                  className={cn(
-                    'overflow-hidden border bg-[color:var(--surface-strong)] shadow-[var(--shadow-soft)] transition-all',
-                    inSlot ? 'border-[color:var(--primary)]' : 'border-[color:var(--stroke)]'
-                  )}
-                  style={{ borderRadius: 'var(--radius-large)' }}
+                  className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-2"
                 >
-                  <button type="button" onClick={() => toggleDishInSlot(dish)} className="block w-full text-left">
-                    <div className="relative h-48 w-full shrink-0 overflow-hidden bg-[color:var(--surface-strong)]">
+                  <div className="flex items-center gap-2">
+                    <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-black/[0.04]">
                       {dish.image ? (
-                        <OptimizedImage src={dish.image} alt="" className="object-cover" sizes={IMAGE_SIZES.menuGrid} quality={76} />
+                        <OptimizedImage src={dish.image} alt="" className="object-cover" sizes={IMAGE_SIZES.cartRow} />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-[40px]">{dish.emoji || '🍽'}</div>
+                        <span className="flex h-full items-center justify-center text-[20px]">{dish.emoji || '🍽'}</span>
                       )}
-                      <span
-                        className={cn(
-                          'absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold shadow-sm',
-                          inSlot ? 'bg-[color:var(--primary)] text-white' : 'bg-black/40 text-white backdrop-blur-sm'
-                        )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold">{dish.name}</p>
+                      <p className="text-[11px] tabular-nums text-[color:var(--muted)]">{formatPrice(dish.price)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleDishInSlot(dish)}
+                      className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold text-[color:var(--muted)]"
+                    >
+                      убрать
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {firstPick ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">первым у гостя</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleFirstPick(dish)}
+                        className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[10px] font-semibold"
                       >
-                        {inSlot ? '✓' : '+'}
-                      </span>
-                      {inSlot && firstPick ? (
-                        <span className="absolute right-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-bold text-amber-950">
-                          первым
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="px-2.5 py-2">
-                      <p className="line-clamp-2 text-[12px] font-bold leading-tight">{dish.name}</p>
-                      <p className="mt-1 text-[12px] font-semibold tabular-nums">{formatPrice(dish.price)}</p>
-                    </div>
-                  </button>
-
-                  {inSlot ? (
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-[color:var(--stroke)] px-2 pb-2 pt-1.5">
-                      {!firstPick ? (
+                        показать первым
+                      </button>
+                    )}
+                    {dishOptions.map((opt) => {
+                      const optOn = isInSlot(opt)
+                      return (
                         <button
+                          key={productKey(opt)}
                           type="button"
-                          onClick={() => toggleFirstPick(dish)}
-                          className="rounded-full bg-black/[0.06] px-2 py-1 text-[10px] font-semibold"
+                          onClick={() => toggleOptionInSlot(opt)}
+                          className={cn(
+                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                            optOn ? 'bg-[color:var(--primary)] text-white' : 'bg-black/[0.06]'
+                          )}
                         >
-                          показать первым
+                          {opt.name}
                         </button>
-                      ) : null}
-                      {dishOptions.map((opt) => {
-                        const optOn = isInSlot(opt)
-                        return (
-                          <button
-                            key={productKey(opt)}
-                            type="button"
-                            onClick={() => toggleOptionInSlot(opt)}
-                            className={cn(
-                              'rounded-full px-2 py-1 text-[10px] font-semibold',
-                              optOn ? 'bg-[color:var(--primary)] text-white' : 'bg-black/[0.06]'
-                            )}
-                          >
-                            {opt.name}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : null}
-                </article>
+                      )
+                    })}
+                  </div>
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
       </section>
 
-      <section className="mb-4 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
-        <p className="text-[13px] font-bold">экономика</p>
+      <AdminSubscriptionDishPickerSheet
+        open={pickerOpen}
+        slot={activeSlot}
+        dishes={dishes}
+        categories={categories}
+        selectedIds={slotSelectedIdSet}
+        onClose={() => setPickerOpen(false)}
+        onToggle={toggleDishInSlot}
+      />
+
+      <details className="mb-4 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] group">
+        <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-bold [&::-webkit-details-marker]:hidden">
+          цены и скидки
+          <span className="ui-muted ml-2 text-[12px] font-normal">как у гостя при оформлении</span>
+        </summary>
+        <div className="border-t border-[color:var(--stroke)] px-4 pb-4 pt-2">
+        <p className="ui-muted text-[12px] leading-snug">
+          Себестоимость — в меню. Скидки ниже складываются так же, как на экране оформления.
+        </p>
         <p className="ui-muted mt-1 text-[12px] leading-snug">
           Себестоимость — в меню. Здесь задаёте, сколько хотите заработать и какую скидку дать гостю.
         </p>
@@ -556,17 +532,20 @@ export function AdminSubscriptionDashboard() {
         </label>
 
         <div className="mt-4">
-          <p className="mb-2 text-[13px] font-semibold">доп. скидка за длинный период</p>
-          <p className="ui-muted mb-3 text-[11px]">
-            Складывается с базовой скидкой — гость видит бейдж «−X% за месяц».
-          </p>
+          <p className="mb-2 text-[13px] font-semibold">скидка за длинный период</p>
+          <p className="ui-muted mb-3 text-[11px]">Дополнительно к базовой −{config.commerce.subscriptionDiscountPercent}%</p>
           {(config.availablePeriods ?? [7, 14, 28]).map((days) => {
             const val = config.periodDiscounts?.[days] ?? 0
             return (
               <label key={days} className="mt-3 block">
-                <div className="mb-1.5 flex justify-between text-[12px] font-medium">
-                  <span>{periodLabel(days)}</span>
-                  <span className="tabular-nums text-[color:var(--primary)]">+{val}%</span>
+                <div className="mb-1.5 flex flex-col gap-0.5 text-[12px]">
+                  <div className="flex justify-between font-medium">
+                    <span>{periodLabel(days)}</span>
+                    <span className="tabular-nums text-[color:var(--muted)]">+{val}% к базе</span>
+                  </div>
+                  <span className="text-[11px] text-[color:var(--primary)]">
+                    {formatPeriodDiscountBreakdown(config.commerce, config.periodDiscounts, days)}
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -583,18 +562,30 @@ export function AdminSubscriptionDashboard() {
               </label>
             )
           })}
+          <SubscriptionGuestPeriodPreview config={config} compact title="превью карточек периода" />
         </div>
-      </section>
+        </div>
+      </details>
 
-      <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[color:var(--stroke)] bg-[color:var(--surface)]/95 p-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-md">
-        <div className="ui-container">
+      <footer
+        className={cn(
+          'fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-md p-3 pb-[max(12px,env(safe-area-inset-bottom))]',
+          isDirty ? 'border-amber-300 bg-amber-50/95' : 'border-[color:var(--stroke)] bg-[color:var(--surface)]/95'
+        )}
+      >
+        <div className="ui-container space-y-1.5">
+          {isDirty ? (
+            <p className="text-center text-[11px] font-semibold text-amber-900">
+              {slotDishCount} в {MEAL_SLOT_LABEL[activeSlot]} · изменения не сохранены
+            </p>
+          ) : null}
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || !isDirty}
             onClick={() => void saveAll()}
             className="btn btn-primary h-12 w-full rounded-full text-[15px] font-bold disabled:opacity-50"
           >
-            {saving ? 'сохраняем…' : 'сохранить'}
+            {saving ? 'сохраняем…' : isDirty ? 'сохранить каталог' : 'каталог сохранён'}
           </button>
         </div>
       </footer>
