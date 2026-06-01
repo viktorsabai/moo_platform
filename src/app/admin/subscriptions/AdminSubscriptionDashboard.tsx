@@ -16,7 +16,6 @@ import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { AdminSubscriptionNav } from './AdminSubscriptionNav'
 
 const ALL_FILTER = '__all__'
-const OPTIONS_FILTER = '__options__'
 
 export type CatalogProduct = {
   kind: 'dish' | 'option'
@@ -89,10 +88,21 @@ export function AdminSubscriptionDashboard() {
   const [limitsOpen, setLimitsOpen] = useState(false)
 
   const filteredProducts = useMemo(() => {
-    if (categoryFilter === ALL_FILTER) return products
-    if (categoryFilter === OPTIONS_FILTER) return products.filter((p) => p.kind === 'option')
-    return products.filter((p) => p.categoryId === categoryFilter)
+    const dishes = products.filter((p) => p.kind === 'dish')
+    if (categoryFilter === ALL_FILTER) return dishes
+    return dishes.filter((p) => p.categoryId === categoryFilter)
   }, [products, categoryFilter])
+
+  const optionsByDishId = useMemo(() => {
+    const map = new Map<string, CatalogProduct[]>()
+    for (const p of products) {
+      if (p.kind !== 'option') continue
+      const list = map.get(p.dishId) ?? []
+      list.push(p)
+      map.set(p.dishId, list)
+    }
+    return map
+  }, [products])
 
   const selectedProduct = useMemo(
     () => products.find((p) => productKey(p) === selectedKey) ?? null,
@@ -109,15 +119,11 @@ export function AdminSubscriptionDashboard() {
         chips.push({ id: c.id, name: c.name, emoji: c.emoji })
       }
     }
-    if (products.some((p) => p.kind === 'option')) {
-      chips.push({ id: OPTIONS_FILTER, name: 'опции', emoji: '🥄' })
-    }
     return chips
   }, [categories, products])
 
   const activeCategoryLabel = useMemo(() => {
-    if (categoryFilter === ALL_FILTER) return 'все позиции'
-    if (categoryFilter === OPTIONS_FILTER) return 'опции'
+    if (categoryFilter === ALL_FILTER) return 'все блюда'
     return categories.find((c) => c.id === categoryFilter)?.name ?? 'категория'
   }, [categoryFilter, categories])
 
@@ -230,12 +236,12 @@ export function AdminSubscriptionDashboard() {
   }
 
   function categoryLimitForFilter(): number | null {
-    if (categoryFilter === ALL_FILTER || categoryFilter === OPTIONS_FILTER) return null
+    if (categoryFilter === ALL_FILTER) return null
     return config.categoryLimits?.[categoryFilter] ?? null
   }
 
   function setCategoryLimitForFilter(value: number | null) {
-    if (categoryFilter === ALL_FILTER || categoryFilter === OPTIONS_FILTER) return
+    if (categoryFilter === ALL_FILTER) return
     setConfig((prev) => {
       const limits = { ...(prev.categoryLimits ?? {}) }
       if (value == null || value <= 0) delete limits[categoryFilter]
@@ -302,9 +308,7 @@ export function AdminSubscriptionDashboard() {
     const targets =
       categoryFilter === ALL_FILTER
         ? filteredProducts
-        : categoryFilter === OPTIONS_FILTER
-          ? products.filter((p) => p.kind === 'option')
-          : products.filter((p) => p.categoryId === categoryFilter)
+        : products.filter((p) => p.kind === 'dish' && p.categoryId === categoryFilter)
 
     setConfig((prev) => {
       const sc = prev.mealSlots[activeSlot]
@@ -495,7 +499,7 @@ export function AdminSubscriptionDashboard() {
                 </button>
               ))}
             </div>
-            {categoryFilter !== ALL_FILTER && categoryFilter !== OPTIONS_FILTER ? (
+            {categoryFilter !== ALL_FILTER ? (
               <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--stroke)] pt-2">
                 <span className="text-[11px] font-semibold text-[color:var(--muted)]">лимит «{activeCategoryLabel}»</span>
                 <button
@@ -568,6 +572,8 @@ export function AdminSubscriptionDashboard() {
               const isDef = isDefault(p)
               const selected = selectedKey === pk
               const noCost = p.costPrice == null || p.costPrice <= 0
+              const dishOptions = optionsByDishId.get(p.id) ?? []
+              const optionsInSlot = dishOptions.filter((o) => isInSlot(o)).length
 
               return (
                 <article
@@ -633,19 +639,20 @@ export function AdminSubscriptionDashboard() {
                     className="w-full px-2.5 py-2 text-left"
                   >
                     <p className="line-clamp-2 text-[12px] font-bold leading-tight">{p.name}</p>
-                    <p className="mt-0.5 truncate text-[10px] font-semibold text-[color:var(--muted)]">
-                      {p.kind === 'option' && p.parentDishName ? p.parentDishName : p.categoryName}
-                    </p>
+                    <p className="mt-0.5 truncate text-[10px] font-semibold text-[color:var(--muted)]">{p.categoryName}</p>
                     <div className="mt-1 flex items-center justify-between gap-1 text-[10px] tabular-nums">
                       <span className="font-semibold">{formatPrice(p.price)}</span>
                       <span className={cn('text-black/45', noCost && 'text-amber-700')}>
                         {noCost ? 'себест. —' : `себест. ${formatPrice(p.costPrice)}`}
                       </span>
                     </div>
-                    {inSlot && p.kind === 'dish' && isDef ? (
+                    {inSlot && isDef ? (
                       <p className="mt-1 text-[10px] font-semibold text-[color:var(--primary)]">★ default</p>
-                    ) : inSlot && p.kind === 'option' ? (
-                      <p className="mt-1 text-[10px] font-semibold text-[color:var(--primary)]">в слоте</p>
+                    ) : null}
+                    {dishOptions.length > 0 ? (
+                      <p className="mt-1 text-[10px] text-[color:var(--muted)]">
+                        {dishOptions.length} опц.{optionsInSlot > 0 ? ` · ${optionsInSlot} в слоте` : ''}
+                      </p>
                     ) : null}
                   </button>
                 </article>
@@ -655,17 +662,12 @@ export function AdminSubscriptionDashboard() {
         )}
 
         {/* Детали выбранной позиции */}
-        {selectedProduct ? (
+        {selectedProduct && selectedProduct.kind === 'dish' ? (
           <div className="ui-surface mt-3 space-y-3 p-4" style={{ borderRadius: 'var(--radius-large)' }}>
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h2 className="text-[16px] font-extrabold tracking-tight">{selectedProduct.name}</h2>
-                <p className="ui-muted text-[12px]">
-                  витрина {formatPrice(selectedProduct.price)}
-                  {selectedProduct.kind === 'option' && selectedProduct.parentDishName
-                    ? ` · ${selectedProduct.parentDishName}`
-                    : ''}
-                </p>
+                <p className="ui-muted text-[12px]">витрина {formatPrice(selectedProduct.price)}</p>
               </div>
               <button type="button" onClick={() => setSelectedKey(null)} className="ui-muted text-[12px] font-semibold">
                 закрыть
@@ -685,18 +687,18 @@ export function AdminSubscriptionDashboard() {
               >
                 {isInSlot(selectedProduct) ? `в ${MEAL_SLOT_LABEL[activeSlot]}` : `добавить в ${MEAL_SLOT_LABEL[activeSlot]}`}
               </button>
-              {selectedProduct.kind === 'dish' && isInSlot(selectedProduct) ? (
-              <button
-                type="button"
-                onClick={() => toggleDefault(selectedProduct)}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-[12px] font-semibold transition',
-                  isDefault(selectedProduct) ? 'bg-amber-100 text-amber-900' : 'bg-black/[0.06] text-[color:var(--text)]'
-                )}
-              >
-                {isDefault(selectedProduct) ? '★ default' : 'сделать default'}
-              </button>
-            ) : null}
+              {isInSlot(selectedProduct) ? (
+                <button
+                  type="button"
+                  onClick={() => toggleDefault(selectedProduct)}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-[12px] font-semibold transition',
+                    isDefault(selectedProduct) ? 'bg-amber-100 text-amber-900' : 'bg-black/[0.06] text-[color:var(--text)]'
+                  )}
+                >
+                  {isDefault(selectedProduct) ? '★ default' : 'сделать default'}
+                </button>
+              ) : null}
             </div>
 
             <label className="block border-t border-[color:var(--stroke)] pt-3">
@@ -718,10 +720,49 @@ export function AdminSubscriptionDashboard() {
               />
             </label>
 
-            {selectedProduct.kind === 'dish' && isDefault(selectedProduct) ? (
+            {isDefault(selectedProduct) ? (
               <p className="text-[11px] text-[color:var(--muted)]">
                 Default — блюдо, которое гость увидит первым в рационе на {MEAL_SLOT_LABEL[activeSlot]}.
               </p>
+            ) : null}
+
+            {(optionsByDishId.get(selectedProduct.id) ?? []).length > 0 ? (
+              <div className="border-t border-[color:var(--stroke)] pt-3">
+                <p className="text-[11px] font-semibold uppercase text-[color:var(--muted)]">опции этого блюда</p>
+                <p className="mt-1 text-[11px] text-[color:var(--muted)]">
+                  Только опции, отмеченные в меню ресторана для подписки.
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {(optionsByDishId.get(selectedProduct.id) ?? []).map((opt) => {
+                    const optInSlot = isInSlot(opt)
+                    const optNoCost = opt.costPrice == null || opt.costPrice <= 0
+                    return (
+                      <li
+                        key={productKey(opt)}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-[color:var(--stroke)] px-3 py-2.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold">{opt.name}</p>
+                          <p className="text-[11px] tabular-nums text-[color:var(--muted)]">
+                            {formatPrice(opt.price)}
+                            {optNoCost ? ' · нет себест.' : ` · себест. ${formatPrice(opt.costPrice)}`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleInSlot(opt)}
+                          className={cn(
+                            'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold',
+                            optInSlot ? 'bg-[color:var(--primary)] text-white' : 'bg-black/[0.06]'
+                          )}
+                        >
+                          {optInSlot ? 'в слоте' : 'в слот'}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
             ) : null}
           </div>
         ) : null}
