@@ -2,10 +2,11 @@ import { MEAL_SLOT_IDS, type MealSlot } from '@/lib/subscription-meal-slots'
 
 export type MealSlotConfig = {
   enabled: boolean
+  /** 0 = безлимит позиций за одну доставку в этом слоте */
   maxItemsPerDelivery: number
   dishIds: string[]
   defaultDishIds: string[]
-  /** Max portions of a dish per delivery within this slot. Key = dishId. */
+  /** @deprecated Per-dish limits removed from UX; kept for legacy JSON only */
   dishLimits?: Record<string, number>
   /** Subscription-eligible option value ids available in this slot. */
   optionIds?: string[]
@@ -21,6 +22,8 @@ export type SubscriptionCommerceConfig = {
 export type SubscriptionConfig = {
   mealSlots: Record<MealSlot, MealSlotConfig>
   commerce: SubscriptionCommerceConfig
+  /** categoryId → max portions from category per delivery; omitted = безлимит */
+  categoryLimits?: Record<string, number>
   minDaysPerWeek: number
   maxDaysPerWeek: number
   minPersons: number
@@ -40,7 +43,7 @@ export const DEFAULT_COMMERCE: SubscriptionCommerceConfig = {
 
 export const DEFAULT_MEAL_SLOT: MealSlotConfig = {
   enabled: false,
-  maxItemsPerDelivery: 1,
+  maxItemsPerDelivery: 0,
   dishIds: [],
   defaultDishIds: [],
 }
@@ -48,9 +51,9 @@ export const DEFAULT_MEAL_SLOT: MealSlotConfig = {
 export function defaultSubscriptionConfig(): SubscriptionConfig {
   return {
     mealSlots: {
-      breakfast: { ...DEFAULT_MEAL_SLOT, enabled: false, maxItemsPerDelivery: 1 },
-      lunch: { ...DEFAULT_MEAL_SLOT, enabled: true, maxItemsPerDelivery: 1 },
-      dinner: { ...DEFAULT_MEAL_SLOT, enabled: false, maxItemsPerDelivery: 1 },
+      breakfast: { ...DEFAULT_MEAL_SLOT, enabled: false, maxItemsPerDelivery: 0 },
+      lunch: { ...DEFAULT_MEAL_SLOT, enabled: true, maxItemsPerDelivery: 0 },
+      dinner: { ...DEFAULT_MEAL_SLOT, enabled: false, maxItemsPerDelivery: 0 },
     },
     commerce: { ...DEFAULT_COMMERCE },
     minDaysPerWeek: 3,
@@ -72,7 +75,7 @@ function parseMealSlotConfig(raw: unknown, fallback: MealSlotConfig): MealSlotCo
     enabled: typeof raw.enabled === 'boolean' ? raw.enabled : fallback.enabled,
     maxItemsPerDelivery:
       typeof raw.maxItemsPerDelivery === 'number' && Number.isFinite(raw.maxItemsPerDelivery)
-        ? Math.max(0, Math.min(10, Math.round(raw.maxItemsPerDelivery)))
+        ? Math.max(0, Math.min(99, Math.round(raw.maxItemsPerDelivery)))
         : fallback.maxItemsPerDelivery,
     dishIds: Array.isArray(raw.dishIds)
       ? (raw.dishIds as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
@@ -133,9 +136,17 @@ export function parseSubscriptionConfig(raw: unknown): SubscriptionConfig {
   const ownerPriceOverride =
     Number.isFinite(ownerRaw) && ownerRaw > 0 ? Math.round(ownerRaw) : null
 
+  const categoryLimitsRaw = isRecord(raw.categoryLimits) ? raw.categoryLimits : {}
+  const categoryLimits = Object.fromEntries(
+    Object.entries(categoryLimitsRaw)
+      .map(([k, v]) => [String(k).trim(), Math.max(1, Math.min(99, Math.round(Number(v) || 1)))])
+      .filter(([k]) => k)
+  )
+
   return {
     mealSlots,
     commerce: parseCommerce(raw.commerce),
+    categoryLimits: Object.keys(categoryLimits).length ? categoryLimits : undefined,
     minDaysPerWeek: intField('minDaysPerWeek', 1, 7),
     maxDaysPerWeek: intField('maxDaysPerWeek', 1, 7),
     minPersons: intField('minPersons', 1, 10),

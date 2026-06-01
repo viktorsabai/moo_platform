@@ -22,7 +22,8 @@ export function resolveMealSlotRules(config: SubscriptionConfig): ResolvedMealSl
 
   for (const slot of enabled) {
     const sc = config.mealSlots[slot]
-    maxItemsBySlot[slot] = Math.max(0, sc?.maxItemsPerDelivery ?? 1)
+    const rawMax = sc?.maxItemsPerDelivery ?? 0
+    maxItemsBySlot[slot] = rawMax <= 0 ? 999 : rawMax
     const ids = sc?.dishIds ?? []
     allowedDishIdsBySlot[slot] = ids.length > 0 ? new Set(ids) : null
   }
@@ -68,7 +69,8 @@ export function validateSubscriptionItemsByMealSlots(
 
   const bySlot = itemsPerDeliveryBySlot(items)
   for (const slot of rules.enabledSlots) {
-    const max = rules.maxItemsBySlot[slot] ?? 0
+    const max = rules.maxItemsBySlot[slot] ?? 999
+    if (max >= 999) continue
     if (bySlot[slot] > max) {
       return { valid: false, error: `В слоте «${slot}» можно не более ${max} блюд за доставку.` }
     }

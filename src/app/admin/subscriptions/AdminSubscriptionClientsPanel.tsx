@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { cn, formatPrice } from '@/lib/utils'
 import { IconTrash } from '@/components/ui/icons'
 import type { ClientSubscription } from './AdminSubscriptionsClient'
+import { AdminSubscriptionNav } from './AdminSubscriptionNav'
 
 function buildTodayTodo(subs: ClientSubscription[]) {
   const today = new Date()
@@ -80,17 +80,13 @@ export function AdminSubscriptionClientsPanel({
   const todayTodo = client ? buildTodayTodo(client.subs) : { toSend: [], inPrep: [] }
 
   return (
-    <main className="ui-container ui-screen !pb-20">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-[18px] font-extrabold">клиенты подписок</h1>
-          <p className="text-[12px] text-[color:var(--muted)]">активные абонементы</p>
-        </div>
-        <Link href="/admin/subscriptions" className="text-[12px] font-semibold text-[color:var(--primary)]">
-          ← каталог
-        </Link>
+    <main className="ui-container ui-screen flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden !pb-20 pt-1">
+      <header className="mb-3 shrink-0 space-y-2">
+        <AdminSubscriptionNav />
+        <p className="text-[12px] text-[color:var(--muted)]">активные абонементы и доставки на сегодня</p>
       </header>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {loading ? (
         <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
       ) : clients.length === 0 ? (
@@ -153,6 +149,7 @@ export function AdminSubscriptionClientsPanel({
           ) : null}
         </div>
       )}
+      </div>
     </main>
   )
 }

@@ -547,11 +547,14 @@ export function SubscriptionWizard() {
       const rules = resolveMealSlotRules(subConfig)
       return {
         allowedCategoryIdsSet: new Set(categories.map((c) => c.id).concat(['uncat'])),
-        categoryLimitByCategoryId: {} as Record<string, number>,
+        categoryLimitByCategoryId: { ...(subConfig.categoryLimits ?? {}) },
         minDays: subConfig.minDaysPerWeek,
         maxDays: subConfig.maxDaysPerWeek,
         minDishesPerDelivery: 1,
-        maxDishesPerDelivery: Math.max(1, ...Array.from(rules.enabledSlots).map((s) => rules.maxItemsBySlot[s] ?? 1)),
+        maxDishesPerDelivery: Math.max(
+          1,
+          ...Array.from(rules.enabledSlots).map((s) => rules.maxItemsBySlot[s] ?? 999)
+        ),
       }
     }
     const selectedTemplate = selectedTemplateId ? planTemplates.find((t) => t.id === selectedTemplateId) : null
@@ -779,8 +782,11 @@ export function SubscriptionWizard() {
       return dish?.categoryId === categoryId ? sum + item.quantity : sum
     }, 0)
 
-  const getCategoryLimit = (categoryId: string) =>
-    categoryLimitByCategoryId[categoryId] ?? 3
+  const getCategoryLimit = (categoryId: string) => {
+    const lim = categoryLimitByCategoryId[categoryId]
+    if (lim == null || lim <= 0) return 999
+    return lim
+  }
 
   const addDishFromMenu = (dishId: string) => {
     if (buildMode === 'from_plan' && selectedTemplateId && selectedTemplate?.planMode === 'READY') return
