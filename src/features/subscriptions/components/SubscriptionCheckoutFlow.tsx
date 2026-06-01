@@ -19,15 +19,21 @@ import {
 import { buildPrefillItems, suggestDeliveryDays } from '@/lib/subscription-prefill'
 import { MEAL_SLOT_LABEL, type MealSlot, parseMealSlot } from '@/lib/subscription-meal-slots'
 import { useSubscriptionStore } from '@/store/subscription-store'
+import { SubscriptionRationStrip } from '@/features/subscriptions/components/SubscriptionRationStrip'
+import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
+import { loadDeliveryProfile } from '@/lib/delivery-profile'
 
 type MenuCategory = { id: string; name: string; slug: string; emoji?: string | null }
 type SelectedLine = { dishId: string; quantity: number; mealSlot: MealSlot | null; modifierIds: string[] }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const STEPS = ['период', 'рацион', 'оформление'] as const
 
 function wizardDayToJs(d: number) {
   return d === 6 ? 0 : d + 1
+}
+
+function jsDayToWizard(d: number) {
+  return d === 0 ? 6 : d - 1
 }
 
 function mapDish(d: any): Dish {
@@ -48,7 +54,43 @@ function mapDish(d: any): Dish {
 }
 
 function lineKey(item: SelectedLine) {
-  return `${item.dishId}:${item.mealSlot ?? 'any'}`
+  return `${item.dishId}:${item.mealSlot ?? 'any'}:${(item.modifierIds ?? []).join('|')}`
+}
+
+type CalendarCell = {
+  key: string
+  day: number
+  weekday: string
+  month: string
+  isDelivery: boolean
+  isStart: boolean
+}
+
+function buildPeriodCalendar(startDate: Date, periodDays: number, wizardDays: number[]): CalendarCell[] {
+  const jsDays = new Set(wizardDays.map(wizardDayToJs))
+  const cells: CalendarCell[] = []
+  for (let i = 0; i < periodDays; i++) {
+    const d = new Date(startDate)
+    d.setHours(12, 0, 0, 0)
+    d.setDate(d.getDate() + i)
+    cells.push({
+      key: d.toISOString().slice(0, 10),
+      day: d.getDate(),
+      weekday: d.toLocaleDateString('ru-RU', { weekday: 'short' }),
+      month: d.toLocaleDateString('ru-RU', { month: 'short' }),
+      isDelivery: jsDays.has(d.getDay()),
+      isStart: i === 0,
+    })
+  }
+  return cells
+}
+
+function nearestDeliveryLabel(wizardDays: number[], time = '13:00') {
+  if (!wizardDays.length) return 'выберите дни доставки'
+  const todayWizard = jsDayToWizard(new Date().getDay())
+  let next = wizardDays.find((d) => d >= todayWizard)
+  if (next == null) next = wizardDays[0]
+  return `ближайшая доставка: ${WEEKDAYS[next]} в ${time}`
 }
 
 export function SubscriptionCheckoutFlow() {
@@ -57,7 +99,6 @@ export function SubscriptionCheckoutFlow() {
   const resumeId = searchParams.get('resume') || ''
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
 
-  const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [subConfig, setSubConfig] = useState<SubscriptionConfig>(defaultSubscriptionConfig())
@@ -66,16 +107,35 @@ export function SubscriptionCheckoutFlow() {
   const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2])
   const [periodDays, setPeriodDays] = useState(28)
   const [personCount, setPersonCount] = useState(1)
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    d.setHours(12, 0, 0, 0)
+    return d
+  })
   const [lines, setLines] = useState<SelectedLine[]>([])
   const [name, setName] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [activeSlot, setActiveSlot] = useState<MealSlot | 'all'>('all')
   const [liveQuote, setLiveQuote] = useState<{ guestPrice: number; deliveriesInPeriod: number } | null>(null)
+  const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const createRequestIdRef = useRef<string | null>(null)
 
   const enabledSlots = useMemo(() => getEnabledMealSlots(subConfig), [subConfig])
   const minDays = subConfig.minDaysPerWeek
   const maxDays = subConfig.maxDaysPerWeek
+
+  useEffect(() => {
+    try {
+      const u = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user
+      if (u?.username) setTelegramContact(`@${String(u.username).replace(/^@/, '')}`)
+      else if (u?.id) setTelegramContact(`tg ${u.id}`)
+    } catch {
+      // ignore
+    }
+    const profile = loadDeliveryProfile()
+    if (profile?.name) setName((prev) => prev || profile.name)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -108,7 +168,7 @@ export function SubscriptionCheckoutFlow() {
             },
             [],
           )
-          if (prefill.length) {
+          if (prefill.length && !resumeId) {
             setLines(
               prefill.map((p) => ({
                 dishId: p.dishId,
@@ -127,11 +187,11 @@ export function SubscriptionCheckoutFlow() {
         if (!cancelled) setLoading(false)
       }
     }
-    load()
+    void load()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [resumeId])
 
   useEffect(() => {
     if (!resumeId || loading) return
@@ -149,8 +209,12 @@ export function SubscriptionCheckoutFlow() {
         setName(String(s.name || ''))
         setPeriodDays(Number(s.periodDays ?? 28))
         setPersonCount(Number(s.personCount ?? 1))
+        if (s.startDate) {
+          const sd = new Date(s.startDate)
+          if (!Number.isNaN(sd.getTime())) setStartDate(sd)
+        }
         if (Array.isArray(s.deliveryDays)) {
-          setSelectedDays(s.deliveryDays.map((d: number) => (d === 0 ? 6 : d - 1)))
+          setSelectedDays(s.deliveryDays.map((d: number) => jsDayToWizard(d)))
         }
         if (Array.isArray(s.items)) {
           setLines(
@@ -192,7 +256,10 @@ export function SubscriptionCheckoutFlow() {
     })
     const data = await res.json().catch(() => null)
     if (res.ok && data?.ok && data.quote) {
-      setLiveQuote({ guestPrice: Number(data.quote.guestPrice ?? data.guestPrice), deliveriesInPeriod: data.quote.deliveriesInPeriod })
+      setLiveQuote({
+        guestPrice: Number(data.quote.guestPrice ?? data.guestPrice),
+        deliveriesInPeriod: data.quote.deliveriesInPeriod,
+      })
     }
   }, [lines, selectedDays, periodDays, personCount])
 
@@ -228,6 +295,27 @@ export function SubscriptionCheckoutFlow() {
     }
     return chips
   }, [categories, dishesByCategory])
+
+  const rationStripLines = useMemo(
+    () =>
+      lines.map((l) => {
+        const dish = dishes.find((d) => d.id === l.dishId)
+        return {
+          key: lineKey(l),
+          dishId: l.dishId,
+          quantity: l.quantity,
+          image: dish?.image,
+          name: dish?.name ?? '—',
+        }
+      }),
+    [lines, dishes]
+  )
+
+  const calendarCells = useMemo(
+    () => buildPeriodCalendar(startDate, periodDays, selectedDays),
+    [startDate, periodDays, selectedDays]
+  )
+  const deliveryCount = calendarCells.filter((c) => c.isDelivery).length
 
   function toggleDay(day: number) {
     setSelectedDays((prev) => {
@@ -265,9 +353,14 @@ export function SubscriptionCheckoutFlow() {
     setLines((prev) => prev.filter((x) => lineKey(x) !== lineKey(target)))
   }
 
+  function setLineModifierIds(target: SelectedLine, modifierIds: string[]) {
+    const k = lineKey(target)
+    setLines((prev) => prev.map((x) => (lineKey(x) === k ? { ...x, modifierIds } : x)))
+  }
+
   async function submit() {
     if (!name.trim()) {
-      toast.error('введите название')
+      toast.error('введите имя')
       return
     }
     if (!lines.length) {
@@ -288,8 +381,8 @@ export function SubscriptionCheckoutFlow() {
         periodDays,
         deliveryDays: selectedDays.map(wizardDayToJs),
         deliveryTime: '13:00',
-        startDate: new Date().toISOString(),
-        nextDelivery: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        startDate: startDate.toISOString(),
+        nextDelivery: startDate.toISOString(),
         price: Math.round(liveQuote?.guestPrice ?? 0),
         items: lines.map((l) => {
           const dish = dishes.find((d) => d.id === l.dishId)
@@ -362,130 +455,67 @@ export function SubscriptionCheckoutFlow() {
   }
 
   const totalPrice = liveQuote?.guestPrice ?? 0
-  const canNext =
-    step === 0
-      ? selectedDays.length >= minDays
-      : step === 1
-        ? lines.length > 0
-        : Boolean(name.trim())
+  const canSubmit = Boolean(name.trim()) && lines.length > 0 && selectedDays.length >= minDays
+  const submitCta = resumeId
+    ? `сохранить · ${formatPrice(totalPrice)}`
+    : `отправить · ${formatPrice(totalPrice)}`
 
   if (loading) {
     return (
-      <div className="ui-container ui-screen">
-        <PageHeader backHref="/subscriptions" title="оформление подписки" />
+      <main className="ui-container ui-screen">
+        <PageHeader backHref="/subscriptions" title="оформление" subtitle="подписка" />
         <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="ui-container flex min-h-[100dvh] flex-col pb-28">
-      <div className="flex items-center gap-2">
-        {step > 0 ? (
-          <button type="button" onClick={() => setStep((s) => s - 1)} className="ui-back-button shrink-0" aria-label="назад">
-            ‹
-          </button>
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <PageHeader
-            backHref={step === 0 ? '/subscriptions' : undefined}
-            title="оформление подписки"
-            subtitle={resumeId ? 'редактирование заявки' : 'сбор рациона и отправка заведению'}
-            compact
-          />
-        </div>
-      </div>
+    <main className="ui-container ui-screen pb-[var(--ufo-scroll-pad-floating,calc(5.75rem+12px))]">
+      <PageHeader
+        backHref="/subscriptions"
+        title="оформление"
+        subtitle={resumeId ? 'редактирование заявки на подписку' : 'подписка · рацион и расписание'}
+      />
 
-      <div className="mb-4 flex gap-1">
-        {STEPS.map((label, i) => (
-          <div
-            key={label}
-            className={cn(
-              'h-1 flex-1 rounded-full transition',
-              i <= step ? 'bg-[color:var(--primary)]' : 'bg-[color:var(--stroke)]'
-            )}
-          />
-        ))}
-      </div>
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
-        шаг {step + 1} · {STEPS[step]}
-      </p>
+      <div className="border-t border-[color:var(--stroke)]">
+        {/* рацион — как блок «заказ» в чекауте */}
+        <section className="border-b border-[color:var(--stroke)] py-3">
+          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">рацион</h3>
+          {lines.length > 0 ? (
+            <SubscriptionRationStrip lines={rationStripLines} className="mb-3" />
+          ) : (
+            <p className="mb-3 text-[13px] text-[color:var(--muted)]">выберите блюда из меню ниже</p>
+          )}
 
-      {step === 0 ? (
-        <section className="space-y-4">
-          <div className="rounded-2xl border border-[color:var(--stroke)] p-4">
-            <p className="mb-2 text-[12px] font-bold uppercase text-[color:var(--muted)]">дни доставки</p>
-            <div className="grid grid-cols-7 gap-1.5">
-              {WEEKDAYS.map((label, idx) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => toggleDay(idx)}
-                  className={cn(
-                    'flex aspect-square max-h-11 items-center justify-center rounded-full text-[12px] font-semibold',
-                    selectedDays.includes(idx)
-                      ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
-                      : 'border border-[color:var(--stroke)]'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--stroke)] p-4">
-            <p className="mb-2 text-[12px] font-bold uppercase text-[color:var(--muted)]">персон</p>
-            <div className="flex items-center gap-3">
-              <button type="button" className="btn btn-soft h-9 w-9 rounded-full" onClick={() => setPersonCount((n) => Math.max(subConfig.minPersons, n - 1))}>−</button>
-              <span className="text-[18px] font-bold tabular-nums">{personCount}</span>
-              <button type="button" className="btn btn-soft h-9 w-9 rounded-full" onClick={() => setPersonCount((n) => Math.min(subConfig.maxPersons, n + 1))}>+</button>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--stroke)] p-4">
-            <p className="mb-2 text-[12px] font-bold uppercase text-[color:var(--muted)]">период</p>
-            <div className="flex flex-wrap gap-2">
-              {(subConfig.availablePeriods ?? [7, 14, 28]).map((d) => {
-                const extra = getPeriodDiscountPercent(subConfig.periodDiscounts, d)
-                const sel = periodDays === d
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setPeriodDays(d)}
-                    className={cn(
-                      'relative rounded-xl border px-3 py-2 text-center',
-                      sel ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]' : 'border-[color:var(--stroke)]'
-                    )}
-                  >
-                    <span className="block text-[13px] font-bold">{periodLabel(d)}</span>
-                    {extra > 0 ? (
-                      <span className="absolute -right-1 -top-1 rounded-full bg-[color:var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
-                        −{extra}%
-                      </span>
-                    ) : null}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {step === 1 ? (
-        <section className="space-y-3">
           {enabledSlots.length > 1 ? (
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setActiveSlot('all')} className={cn('rounded-full px-3 py-1.5 text-[12px] font-semibold', activeSlot === 'all' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]')}>
-                все
+            <div className="mb-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveSlot('all')}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-[12px] font-semibold',
+                  activeSlot === 'all' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+                )}
+              >
+                весь день
               </button>
               {enabledSlots.map((s) => (
-                <button key={s} type="button" onClick={() => setActiveSlot(s)} className={cn('rounded-full px-3 py-1.5 text-[12px] font-semibold capitalize', activeSlot === s ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]')}>
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setActiveSlot(s)}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-[12px] font-semibold capitalize',
+                    activeSlot === s ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+                  )}
+                >
                   {MEAL_SLOT_LABEL[s]}
                 </button>
               ))}
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-2">
+
+          <div className="mb-3 flex flex-wrap gap-2">
             {categoryChips.map((c) => (
               <button
                 key={c.id}
@@ -498,11 +528,13 @@ export function SubscriptionCheckoutFlow() {
                     : 'border-[color:var(--stroke)]'
                 )}
               >
-                {c.emoji ? `${c.emoji} ` : ''}{c.name}
+                {c.emoji ? `${c.emoji} ` : ''}
+                {c.name}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="grid grid-cols-2 gap-2.5">
             {visibleDishes.map((d) => {
               const inCart = lines.some((l) => l.dishId === d.id)
               return (
@@ -511,18 +543,20 @@ export function SubscriptionCheckoutFlow() {
                   type="button"
                   onClick={() => addDish(d.id)}
                   className={cn(
-                    'overflow-hidden rounded-2xl border text-left transition active:scale-[0.98]',
+                    'overflow-hidden rounded-[var(--radius-medium)] border text-left shadow-[var(--shadow-soft)] transition active:scale-[0.98]',
                     inCart ? 'border-[color:var(--primary)]' : 'border-[color:var(--stroke)]'
                   )}
                 >
-                  <div className="relative h-32 w-full bg-black/5">
+                  <div className="relative aspect-[4/3] w-full bg-black/5">
                     {d.image ? (
                       <OptimizedImage src={d.image} alt="" className="object-cover" sizes={IMAGE_SIZES.menuGrid} />
                     ) : (
                       <div className="flex h-full items-center justify-center text-[28px]">🍽</div>
                     )}
                     {inCart ? (
-                      <span className="absolute right-2 top-2 rounded-full bg-[color:var(--primary)] px-2 py-0.5 text-[10px] font-bold text-white">✓</span>
+                      <span className="absolute right-2 top-2 rounded-full bg-[color:var(--primary)] px-2 py-0.5 text-[10px] font-bold text-white">
+                        ✓
+                      </span>
                     ) : null}
                   </div>
                   <div className="p-2.5">
@@ -533,91 +567,202 @@ export function SubscriptionCheckoutFlow() {
               )
             })}
           </div>
+
           {lines.length > 0 ? (
-            <div className="rounded-2xl border border-[color:var(--stroke)] p-3">
-              <p className="mb-2 text-[11px] font-bold uppercase text-[color:var(--muted)]">ваш рацион · {lines.length}</p>
-              <ul className="space-y-2">
-                {lines.map((l) => {
-                  const dish = dishes.find((d) => d.id === l.dishId)
-                  return (
-                    <li key={lineKey(l)} className="flex items-center gap-2">
-                      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-black/5">
-                        {dish?.image ? <OptimizedImage src={dish.image} alt="" className="object-cover" sizes="40px" /> : null}
+            <ul className="mt-4 space-y-0 divide-y divide-[color:var(--stroke)] rounded-[var(--radius-medium)] border border-[color:var(--stroke)]">
+              {lines.map((l) => {
+                const dish = dishes.find((d) => d.id === l.dishId)
+                if (!dish) return null
+                return (
+                  <li key={lineKey(l)} className="px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-medium)] bg-black/5">
+                        {dish.image ? (
+                          <OptimizedImage src={dish.image} alt="" className="object-cover" sizes={IMAGE_SIZES.checkoutThumb} />
+                        ) : null}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold">{dish?.name ?? '—'}</p>
-                        {l.mealSlot ? <p className="text-[10px] text-[color:var(--muted)]">{MEAL_SLOT_LABEL[l.mealSlot]}</p> : null}
+                        <p className="truncate text-[14px] font-semibold">{dish.name}</p>
+                        {l.mealSlot ? (
+                          <p className="text-[11px] text-[color:var(--muted)]">{MEAL_SLOT_LABEL[l.mealSlot]}</p>
+                        ) : null}
                       </div>
                       <InlineCounter value={l.quantity} onDec={() => updateQty(l, -1)} onInc={() => updateQty(l, 1)} />
-                      <button type="button" className="text-[12px] text-red-600" onClick={() => removeLine(l)}>×</button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
+                      <button type="button" className="text-[18px] leading-none text-[color:var(--muted)]" onClick={() => removeLine(l)} aria-label="убрать">
+                        ×
+                      </button>
+                    </div>
+                    <SubscriptionDishOptionsPanel
+                      dish={dish}
+                      modifierIds={l.modifierIds ?? []}
+                      onChange={(ids) => setLineModifierIds(l, ids)}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
           ) : null}
         </section>
-      ) : null}
 
-      {step === 2 ? (
-        <section className="space-y-4">
-          <div className="rounded-2xl border border-[color:var(--stroke)] p-4">
-            <p className="text-[11px] font-bold uppercase text-[color:var(--muted)]">итого за период</p>
-            <p className="text-[28px] font-extrabold tabular-nums">{formatPrice(totalPrice)}</p>
-            <p className="mt-1 text-[12px] text-[color:var(--muted)]">
-              {selectedDays.length} дн/нед · {periodLabel(periodDays)} · {personCount} перс.
-            </p>
-            <p className="mt-3 text-[12px] text-[color:var(--muted)]">
-              После отправки заведение проверит рацион и подтвердит подписку в Telegram.
-            </p>
+        {/* расписание + календарь */}
+        <section className="border-b border-[color:var(--stroke)] py-3">
+          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">расписание</h3>
+          <p className="mb-3 text-[13px] text-[color:var(--text)]">{nearestDeliveryLabel(selectedDays)}</p>
+
+          <div className="mb-3 grid grid-cols-7 gap-1.5">
+            {WEEKDAYS.map((label, idx) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => toggleDay(idx)}
+                className={cn(
+                  'flex aspect-square max-h-11 items-center justify-center rounded-full text-[12px] font-semibold transition active:scale-[0.96]',
+                  selectedDays.includes(idx)
+                    ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                    : 'border border-[color:var(--stroke)]'
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <ul className="space-y-2 rounded-2xl border border-[color:var(--stroke)] p-3">
-            {lines.map((l) => {
-              const dish = dishes.find((d) => d.id === l.dishId)
-              return (
-                <li key={lineKey(l)} className="flex items-center gap-2 text-[13px]">
-                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-black/5">
-                    {dish?.image ? <OptimizedImage src={dish.image} alt="" className="object-cover" sizes="36px" /> : null}
-                  </div>
-                  <span className="flex-1 truncate">{l.quantity > 1 ? `${l.quantity}× ` : ''}{dish?.name}</span>
-                  <span className="tabular-nums text-[color:var(--muted)]">{formatPrice((dish?.price ?? 0) * l.quantity)}</span>
-                </li>
-              )
-            })}
-          </ul>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-semibold text-[color:var(--muted)]">название подписки</span>
+
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-[12px] font-semibold text-[color:var(--muted)]">старт подписки</span>
             <input
-              className="input w-full"
+              type="date"
+              value={startDate.toISOString().slice(0, 10)}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => {
+                const d = new Date(e.target.value + 'T12:00:00')
+                if (!Number.isNaN(d.getTime())) setStartDate(d)
+              }}
+              className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-transparent px-2 py-1.5 text-[13px] font-semibold tabular-nums"
+            />
+          </div>
+
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-[12px] font-semibold text-[color:var(--muted)]">календарь · {periodLabel(periodDays)}</span>
+            <span className="text-[12px] tabular-nums text-[color:var(--text)]">
+              {deliveryCount} доставок
+            </span>
+          </div>
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {calendarCells.map((cell) => (
+              <div
+                key={cell.key}
+                className={cn(
+                  'flex w-[52px] shrink-0 flex-col items-center rounded-[var(--radius-medium)] border px-1 py-2 text-center',
+                  cell.isDelivery
+                    ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]'
+                    : 'border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--muted)]',
+                  cell.isStart && 'ring-2 ring-[color:var(--primary)] ring-offset-1'
+                )}
+              >
+                <span className="text-[9px] font-bold uppercase opacity-80">{cell.weekday}</span>
+                <span className="text-[16px] font-extrabold tabular-nums">{cell.day}</span>
+                <span className="text-[9px] opacity-70">{cell.month}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between border-b border-[color:var(--stroke)] py-2.5">
+            <span className="ui-muted shrink-0">персон</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-soft h-8 w-8 rounded-full text-[16px]"
+                onClick={() => setPersonCount((n) => Math.max(subConfig.minPersons, n - 1))}
+              >
+                −
+              </button>
+              <span className="min-w-[2ch] text-center text-[15px] font-bold tabular-nums">{personCount}</span>
+              <button
+                type="button"
+                className="btn btn-soft h-8 w-8 rounded-full text-[16px]"
+                onClick={() => setPersonCount((n) => Math.min(subConfig.maxPersons, n + 1))}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-3">
+            <span className="mb-2 block text-[12px] font-semibold text-[color:var(--muted)]">период</span>
+            <div className="flex flex-wrap gap-2">
+              {(subConfig.availablePeriods ?? [7, 14, 28]).map((d) => {
+                const extra = getPeriodDiscountPercent(subConfig.periodDiscounts, d)
+                const sel = periodDays === d
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setPeriodDays(d)}
+                    className={cn(
+                      'relative min-w-[88px] rounded-xl border px-3 py-2.5 text-center transition',
+                      sel ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]' : 'border-[color:var(--stroke)]'
+                    )}
+                  >
+                    <span className="block text-[13px] font-bold">{periodLabel(d)}</span>
+                    <span className="mt-0.5 block text-[10px] opacity-80">{d} дн.</span>
+                    {extra > 0 ? (
+                      <span className="absolute -right-1 -top-1 rounded-full bg-[color:var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        −{extra}%
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* контакт */}
+        <section className="border-b border-[color:var(--stroke)] py-3">
+          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">контакт</h3>
+          <div className="flex items-center justify-between border-b border-[color:var(--stroke)] py-2.5">
+            <span className="ui-muted shrink-0">имя</span>
+            <input
+              type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="например: обед на неделю"
+              placeholder="как к вам обращаться"
+              className="ui-body ml-3 w-[65%] border-none bg-transparent p-0 text-right outline-none placeholder:text-[color:var(--muted)]"
             />
-          </label>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="ui-muted shrink-0">telegram</span>
+            <span className="ui-body ml-3 text-right text-[14px] font-semibold">{telegramContact || 'из mini app'}</span>
+          </div>
         </section>
-      ) : null}
 
-      <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/95 p-4 pb-[max(16px,env(safe-area-inset-bottom))] backdrop-blur-md">
-        <div className="ui-container flex items-center gap-3">
-          {totalPrice > 0 ? (
-            <div className="min-w-0 shrink-0">
-              <p className="text-[10px] uppercase text-[color:var(--muted)]">итого</p>
-              <p className="text-[18px] font-extrabold tabular-nums">{formatPrice(totalPrice)}</p>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            disabled={!canNext || submitting}
-            onClick={() => {
-              if (step < 2) setStep((s) => s + 1)
-              else void submit()
-            }}
-            className="btn btn-primary ml-auto h-12 flex-1 rounded-full text-[15px] font-bold disabled:opacity-50"
-          >
-            {submitting ? '…' : step < 2 ? 'далее' : resumeId ? 'сохранить заявку' : 'отправить на подтверждение'}
-          </button>
-        </div>
-      </footer>
-    </div>
+        {/* итого */}
+        <section className="py-3">
+          <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">итого</h3>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-[14px] font-semibold">за период</span>
+            <span className="text-[22px] font-extrabold tabular-nums">{formatPrice(totalPrice)}</span>
+          </div>
+          <p className="text-[12px] text-[color:var(--muted)]">
+            {selectedDays.length} дн/нед · {periodLabel(periodDays)} · {personCount} перс. · {lines.length} блюд
+          </p>
+          <p className="mt-2 text-[12px] text-[color:var(--muted)]">
+            После отправки заведение проверит рацион и подтвердит подписку в Telegram.
+          </p>
+        </section>
+      </div>
+
+      <div className="pointer-events-none fixed bottom-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+8px)] left-1/2 z-[115] w-[min(640px,96%)] max-w-full -translate-x-1/2">
+        <button
+          type="button"
+          disabled={!canSubmit || submitting}
+          onClick={() => void submit()}
+          className="pointer-events-auto btn btn-primary h-12 w-full text-[16px] disabled:opacity-50"
+          style={{ borderRadius: 'var(--radius-pill)' }}
+        >
+          {submitting ? '…' : submitCta}
+        </button>
+      </div>
+    </main>
   )
 }

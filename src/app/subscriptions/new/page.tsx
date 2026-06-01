@@ -31,10 +31,8 @@ export default function NewSubscriptionPage() {
   }
 
   return (
-    <main className="ui-container ui-screen flex min-h-[100dvh] flex-col">
-      <Suspense fallback={<p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>}>
-        <NewSubscriptionContent />
-      </Suspense>
-    </main>
+    <Suspense fallback={<p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>}>
+      <NewSubscriptionContent />
+    </Suspense>
   )
 }

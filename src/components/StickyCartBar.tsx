@@ -40,6 +40,7 @@ function normalizeStoreVariantName(value: unknown): string {
   const shouldHide =
     pathname === '/cart' ||
     pathname === '/checkout' ||
+    pathname === '/subscriptions/new' ||
     pathname.startsWith('/requests') ||
     isOwnerContext
 
