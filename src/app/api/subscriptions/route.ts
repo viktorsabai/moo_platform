@@ -5,7 +5,6 @@ import { Prisma } from '@prisma/client'
 import { buildWebAppUrl, escapeHtml, sendTelegramMessage } from '@/lib/telegram'
 import { formatNotificationMessage, notifySubscriptionCreatedToOwner } from '@/lib/notifications'
 import { formatPrice, getNearestEventLabel } from '@/lib/utils'
-import { getScheduledDeliveryDates } from '@/lib/subscription-deliveries'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import { getPlanRules, validateSubscriptionItemsAgainstPlan } from '@/lib/subscription-plan-rules'
 import { parseMealSlot } from '@/lib/subscription-meal-slots'
@@ -367,7 +366,7 @@ export async function POST(request: Request) {
         name,
         ...(planTemplateId ? { planTemplate: { connect: { id: planTemplateId } } } : {}),
         plan: plan as any,
-        status: 'ACTIVE',
+        status: 'PENDING',
         price: new Prisma.Decimal(String(price)),
         deliveryDays,
         deliveryTime,
@@ -407,34 +406,17 @@ export async function POST(request: Request) {
     throw e
   }
 
-  // Create SubscriptionDelivery records for the next 4 weeks
-  if (deliveryDays.length > 0) {
-    const scheduledDates = getScheduledDeliveryDates(
-      deliveryDays,
-      nextDelivery && !Number.isNaN(nextDelivery.getTime()) ? nextDelivery : startDate,
-      4
-    )
-    if (scheduledDates.length > 0) {
-      await prisma.subscriptionDelivery.createMany({
-        data: scheduledDates.map((scheduledDate) => ({
-          subscriptionId: subscription.id,
-          scheduledDate,
-          status: 'SCHEDULED',
-        })),
-      })
-    }
-  }
 
   const bulletLines = rawItems.slice(0, 5).map((it: any) => `• ${escapeHtml(it.name || 'блюдо')} ×${escapeHtml(String(it.quantity ?? 1))}`)
   const nextDeliveryLabel = nextDelivery && !Number.isNaN(nextDelivery.getTime())
     ? getNearestEventLabel(nextDelivery, deliveryTime)
     : undefined
   const msg = formatNotificationMessage({
-    emoji: '✅',
-    title: 'Подписка создана',
-    metricsLine: `«${escapeHtml(name)}» · ${escapeHtml(formatPrice(price))}/мес`,
+    emoji: '📋',
+    title: 'Заявка на подписку отправлена',
+    metricsLine: `«${escapeHtml(name)}» · ${escapeHtml(formatPrice(price))}`,
     bulletLines: bulletLines.length ? bulletLines : undefined,
-    closingPhrase: nextDeliveryLabel ? `След. доставка: ${escapeHtml(nextDeliveryLabel)}` : undefined,
+    closingPhrase: 'Заведение подтвердит рацион — мы напишем в Telegram.',
   })
 
   const botToken = await prisma.botIntegration.findFirst({
@@ -471,6 +453,7 @@ export async function POST(request: Request) {
     price,
     itemsSummary,
     nextDeliveryLabel: nextDeliveryLabel ?? undefined,
+    pendingApproval: true,
   }).catch(() => {})
 
     return NextResponse.json({

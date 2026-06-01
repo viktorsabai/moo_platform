@@ -18,10 +18,9 @@ export function Footer() {
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold mb-4">Контакты</h4>
+            <h4 className="font-semibold mb-4">Связь</h4>
             <ul className="space-y-2 text-gray-400">
-              <li>Email: info@ufodelivery.ru</li>
-              <li>Телефон: +7 (999) 123-45-67</li>
+              <li>Telegram mini app — основной канал связи</li>
             </ul>
           </div>
         </div>

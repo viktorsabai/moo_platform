@@ -36,7 +36,6 @@ export async function POST(request: Request) {
     const type = normalizeType(body?.type)
     const title = typeof body?.title === 'string' ? body.title.trim().slice(0, 120) : ''
     const note = typeof body?.note === 'string' ? body.note.trim().slice(0, 800) : ''
-    const phone = typeof body?.phone === 'string' ? body.phone.trim().slice(0, 60) : ''
     const guestCountRaw = Number(body?.guestCount)
     const guestCount = Number.isFinite(guestCountRaw) && guestCountRaw > 0
       ? Math.min(10000, Math.floor(guestCountRaw))
@@ -52,8 +51,8 @@ export async function POST(request: Request) {
     const customerTelegramId = ((session?.user as any)?.telegramId as string | undefined) ?? null
     const userName =
       (session?.user as any)?.name ??
+      (session?.user as any)?.telegramUsername ??
       (session?.user as any)?.telegramFirstName ??
-      (session?.user as any)?.email ??
       'Клиент'
 
     const lead = await prisma.serviceLead.create({
@@ -62,7 +61,7 @@ export async function POST(request: Request) {
         userId,
         telegramId: customerTelegramId,
         name: String(userName),
-        phone: phone || ((session?.user as any)?.phone ?? null),
+        phone: null,
         type,
         title: title || null,
         guestCount,

@@ -27,6 +27,7 @@ export const SUBSCRIPTION_PLANS = {
 
 export const SUBSCRIPTION_STATUSES = {
   ACTIVE: 'Активна',
+  PENDING: 'На подтверждении',
   PAUSED: 'Приостановлена',
   CANCELLED: 'Отменена',
   EXPIRED: 'Истекла',
@@ -36,14 +37,16 @@ export const SUBSCRIPTION_STATUSES = {
 /** Dashboard filter labels (strict: активная, закончилась, черновик). PAUSED not shown as separate type. */
 export const SUBSCRIPTION_STATUS_FILTERS = {
   active: 'активная',
+  pending: 'на подтверждении',
   ended: 'закончилась',
   draft: 'черновик',
 } as const
 
-/** Map backend status to dashboard filter key. PAUSED → active (no separate "на паузе" type). */
-export const SUBSCRIPTION_STATUS_TO_FILTER: Record<string, 'active' | 'ended' | 'draft'> = {
+/** Map backend status to dashboard filter key. */
+export const SUBSCRIPTION_STATUS_TO_FILTER: Record<string, 'active' | 'pending' | 'ended' | 'draft'> = {
   ACTIVE: 'active',
   PAUSED: 'active',
+  PENDING: 'pending',
   EXPIRED: 'ended',
   CANCELLED: 'ended',
   DRAFT: 'draft',

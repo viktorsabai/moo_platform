@@ -19,6 +19,12 @@ export type SubscriptionCommerceConfig = {
   priceRoundTo: number
 }
 
+export const DEFAULT_PERIOD_DISCOUNTS: Record<number, number> = {
+  7: 0,
+  14: 3,
+  28: 8,
+}
+
 export type SubscriptionConfig = {
   mealSlots: Record<MealSlot, MealSlotConfig>
   commerce: SubscriptionCommerceConfig
@@ -30,8 +36,25 @@ export type SubscriptionConfig = {
   maxPersons: number
   defaultPeriodDays: number
   availablePeriods: number[]
+  /** Extra discount % on top of subscriptionDiscountPercent, keyed by period length (days). */
+  periodDiscounts?: Record<number, number>
   /** Owner override for typical subscription price (period total, THB). Clamped to min margin in pricing engine. */
   ownerPriceOverride?: number | null
+}
+
+export function periodLabel(days: number): string {
+  if (days === 7) return '1 неделя'
+  if (days === 14) return '2 недели'
+  if (days === 28) return '1 месяц'
+  return `${days} дн.`
+}
+
+export function getPeriodDiscountPercent(
+  periodDiscounts: Record<number, number> | undefined,
+  periodDays: number
+): number {
+  const map = periodDiscounts ?? DEFAULT_PERIOD_DISCOUNTS
+  return map[periodDays] ?? 0
 }
 
 export const DEFAULT_COMMERCE: SubscriptionCommerceConfig = {
@@ -62,7 +85,22 @@ export function defaultSubscriptionConfig(): SubscriptionConfig {
     maxPersons: 4,
     defaultPeriodDays: 28,
     availablePeriods: [7, 14, 28],
+    periodDiscounts: { ...DEFAULT_PERIOD_DISCOUNTS },
   }
+}
+
+function parsePeriodDiscounts(raw: unknown, periods: number[]): Record<number, number> {
+  const result: Record<number, number> = {}
+  for (const days of periods) {
+    let v = DEFAULT_PERIOD_DISCOUNTS[days] ?? 0
+    if (isRecord(raw)) {
+      const rawVal = raw[String(days)]
+      const num = Number(rawVal)
+      if (Number.isFinite(num)) v = Math.max(0, Math.min(50, num))
+    }
+    result[days] = v
+  }
+  return result
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -153,6 +191,10 @@ export function parseSubscriptionConfig(raw: unknown): SubscriptionConfig {
     maxPersons: intField('maxPersons', 1, 10),
     defaultPeriodDays: intField('defaultPeriodDays', 7, 90),
     availablePeriods: periods.length ? [...new Set(periods)].sort((a, b) => a - b) : base.availablePeriods,
+    periodDiscounts: parsePeriodDiscounts(
+      raw.periodDiscounts,
+      periods.length ? [...new Set(periods)].sort((a, b) => a - b) : base.availablePeriods
+    ),
     ownerPriceOverride,
   }
 }

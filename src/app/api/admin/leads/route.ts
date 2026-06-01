@@ -26,9 +26,8 @@ export async function GET() {
         status: true,
         telegramId: true,
         name: true,
-        phone: true,
         createdAt: true,
-        user: { select: { name: true, telegramUsername: true, phone: true } },
+        user: { select: { name: true, telegramUsername: true, telegramId: true } },
       },
     })
     return NextResponse.json({ ok: true, leads })

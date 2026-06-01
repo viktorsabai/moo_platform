@@ -26,8 +26,13 @@ import { SubscriptionRationStrip } from '@/features/subscriptions/components/Sub
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { subscriptionPlanPresetGradient } from '@/lib/subscription-plan-visual'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
-import type { SubscriptionConfig } from '@/lib/subscription-config'
-import { defaultSubscriptionConfig, getEnabledMealSlots } from '@/lib/subscription-config'
+import {
+  defaultSubscriptionConfig,
+  getEnabledMealSlots,
+  getPeriodDiscountPercent,
+  periodLabel,
+  type SubscriptionConfig,
+} from '@/lib/subscription-config'
 import { buildPrefillItems, suggestDeliveryDays } from '@/lib/subscription-prefill'
 import { resolveMealSlotRules } from '@/lib/subscription-meal-slot-rules'
 
@@ -1064,7 +1069,7 @@ export function SubscriptionWizard() {
           ...(serverSubscriptionId ? { id: serverSubscriptionId } : {}),
           name: subscriptionName.trim(),
           plan,
-          status: 'ACTIVE' as SubscriptionStatus,
+          status: 'PENDING' as SubscriptionStatus,
           price: Math.round(effectivePricePerMonth),
           deliveryDays: selectedDays,
           deliveryTime: '13:00',
@@ -1072,7 +1077,7 @@ export function SubscriptionWizard() {
           nextDelivery: new Date(Date.now() + 24 * 60 * 60 * 1000),
           items: subscriptionItems,
         } as any)
-        toast.success('подписка создана')
+        toast.success('заявка отправлена на подтверждение')
       }
       router.push(isEditMode && compositionId ? `/subscriptions/${compositionId}` : '/subscriptions')
     } catch (e: any) {
@@ -1408,40 +1413,64 @@ export function SubscriptionWizard() {
                 )
               })}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block text-[12px]">
-                <span className="font-semibold text-[color:var(--muted)]">персон</span>
-                <div className="mt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-soft h-9 w-9 rounded-full text-[16px]"
-                    onClick={() => setPersonCount((n) => Math.max(subConfig.minPersons, n - 1))}
-                  >
-                    −
-                  </button>
-                  <span className="min-w-[2ch] text-center text-[15px] font-bold tabular-nums">{personCount}</span>
-                  <button
-                    type="button"
-                    className="btn btn-soft h-9 w-9 rounded-full text-[16px]"
-                    onClick={() => setPersonCount((n) => Math.min(subConfig.maxPersons, n + 1))}
-                  >
-                    +
-                  </button>
-                </div>
-              </label>
-              <label className="block text-[12px]">
-                <span className="font-semibold text-[color:var(--muted)]">период</span>
-                <select
-                  value={periodDays}
-                  onChange={(e) => setPeriodDays(Number(e.target.value))}
-                  className="input mt-1 w-full rounded-lg px-3 py-2 text-[13px]"
+            <label className="block text-[12px]">
+              <span className="font-semibold text-[color:var(--muted)]">персон</span>
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-soft h-9 w-9 rounded-full text-[16px]"
+                  onClick={() => setPersonCount((n) => Math.max(subConfig.minPersons, n - 1))}
                 >
-                  {(subConfig.availablePeriods ?? [7, 14, 28]).map((d) => (
-                    <option key={d} value={d}>{d} дней</option>
-                  ))}
-                </select>
-              </label>
-            </div>
+                  −
+                </button>
+                <span className="min-w-[2ch] text-center text-[15px] font-bold tabular-nums">{personCount}</span>
+                <button
+                  type="button"
+                  className="btn btn-soft h-9 w-9 rounded-full text-[16px]"
+                  onClick={() => setPersonCount((n) => Math.min(subConfig.maxPersons, n + 1))}
+                >
+                  +
+                </button>
+              </div>
+            </label>
+            <div className="block text-[12px]">
+              <span className="font-semibold text-[color:var(--muted)]">период</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                  {(subConfig.availablePeriods ?? [7, 14, 28]).map((d) => {
+                    const extra = getPeriodDiscountPercent(subConfig.periodDiscounts, d)
+                    const isSelected = periodDays === d
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setPeriodDays(d)}
+                        className="relative flex min-w-[88px] flex-col items-center rounded-xl border px-3 py-2.5 text-center transition"
+                        style={{
+                          borderRadius: 'var(--radius-medium)',
+                          borderColor: isSelected ? 'var(--text)' : 'var(--stroke)',
+                          background: isSelected ? 'var(--text)' : 'var(--surface)',
+                          color: isSelected ? 'var(--surface)' : 'var(--text)',
+                        }}
+                      >
+                        <span className="text-[13px] font-bold">{periodLabel(d)}</span>
+                        <span className="mt-0.5 text-[10px] opacity-80">{d} дн.</span>
+                        {extra > 0 ? (
+                          <span
+                            className="absolute -right-1 -top-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                            style={{
+                              background: 'var(--accent)',
+                              color: 'var(--surface)',
+                              borderRadius: 'var(--radius-pill)',
+                            }}
+                          >
+                            −{extra}%
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             {enabledMealSlots.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {enabledMealSlots.map((slot) => (

@@ -34,6 +34,7 @@ export async function GET() {
         maxPersons: config.maxPersons,
         defaultPeriodDays: config.defaultPeriodDays,
         availablePeriods: config.availablePeriods,
+        periodDiscounts: config.periodDiscounts,
         commerce: {
           subscriptionDiscountPercent: config.commerce.subscriptionDiscountPercent,
         },

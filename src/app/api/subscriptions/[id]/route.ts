@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import {
+  notifySubscriptionCreatedToOwner,
   notifySubscriptionStatusChangedToCustomer,
   notifySubscriptionStatusChangedToOwner,
 } from '@/lib/notifications'
@@ -11,11 +12,13 @@ import { canEditSubscription } from '@/lib/subscription-rules'
 import { getPlanRules, validateSubscriptionItemsAgainstPlan } from '@/lib/subscription-plan-rules'
 import { parseMealSlot } from '@/lib/subscription-meal-slots'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
+import { formatTelegramContact } from '@/lib/telegram-contact'
+import { getNearestEventLabel } from '@/lib/utils'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED'] as const
+const ALLOWED_STATUSES = ['DRAFT', 'PENDING', 'ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED'] as const
 
 async function getSubscriptionContext(id: string, needsItems = false, needsUser = false) {
   const authUser = await resolveApiUser(headers())
@@ -31,6 +34,8 @@ async function getSubscriptionContext(id: string, needsItems = false, needsUser 
             name: true,
             plan: true,
             price: true,
+            personCount: true,
+            periodDays: true,
             deliveryDays: true,
             deliveryTime: true,
             nextDelivery: true,
@@ -109,6 +114,8 @@ export async function PATCH(
   const sub = result.subscription as any
   const body = await request.json().catch(() => ({}))
   const update: Record<string, unknown> = {}
+  const isPendingOrDraft = sub.status === 'PENDING' || sub.status === 'DRAFT'
+  let shouldRenotifyOwner = false
 
   const rawItems = Array.isArray((body as any)?.items) ? (body as any).items : null
   const deliveryDays = Array.isArray((body as any)?.deliveryDays)
@@ -140,7 +147,36 @@ export async function PATCH(
     update.status = status
   }
 
+  const nameRaw = typeof body?.name === 'string' ? body.name.trim() : ''
+  if (nameRaw && isPendingOrDraft) {
+    update.name = nameRaw.slice(0, 120)
+    shouldRenotifyOwner = sub.status === 'PENDING'
+  }
+
+  if (isPendingOrDraft) {
+    const periodDaysRaw = Number((body as any)?.periodDays)
+    if (Number.isFinite(periodDaysRaw) && periodDaysRaw > 0) {
+      update.periodDays = Math.round(periodDaysRaw)
+      shouldRenotifyOwner = sub.status === 'PENDING'
+    }
+    const personCountRaw = Number((body as any)?.personCount)
+    if (Number.isFinite(personCountRaw) && personCountRaw > 0) {
+      update.personCount = Math.round(personCountRaw)
+      shouldRenotifyOwner = sub.status === 'PENDING'
+    }
+    const planRaw = typeof (body as any)?.plan === 'string' ? String((body as any).plan).trim() : ''
+    if (planRaw) {
+      update.plan = planRaw
+      shouldRenotifyOwner = sub.status === 'PENDING'
+    }
+    const priceRaw = Number((body as any)?.price)
+    if (Number.isFinite(priceRaw) && priceRaw >= 0) {
+      update.price = Math.round(priceRaw)
+    }
+  }
+
   if (rawItems !== null) {
+    shouldRenotifyOwner = sub.status === 'PENDING'
     type RawItem = { dishId?: string; quantity?: number; dayOfWeek?: number; mealSlot?: string; modifierIds?: string[] }
     type Candidate = { dishId: string; quantity: number; dayOfWeek: number | null; mealSlot: string | null; modifierIds: string[] }
     const itemCandidates = (rawItems as RawItem[])
@@ -237,6 +273,10 @@ export async function PATCH(
     })
   }
 
+  if (deliveryDays !== null && deliveryDays.length > 0) {
+    shouldRenotifyOwner = sub.status === 'PENDING'
+  }
+
   if (deliveryDays && deliveryDays.length > 0) {
     const subWithPlan = await prisma.subscription.findFirst({
       where: { id, userId: result.userId, restaurantId: result.restaurantId },
@@ -274,18 +314,61 @@ export async function PATCH(
     update.deliveryDays = deliveryDays
   }
 
-  if (!status && rawItems === null && deliveryDays === null) {
+  const hasScalarUpdate = Object.keys(update).length > 0
+  if (!status && rawItems === null && deliveryDays === null && !hasScalarUpdate) {
     return NextResponse.json({ ok: false, error: 'nothing to update' }, { status: 400 })
   }
 
-  if (Object.keys(update).length > 0) {
+  if (hasScalarUpdate || rawItems !== null) {
     const prevResult = status ? await getSubscriptionContext(id, false, true) : null
     const prevSub = prevResult && !('error' in prevResult) ? (prevResult as any).subscription : null
 
-    await prisma.subscription.update({
-      where: { id },
-      data: update as any,
-    })
+    if (Object.keys(update).length > 0) {
+      await prisma.subscription.update({
+        where: { id },
+        data: update as any,
+      })
+    }
+
+    if (shouldRenotifyOwner) {
+      const fresh = await prisma.subscription.findFirst({
+        where: { id, userId: result.userId, restaurantId: result.restaurantId },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          deliveryTime: true,
+          nextDelivery: true,
+          user: { select: { name: true, telegramUsername: true, telegramId: true } },
+          items: { select: { quantity: true, dish: { select: { name: true } } } },
+        },
+      })
+      if (fresh) {
+        const userName = formatTelegramContact({
+          name: fresh.user?.name,
+          telegramUsername: fresh.user?.telegramUsername,
+          telegramId: fresh.user?.telegramId,
+        }) || 'Клиент'
+        const itemsSummary = fresh.items
+          .slice(0, 5)
+          .map((it) => `${it.quantity}× ${it.dish?.name || '—'}`)
+          .join(', ')
+        const nextDeliveryLabel =
+          fresh.nextDelivery && !Number.isNaN(new Date(fresh.nextDelivery).getTime())
+            ? getNearestEventLabel(new Date(fresh.nextDelivery), fresh.deliveryTime ?? undefined)
+            : undefined
+        notifySubscriptionCreatedToOwner({
+          restaurantId: result.restaurantId,
+          subscriptionId: id,
+          userName,
+          name: fresh.name,
+          price: Number(fresh.price ?? 0),
+          itemsSummary,
+          nextDeliveryLabel,
+          pendingApproval: true,
+        }).catch(() => {})
+      }
+    }
 
     if (status && prevSub) {
       const userName = (prevSub.user as any)?.name ?? (prevSub.user as any)?.telegramFirstName ?? 'Клиент'

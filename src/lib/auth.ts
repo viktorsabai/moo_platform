@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 import { allowAutoDefaultOwner } from '@/lib/platform-tenant'
 import { acceptPendingRestaurantInvites } from '@/lib/restaurant-invites'
+import { fieldsFromTelegramWebAppUser } from '@/lib/telegram-user-fields'
 import crypto from 'crypto'
 
 function parseTelegramIds(value: string): string[] {
@@ -114,16 +115,32 @@ export const authOptions: NextAuthOptions = {
           if (bot?.restaurantId) restaurantId = bot.restaurantId
         }
 
-        const name = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ')
-        const email = `tg_${tgUser.id}@telegram.local`
+        const tgFields = fieldsFromTelegramWebAppUser(tgUser)
+        const email = `tg_${tgFields.telegramId}@telegram.local`
         const user = await prisma.user.upsert({
           where: { email },
-          create: { name, email, passwordHash: crypto.randomBytes(32).toString('hex'), telegramId: String(tgUser.id) },
-          update: { name, telegramId: String(tgUser.id) },
+          create: {
+            name: tgFields.name,
+            email,
+            passwordHash: crypto.randomBytes(32).toString('hex'),
+            telegramId: tgFields.telegramId,
+            telegramUsername: tgFields.telegramUsername,
+            telegramFirstName: tgFields.telegramFirstName,
+            telegramLastName: tgFields.telegramLastName,
+            telegramPhotoUrl: tgFields.telegramPhotoUrl,
+          },
+          update: {
+            name: tgFields.name,
+            telegramId: tgFields.telegramId,
+            telegramUsername: tgFields.telegramUsername,
+            telegramFirstName: tgFields.telegramFirstName,
+            telegramLastName: tgFields.telegramLastName,
+            telegramPhotoUrl: tgFields.telegramPhotoUrl,
+          },
         })
 
         try {
-          await acceptPendingRestaurantInvites({ userId: user.id, telegramId: String(tgUser.id) })
+          await acceptPendingRestaurantInvites({ userId: user.id, telegramId: tgFields.telegramId })
         } catch {
           // не блокируем вход из‑за приглашений
         }
@@ -202,7 +219,8 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email ?? email,
           name: user.name,
-          telegramId: String(tgUser.id),
+          telegramId: tgFields.telegramId,
+          telegramUsername: tgFields.telegramUsername ?? undefined,
           restaurantId,
           platformRole,
           memberRole,
@@ -385,6 +403,7 @@ export const authOptions: NextAuthOptions = {
         token.sub = id
         ;(token as any).id = id
         token.telegramId = (user as any).telegramId
+        ;(token as any).telegramUsername = (user as any).telegramUsername
         ;(token as any).role = (user as any).role
         ;(token as any).restaurantId = (user as any).restaurantId
         ;(token as any).platformRole = (user as any).platformRole
@@ -392,6 +411,20 @@ export const authOptions: NextAuthOptions = {
         token.name = (user as any).name
         token.email = (user as any).email
         token.picture = (user as any).image
+      }
+
+      if (token.sub && !(token as any).telegramUsername) {
+        try {
+          const u = await prisma.user.findUnique({
+            where: { id: String(token.sub) },
+            select: { telegramUsername: true, telegramId: true, telegramPhotoUrl: true },
+          })
+          if (u?.telegramUsername) (token as any).telegramUsername = u.telegramUsername
+          if (u?.telegramId) token.telegramId = u.telegramId
+          if (u?.telegramPhotoUrl) token.picture = u.telegramPhotoUrl
+        } catch {
+          // ignore
+        }
       }
 
       // roles can change (manual assignment); refresh lazily
@@ -494,6 +527,7 @@ export const authOptions: NextAuthOptions = {
         const id = (token as any).id ?? token.sub
         session.user.id = typeof id === 'string' ? id : String(id ?? '')
         session.user.telegramId = (token as any).telegramId
+        ;(session.user as any).telegramUsername = (token as any).telegramUsername
         session.user.role = (token as any).role
         ;(session.user as any).platformRole = (token as any).platformRole
         ;(session.user as any).memberRole = (token as any).memberRole

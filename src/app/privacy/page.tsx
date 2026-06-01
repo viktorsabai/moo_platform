@@ -28,7 +28,8 @@ export default function PrivacyPage() {
         <h2 className="mb-2 text-[16px] font-bold text-black/85">3. Данные гостя (покупателя)</h2>
         <ul className="list-inside list-disc space-y-1 text-[13px] leading-relaxed text-black/75">
           <li><strong>Идентификация:</strong> идентификатор Telegram, имя (из профиля Telegram), при необходимости — логин для входа с десктопа (тот же Telegram ID).</li>
-          <li><strong>Доставка и связь:</strong> имя, телефон, адрес доставки — только если вы их указываете при заказе или в профиле.</li>
+          <li><strong>Доставка:</strong> имя и адрес доставки — только если вы их указываете при заказе или в профиле.</li>
+          <li><strong>Связь:</strong> через Telegram (@username из mini app). Телефон и email не собираем.</li>
           <li><strong>Заказы и подписки:</strong> история заказов, активные подписки, данные, необходимые для оплаты (обрабатываются в соответствии с правилами платёжного провайдера).</li>
         </ul>
         <p className="mt-2 text-[13px] leading-relaxed text-black/75">

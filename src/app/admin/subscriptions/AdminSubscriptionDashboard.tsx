@@ -8,6 +8,8 @@ import { MEAL_SLOT_IDS, MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscriptio
 import {
   defaultSubscriptionConfig,
   getEnabledMealSlots,
+  getPeriodDiscountPercent,
+  periodLabel,
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
 import { EmptyStatePlaceholder } from '@/components/ui/EmptyStatePlaceholder'
@@ -552,6 +554,36 @@ export function AdminSubscriptionDashboard() {
             Итоговая цена — что больше: маржа или скидка. У каждого гостя своя сумма (рацион × дни).
           </p>
         </label>
+
+        <div className="mt-4">
+          <p className="mb-2 text-[13px] font-semibold">доп. скидка за длинный период</p>
+          <p className="ui-muted mb-3 text-[11px]">
+            Складывается с базовой скидкой — гость видит бейдж «−X% за месяц».
+          </p>
+          {(config.availablePeriods ?? [7, 14, 28]).map((days) => {
+            const val = config.periodDiscounts?.[days] ?? 0
+            return (
+              <label key={days} className="mt-3 block">
+                <div className="mb-1.5 flex justify-between text-[12px] font-medium">
+                  <span>{periodLabel(days)}</span>
+                  <span className="tabular-nums text-[color:var(--primary)]">+{val}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={val}
+                  onChange={(e) => {
+                    const next = { ...(config.periodDiscounts ?? {}), [days]: Number(e.target.value) }
+                    patchConfig({ ...config, periodDiscounts: next })
+                  }}
+                  className="h-1.5 w-full accent-[color:var(--primary)]"
+                />
+              </label>
+            )
+          })}
+        </div>
       </section>
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[color:var(--stroke)] bg-[color:var(--surface)]/95 p-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-md">

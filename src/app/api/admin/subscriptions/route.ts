@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { formatTelegramContact } from '@/lib/telegram-contact'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 
 export const runtime = 'nodejs'
@@ -7,9 +8,11 @@ export const dynamic = 'force-dynamic'
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'активная',
+  PENDING: 'на подтверждении',
   PAUSED: 'на паузе',
   CANCELLED: 'отменена',
   EXPIRED: 'закончилась',
+  DRAFT: 'черновик',
 }
 
 export async function GET() {
@@ -25,6 +28,8 @@ export async function GET() {
         status: true,
         price: true,
         plan: true,
+        personCount: true,
+        periodDays: true,
         deliveryDays: true,
         deliveryTime: true,
         nextDelivery: true,
@@ -33,8 +38,8 @@ export async function GET() {
           select: {
             id: true,
             name: true,
-            email: true,
-            phone: true,
+            telegramUsername: true,
+            telegramId: true,
             telegramPhotoUrl: true,
             avatar: true,
           },
@@ -55,13 +60,19 @@ export async function GET() {
     const mapped = subs.map((s) => ({
       ...s,
       price: Number(s.price),
+      nextDelivery: s.nextDelivery ? s.nextDelivery.toISOString() : null,
+      createdAt: s.createdAt.toISOString(),
       statusLabel: STATUS_LABEL[s.status] ?? s.status,
       user: s.user
         ? {
             id: s.user.id,
-            name: s.user.name ?? s.user.email ?? '—',
-            email: s.user.email ?? null,
-            phone: s.user.phone ?? null,
+            name: formatTelegramContact({
+              name: s.user.name,
+              telegramUsername: s.user.telegramUsername,
+              telegramId: s.user.telegramId,
+            }),
+            telegramUsername: s.user.telegramUsername ?? null,
+            telegramId: s.user.telegramId ?? null,
             telegramPhotoUrl: s.user.telegramPhotoUrl ?? null,
             avatar: s.user.avatar ?? null,
           }
@@ -72,7 +83,7 @@ export async function GET() {
       })),
       deliveries: (s.deliveries ?? []).map((d) => ({
         id: d.id,
-        scheduledDate: d.scheduledDate,
+        scheduledDate: d.scheduledDate.toISOString(),
         status: d.status,
       })),
     }))

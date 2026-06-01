@@ -21,6 +21,8 @@ export type SubscriptionQuoteInput = {
   commerce: SubscriptionCommerceConfig
   dishes: Map<string, DishPricingRow>
   modifiers: Map<string, ModifierPricingRow>
+  /** Extra discount % for longer billing period (stacked with subscriptionDiscountPercent). */
+  periodDiscountPercent?: number
   ownerPriceOverride?: number | null
 }
 
@@ -36,6 +38,8 @@ export type SubscriptionQuoteResult = {
   guestSavingsPercent: number
   deliveriesInPeriod: number
   missingCostCount: number
+  periodDiscountPercent: number
+  totalDiscountPercent: number
 }
 
 function roundPrice(value: number, roundTo: number): number {
@@ -73,6 +77,7 @@ export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): Subsc
     commerce,
     dishes,
     modifiers,
+    periodDiscountPercent = 0,
     ownerPriceOverride,
   } = input
 
@@ -100,7 +105,9 @@ export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): Subsc
     perDeliveryCost > 0
       ? perDeliveryCost * (1 + commerce.targetMarginPercent / 100) * deliveriesInPeriod
       : 0
-  const discountBased = periodRetail * (1 - commerce.subscriptionDiscountPercent / 100)
+  const extraPeriod = Math.max(0, Math.min(50, periodDiscountPercent))
+  const totalDiscountPercent = Math.min(90, commerce.subscriptionDiscountPercent + extraPeriod)
+  const discountBased = periodRetail * (1 - totalDiscountPercent / 100)
 
   let recommended = costBased > 0 && discountBased > 0 ? Math.max(costBased, discountBased) : costBased || discountBased || periodRetail
   if (perDeliveryCost > 0) {
@@ -137,5 +144,7 @@ export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): Subsc
     guestSavingsPercent: Number(guestSavingsPercent.toFixed(2)),
     deliveriesInPeriod,
     missingCostCount,
+    periodDiscountPercent: extraPeriod,
+    totalDiscountPercent,
   }
 }

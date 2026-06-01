@@ -1,6 +1,5 @@
 export type DeliveryProfile = {
   name: string
-  phone: string
   address: string
   apartment: string
   city: string
@@ -18,7 +17,6 @@ export function loadDeliveryProfile(): DeliveryProfile | null {
     const v = JSON.parse(raw)
     const profile: DeliveryProfile = {
       name: String(v?.name ?? ''),
-      phone: String(v?.phone ?? ''),
       address: String(v?.address ?? ''),
       apartment: String(v?.apartment ?? ''),
       city: String(v?.city ?? 'Пхукет'),
@@ -26,7 +24,7 @@ export function loadDeliveryProfile(): DeliveryProfile | null {
       lat: String(v?.lat ?? ''),
       lng: String(v?.lng ?? ''),
     }
-    if (!profile.name && !profile.phone && !profile.address) return null
+    if (!profile.name && !profile.address) return null
     return profile
   } catch {
     return null
@@ -40,4 +38,3 @@ export function saveDeliveryProfile(profile: DeliveryProfile) {
     // ignore (quota / denied in some webviews)
   }
 }
-

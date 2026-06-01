@@ -31,7 +31,7 @@ export function canEditSubscription(subscription: SubscriptionForEdit, now: Date
   const status = String(subscription?.status ?? '').toUpperCase()
   const nextDelivery = subscription?.nextDelivery
 
-  if (status === 'DRAFT') return true
+  if (status === 'DRAFT' || status === 'PENDING') return true
   if (status === 'CANCELLED' || status === 'EXPIRED') return false
 
   // ACTIVE, PAUSED: editable only before cutoff

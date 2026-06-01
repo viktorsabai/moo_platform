@@ -2,25 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { loadDeliveryProfile, saveDeliveryProfile, type DeliveryProfile } from '@/lib/delivery-profile'
+import { formatTelegramContact } from '@/lib/telegram-contact'
 
 const ReadOnlyLocationMap = dynamic(
   () => import('@/components/maps/ReadOnlyLocationMap').then((m) => m.ReadOnlyLocationMap),
   { ssr: false }
 )
 
-function normalizePhone(raw: string) {
-  const s = String(raw ?? '').trim()
-  const plus = s.startsWith('+') ? '+' : ''
-  const digits = s.replace(/[^\d]/g, '')
-  return (plus + digits).slice(0, 18)
-}
-
 export default function ProfileDeliveryPage() {
+  const { data: session } = useSession()
   const [profile, setProfile] = useState<DeliveryProfile>({
     name: '',
-    phone: '',
     address: '',
     apartment: '',
     city: 'Пхукет',
@@ -30,18 +25,33 @@ export default function ProfileDeliveryPage() {
   const [detectingAddress, setDetectingAddress] = useState(false)
   const [detectedHint, setDetectedHint] = useState<string>('')
 
+  const telegramLine = useMemo(() => {
+    const u = session?.user as { telegramUsername?: string; telegramId?: string; name?: string } | undefined
+    if (u?.telegramUsername || u?.telegramId) {
+      return formatTelegramContact(u)
+    }
+    try {
+      const tg = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user
+      if (tg?.username) return `@${String(tg.username).replace(/^@/, '')}`
+      if (tg?.id) return `tg ${tg.id}`
+    } catch {
+      // ignore
+    }
+    return null
+  }, [session])
+
   useEffect(() => {
     const v = loadDeliveryProfile()
     if (v) setProfile(v)
   }, [])
 
   const isEmpty = useMemo(() => {
-    return !profile.name.trim() && !profile.phone.trim() && !profile.address.trim()
-  }, [profile.name, profile.phone, profile.address])
+    return !profile.name.trim() && !profile.address.trim()
+  }, [profile.name, profile.address])
 
   return (
     <main className="ui-container ui-screen pb-6">
-      <PageHeader backHref="/profile" title="доставка" subtitle="для чекаута и курьера" />
+      <PageHeader backHref="/profile" title="доставка" subtitle="адрес для чекаута и курьера" />
 
       <div className="mt-1 border-t border-[color:var(--stroke)]">
         <section className="border-b border-[color:var(--stroke)] py-3">
@@ -58,16 +68,8 @@ export default function ProfileDeliveryPage() {
             />
           </div>
           <div className="flex items-center justify-between py-2.5">
-            <span className="ui-muted shrink-0">телефон</span>
-            <input
-              type="tel"
-              inputMode="tel"
-              className="ui-body ml-3 w-[65%] border-none bg-transparent p-0 text-right text-[15px] outline-none placeholder:text-[color:var(--muted)]"
-              value={profile.phone}
-              onChange={(e) => setProfile((p) => ({ ...p, phone: normalizePhone(e.target.value) }))}
-              placeholder="+66 …"
-              autoComplete="tel"
-            />
+            <span className="ui-muted shrink-0">telegram</span>
+            <span className="ui-body ml-3 text-right text-[15px] font-semibold">{telegramLine || 'из mini app'}</span>
           </div>
         </section>
 

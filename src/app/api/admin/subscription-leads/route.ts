@@ -24,11 +24,10 @@ export async function GET() {
         createdAt: Date
         name: string | null
         telegramUsername: string | null
-        phone: string | null
       }>
     >(
       `SELECT l."id", l."userId", l."telegramId", l."note", l."status", l."createdAt",
-              u."name", u."telegramUsername", u."phone"
+              u."name", u."telegramUsername"
        FROM "SubscriptionRequestLead" l
        LEFT JOIN "User" u ON u."id" = l."userId"
        WHERE l."restaurantId" = $1

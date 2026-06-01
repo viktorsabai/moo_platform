@@ -12,6 +12,8 @@ declare module 'next-auth' {
       email: string
       name?: string | null
       telegramId?: string
+      telegramUsername?: string
+      telegramUsername?: string
       image?: string | null
       // new multi-tenant roles
       platformRole?: PlatformRole
@@ -26,6 +28,7 @@ declare module 'next-auth' {
     email: string
     name?: string | null
     telegramId?: string
+    telegramUsername?: string
     image?: string | null
     platformRole?: PlatformRole
     memberRole?: RestaurantRole

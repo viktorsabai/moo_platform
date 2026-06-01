@@ -223,6 +223,23 @@ export default function SubscriptionDetailsPage() {
         }
       />
 
+      {subscription.status === 'PENDING' ? (
+        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-[14px] font-bold text-amber-900">Ожидает подтверждения заведения</p>
+          <p className="mt-1 text-[12px] text-amber-800">
+            Можно изменить рацион, пока владелец не подтвердил заявку.
+          </p>
+          {canChange ? (
+            <Link
+              href={`/subscriptions/new?resume=${id}`}
+              className="mt-2 inline-flex text-[13px] font-semibold text-[color:var(--primary)] underline"
+            >
+              изменить заявку
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Визуальный timeline: дни недели, доставки, следующий, выходные */}
       <div className="ui-surface-card mt-4">
         <p className="ui-muted mb-3 text-[11px] font-semibold uppercase tracking-wide">расписание</p>

@@ -25,6 +25,7 @@ export type SubscriptionStatus =
   | 'CANCELLED'
   | 'EXPIRED'
   | 'DRAFT'
+  | 'PENDING'
 
 export interface User {
   id: string

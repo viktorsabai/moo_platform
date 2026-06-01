@@ -4,6 +4,7 @@ import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapte
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { acceptPendingRestaurantInvites } from '@/lib/restaurant-invites'
+import { fieldsFromTelegramWebAppUser } from '@/lib/telegram-user-fields'
 
 function parseTelegramIds(value: string): string[] {
   return String(value || '')
@@ -74,21 +75,32 @@ export async function resolveApiUser(hdrs: ReadonlyHeaders): Promise<{
       : null
     const verified = verifyTelegramInitData(initData, String(integration?.botToken || envToken))
     if (verified?.tgUser?.id) {
-      const telegramId = String(verified.tgUser.id)
-      const email = `tg_${telegramId}@telegram.local`
-      const name = [verified.tgUser.first_name, verified.tgUser.last_name].filter(Boolean).join(' ') || 'Telegram user'
+      const tgFields = fieldsFromTelegramWebAppUser(verified.tgUser)
+      const email = `tg_${tgFields.telegramId}@telegram.local`
+      const name = tgFields.name
       const user = await prisma.user.upsert({
         where: { email },
         create: {
           email,
           name,
           passwordHash: crypto.randomBytes(32).toString('hex'),
-          telegramId,
+          telegramId: tgFields.telegramId,
+          telegramUsername: tgFields.telegramUsername,
+          telegramFirstName: tgFields.telegramFirstName,
+          telegramLastName: tgFields.telegramLastName,
+          telegramPhotoUrl: tgFields.telegramPhotoUrl,
         },
-        update: { name, telegramId },
+        update: {
+          name,
+          telegramId: tgFields.telegramId,
+          telegramUsername: tgFields.telegramUsername,
+          telegramFirstName: tgFields.telegramFirstName,
+          telegramLastName: tgFields.telegramLastName,
+          telegramPhotoUrl: tgFields.telegramPhotoUrl,
+        },
         select: { id: true },
       })
-      const isFixedSuperadmin = SUPERADMIN_TELEGRAM_IDS.includes(telegramId)
+      const isFixedSuperadmin = SUPERADMIN_TELEGRAM_IDS.includes(tgFields.telegramId)
       if (isFixedSuperadmin) {
         const restaurantId = await resolvePrimaryRestaurantId()
         await prisma.user.update({
@@ -102,8 +114,8 @@ export async function resolveApiUser(hdrs: ReadonlyHeaders): Promise<{
           select: { id: true },
         }).catch(() => {})
       }
-      void acceptPendingRestaurantInvites({ userId: user.id, telegramId }).catch(() => {})
-      return { userId: user.id, telegramId, name }
+      void acceptPendingRestaurantInvites({ userId: user.id, telegramId: tgFields.telegramId }).catch(() => {})
+      return { userId: user.id, telegramId: tgFields.telegramId, name }
     }
   }
 

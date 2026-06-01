@@ -345,6 +345,12 @@ export default function ProfilePage() {
                 )}
                 <div className="min-w-0">
                   <h2 className="truncate text-[22px] font-extrabold leading-none tracking-[-0.04em] text-[color:var(--text)]">{displayName}</h2>
+                  {(session?.user as any)?.telegramUsername || tgUser?.username ? (
+                    <div className="mt-1 text-[12px] font-semibold text-[color:var(--primary)]">
+                      @
+                      {String((session?.user as any)?.telegramUsername || tgUser?.username || '').replace(/^@/, '')}
+                    </div>
+                  ) : null}
                   <div className="mt-1 text-[12px] font-semibold text-[color:var(--muted)]">{roleLabel}</div>
                 </div>
               </div>
@@ -356,7 +362,7 @@ export default function ProfilePage() {
                 <div className="min-w-0">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">доставка</div>
                 <div className="mt-0.5 line-clamp-3 whitespace-pre-line text-[13px] font-semibold leading-snug text-[color:var(--text)]">
-                  {deliveryPreviewLine || 'добавить адрес и контакт'}
+                  {deliveryPreviewLine || 'добавить адрес доставки'}
                 </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
+import { formatTelegramContact, telegramUserUrl } from '@/lib/telegram-contact'
 
 type Lead = {
   id: string
@@ -12,7 +13,6 @@ type Lead = {
   createdAt: string
   name: string | null
   telegramUsername: string | null
-  phone: string | null
 }
 
 const LABEL: Record<Lead['status'], string> = {
@@ -101,14 +101,25 @@ export function SubscriptionLeadsClient() {
                 {LABEL[status]}: {grouped[status].length}
               </div>
               <div className="space-y-2">
-                {grouped[status].map((lead) => (
+                {grouped[status].map((lead) => {
+                  const contact = formatTelegramContact(lead)
+                  const tgUrl = telegramUserUrl(lead.telegramId)
+                  return (
                   <div key={lead.id} className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3">
-                    <div className="text-[13px] font-semibold text-[color:var(--text)]">
-                      {lead.name || lead.telegramUsername || lead.telegramId || 'Клиент'}
-                    </div>
+                    {tgUrl ? (
+                      <a
+                        href={tgUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] font-semibold text-[color:var(--primary)]"
+                      >
+                        {contact}
+                      </a>
+                    ) : (
+                      <div className="text-[13px] font-semibold text-[color:var(--text)]">{contact}</div>
+                    )}
                     <div className="mt-0.5 text-[12px] text-[color:var(--muted)]">
                       {new Date(lead.createdAt).toLocaleString('ru-RU')}
-                      {lead.phone ? ` · ${lead.phone}` : ''}
                     </div>
                     {lead.note && <div className="mt-2 text-[12px] text-[color:var(--text)]">{lead.note}</div>}
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -125,7 +136,8 @@ export function SubscriptionLeadsClient() {
                       ))}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </section>
           ))}

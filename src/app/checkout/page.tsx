@@ -54,7 +54,6 @@ export default function CheckoutPage() {
   
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
     address: '',
     apartment: '',
     city: 'Пхукет',
@@ -75,6 +74,7 @@ export default function CheckoutPage() {
   const [isPromoSheetOpen, setIsPromoSheetOpen] = useState(false)
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
 
+  const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submitRequestIdRef = useRef<string | null>(null)
   const [promoCode, setPromoCode] = useState('')
@@ -171,13 +171,25 @@ export default function CheckoutPage() {
   }, [appSettings.paymentOptions])
 
   useEffect(() => {
+    try {
+      const w = window as any
+      const u = w?.Telegram?.WebApp?.initDataUnsafe?.user
+      if (u?.username) {
+        setTelegramContact(`@${String(u.username).replace(/^@/, '')}`)
+      } else if (u?.id) {
+        setTelegramContact(`tg ${u.id}`)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
     const saved = loadDeliveryProfile()
     if (!saved) return
-    // only prefill if empty (avoid overwriting user typing)
     setFormData((p) => ({
       ...p,
       name: p.name || saved.name || '',
-      phone: p.phone || saved.phone || '',
       address: p.address || saved.address || '',
       apartment: p.apartment || saved.apartment || '',
       city: p.city || saved.city || 'Пхукет',
@@ -613,7 +625,7 @@ export default function CheckoutPage() {
     }
 
     // Валидация (делаем сами, без HTML required — в Telegram/iOS иногда не показывает подсказку и выглядит как “не нажимается”)
-    if (!formData.name || !formData.phone || (deliveryMethod === 'DELIVERY' && !formData.address)) {
+    if (!formData.name || (deliveryMethod === 'DELIVERY' && !formData.address)) {
       toast.error('Заполните все обязательные поля')
       setIsSubmitting(false)
       return
@@ -775,7 +787,6 @@ export default function CheckoutPage() {
     if (deliveryMethod === 'PICKUP' && priorProfile?.address?.trim()) {
       saveDeliveryProfile({
         name: formData.name.trim() || priorProfile.name,
-        phone: formData.phone.trim() || priorProfile.phone,
         address: priorProfile.address,
         apartment: priorProfile.apartment,
         city: priorProfile.city || 'Пхукет',
@@ -786,7 +797,6 @@ export default function CheckoutPage() {
     } else {
       saveDeliveryProfile({
         name: formData.name,
-        phone: formData.phone,
         address: formData.address,
         apartment: formData.apartment,
         city: formData.city,
@@ -833,7 +843,6 @@ export default function CheckoutPage() {
 
   const baseFieldsFilled = Boolean(
     formData.name.trim() &&
-    formData.phone.trim() &&
     (deliveryMethod === 'PICKUP' || formData.address.trim())
   )
   const canSubmit = baseFieldsFilled && !outOfZone && !isSubmitting
@@ -886,15 +895,10 @@ export default function CheckoutPage() {
             />
           </div>
           <div className="flex items-center justify-between py-2.5">
-            <span className="ui-muted shrink-0">телефон</span>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="+66 …"
-              className="ui-body ml-3 w-[65%] border-none bg-transparent p-0 text-right outline-none placeholder:text-[color:var(--muted)]"
-            />
+            <span className="ui-muted shrink-0">telegram</span>
+            <span className="ui-body ml-3 text-right text-[14px] font-semibold">
+              {telegramContact || 'из mini app'}
+            </span>
           </div>
         </section>
 

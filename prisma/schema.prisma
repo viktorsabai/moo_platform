@@ -776,6 +776,7 @@ enum SubscriptionPlan {
 
 enum SubscriptionStatus {
   DRAFT
+  PENDING
   ACTIVE
   PAUSED
   CANCELLED

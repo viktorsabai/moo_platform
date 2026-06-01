@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn } from '@/lib/utils'
+import { formatTelegramContact, telegramUserUrl } from '@/lib/telegram-contact'
 
 type LeadStatus = 'NEW' | 'IN_PROGRESS' | 'DONE'
 
@@ -17,9 +18,8 @@ type Lead = {
   status: LeadStatus
   telegramId: string | null
   name: string | null
-  phone: string | null
   createdAt: string
-  user?: { name: string | null; telegramUsername: string | null; phone: string | null } | null
+  user?: { name: string | null; telegramUsername: string | null; telegramId: string | null } | null
 }
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
@@ -126,13 +126,28 @@ export function AdminLeadsClient() {
               </div>
               <div className="space-y-2">
                 {grouped[status].map((lead) => {
-                  const userName = lead.name || lead.user?.name || lead.user?.telegramUsername || lead.telegramId || 'Клиент'
-                  const phone = lead.phone || lead.user?.phone
+                  const contact = formatTelegramContact({
+                    name: lead.name || lead.user?.name,
+                    telegramUsername: lead.user?.telegramUsername,
+                    telegramId: lead.telegramId || lead.user?.telegramId,
+                  })
+                  const tgUrl = telegramUserUrl(lead.telegramId || lead.user?.telegramId)
                   return (
                     <div key={lead.id} className="rounded-[22px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-[13px] font-extrabold text-[color:var(--text)]">{userName}</div>
+                          {tgUrl ? (
+                            <a
+                              href={tgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[13px] font-extrabold text-[color:var(--primary)]"
+                            >
+                              {contact}
+                            </a>
+                          ) : (
+                            <div className="text-[13px] font-extrabold text-[color:var(--text)]">{contact}</div>
+                          )}
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             <span className="rounded-full bg-black/[0.06] px-2 py-1 text-[11px] font-bold text-black/55">
                               {TYPE_LABEL[lead.type] ?? lead.type}
@@ -154,7 +169,6 @@ export function AdminLeadsClient() {
                           дата: {new Date(lead.eventDate).toLocaleString('ru-RU')}
                         </div>
                       ) : null}
-                      {phone ? <div className="mt-1 text-[12px] font-medium text-[color:var(--muted)]">тел: {phone}</div> : null}
                       {lead.note ? <div className="mt-2 text-[12px] leading-snug text-[color:var(--text)]">{lead.note}</div> : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {NEXT[lead.status].map((nextStatus) => (

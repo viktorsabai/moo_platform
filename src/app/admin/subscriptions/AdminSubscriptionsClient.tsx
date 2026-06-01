@@ -20,6 +20,8 @@ export type ClientSubscription = {
   statusLabel: string
   price: number
   plan: string
+  personCount?: number
+  periodDays?: number
   deliveryDays: number[]
   deliveryTime: string | null
   nextDelivery: string | null
@@ -27,8 +29,8 @@ export type ClientSubscription = {
   user: {
     id: string
     name: string
-    email: string | null
-    phone: string | null
+    telegramUsername?: string | null
+    telegramId?: string | null
     telegramPhotoUrl?: string | null
     avatar?: string | null
   } | null

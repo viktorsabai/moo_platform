@@ -45,7 +45,6 @@ export function RequestLeadClient({ initialType }: { initialType: string }) {
   const [guestCount, setGuestCount] = useState('')
   const [eventDay, setEventDay] = useState('')
   const [eventTime, setEventTime] = useState('')
-  const [phone, setPhone] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [sent, setSent] = useState(false)
@@ -71,7 +70,6 @@ export function RequestLeadClient({ initialType }: { initialType: string }) {
           title,
           guestCount: guestCount ? Number(guestCount) : null,
           eventDate,
-          phone,
           note,
           source: 'home',
         }),
@@ -189,15 +187,6 @@ export function RequestLeadClient({ initialType }: { initialType: string }) {
                 value={eventTime}
                 onChange={(e) => setEventTime(e.target.value)}
                 className="input input--pill w-full min-w-0 text-[13px]"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-[color:var(--muted)]">Телефон, если удобнее</label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="input input--pill w-full min-w-0"
-                placeholder="+7..."
               />
             </div>
             <div>

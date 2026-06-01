@@ -1,10 +1,13 @@
 import { prisma } from '@/lib/prisma'
+import { formatTelegramContact } from '@/lib/telegram-contact'
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'активная',
+  PENDING: 'на подтверждении',
   PAUSED: 'на паузе',
   CANCELLED: 'отменена',
   EXPIRED: 'закончилась',
+  DRAFT: 'черновик',
 }
 
 export type AdminSubscriptionRow = {
@@ -14,6 +17,8 @@ export type AdminSubscriptionRow = {
   statusLabel: string
   price: number
   plan: string
+  personCount: number
+  periodDays: number
   deliveryDays: number[]
   deliveryTime: string | null
   nextDelivery: string | null
@@ -21,8 +26,8 @@ export type AdminSubscriptionRow = {
   user: {
     id: string
     name: string
-    email: string | null
-    phone: string | null
+    telegramUsername: string | null
+    telegramId: string | null
     telegramPhotoUrl: string | null
     avatar: string | null
   } | null
@@ -41,6 +46,8 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
       status: true,
       price: true,
       plan: true,
+      personCount: true,
+      periodDays: true,
       deliveryDays: true,
       deliveryTime: true,
       nextDelivery: true,
@@ -49,8 +56,8 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
         select: {
           id: true,
           name: true,
-          email: true,
-          phone: true,
+          telegramUsername: true,
+          telegramId: true,
           telegramPhotoUrl: true,
           avatar: true,
         },
@@ -77,9 +84,13 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
     user: s.user
       ? {
           id: s.user.id,
-          name: s.user.name ?? s.user.email ?? '—',
-          email: s.user.email ?? null,
-          phone: s.user.phone ?? null,
+          name: formatTelegramContact({
+            name: s.user.name,
+            telegramUsername: s.user.telegramUsername,
+            telegramId: s.user.telegramId,
+          }),
+          telegramUsername: s.user.telegramUsername ?? null,
+          telegramId: s.user.telegramId ?? null,
           telegramPhotoUrl: s.user.telegramPhotoUrl ?? null,
           avatar: s.user.avatar ?? null,
         }

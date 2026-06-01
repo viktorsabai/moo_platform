@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { loadSubscriptionConfig, parseSubscriptionConfig, saveSubscriptionConfig } from '@/lib/subscription-config-load'
 import { prisma } from '@/lib/prisma'
+import { getPeriodDiscountPercent } from '@/lib/subscription-config'
 import { calculateSubscriptionQuote } from '@/lib/subscription-pricing'
 import { parseMealSlot } from '@/lib/subscription-meal-slots'
 
@@ -173,6 +174,7 @@ export async function POST(request: Request) {
       commerce,
       dishes: dishMap,
       modifiers: modMap,
+      periodDiscountPercent: getPeriodDiscountPercent(config.periodDiscounts, periodDays),
       ownerPriceOverride: body?.ownerPriceOverride != null ? Number(body.ownerPriceOverride) : config.ownerPriceOverride ?? null,
     })
 

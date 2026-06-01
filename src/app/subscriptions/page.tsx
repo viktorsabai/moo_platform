@@ -13,11 +13,12 @@ import { SubscriptionUnavailableCard } from '@/components/subscriptions/Subscrip
 import { PageHeader } from '@/components/ui/PageHeader'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 
-export type StatusFilterKey = 'all' | 'active' | 'ended' | 'draft'
+export type StatusFilterKey = 'all' | 'active' | 'pending' | 'ended' | 'draft'
 
 const STATUS_OPTIONS: { value: StatusFilterKey; label: string }[] = [
   { value: 'all', label: 'все' },
   { value: 'active', label: 'активная' },
+  { value: 'pending', label: 'на подтверждении' },
   { value: 'ended', label: 'закончилась' },
   { value: 'draft', label: 'черновик' },
 ]

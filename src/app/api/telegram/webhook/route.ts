@@ -6,7 +6,11 @@ import {
   getOpsTelegramIds,
   notifyOrderStatusChangedToCustomer,
   notifyOrderStatusChangedToOwner,
+  notifySubscriptionStatusChangedToCustomer,
+  notifySubscriptionStatusChangedToOwner,
 } from '@/lib/notifications'
+import { activatePendingSubscription, rejectPendingSubscription } from '@/lib/subscription-lifecycle'
+import { formatTelegramContact } from '@/lib/telegram-contact'
 import { appendOrderStatusLog, asOrderStatus, canTransitionOrderStatus } from '@/lib/order-status'
 import { ORDER_STATUSES } from '@/lib/constants'
 import { isQrSlug } from '@/lib/payment-methods'
@@ -34,6 +38,86 @@ const ORDER_ACTION_MAP: Record<string, string> = {
   out: 'OUT_FOR_DELIVERY',
   delivered: 'DELIVERED',
   cancel: 'CANCELLED',
+}
+
+async function handleSubscriptionCallback(
+  callbackQueryId: string,
+  callbackData: string,
+  telegramUserId: number
+): Promise<boolean> {
+  const match = callbackData.match(/^sub_(confirm|reject)_(.+)$/)
+  if (!match) return false
+  const [, action, subscriptionId] = match
+  if (!subscriptionId) return false
+
+  const sub = await prisma.subscription.findFirst({
+    where: { id: subscriptionId },
+    select: {
+      id: true,
+      restaurantId: true,
+      status: true,
+      name: true,
+      user: { select: { telegramId: true, name: true, telegramUsername: true } },
+    },
+  })
+  if (!sub || sub.status !== 'PENDING') {
+    await answerCallbackQuery(callbackQueryId, { text: 'Заявка не найдена или уже обработана' }, null)
+    return true
+  }
+
+  const botToken = await prisma.botIntegration
+    .findFirst({ where: { restaurantId: sub.restaurantId }, select: { botToken: true } })
+    .then((b) => b?.botToken ?? null)
+
+  const tgStr = String(telegramUserId)
+  const opsTelegramIds = await getOpsTelegramIds(sub.restaurantId)
+  const user = await prisma.user.findFirst({ where: { telegramId: tgStr }, select: { id: true } })
+  const member = user
+    ? await prisma.restaurantMember.findFirst({
+        where: { restaurantId: sub.restaurantId, userId: user.id, role: { in: ['OWNER', 'ADMIN', 'STAFF'] } },
+        select: { id: true },
+      })
+    : null
+  if (!opsTelegramIds.includes(tgStr) && !member) {
+    await answerCallbackQuery(callbackQueryId, { text: 'Нет доступа' }, botToken)
+    return true
+  }
+
+  const userName = formatTelegramContact({
+    name: sub.user?.name,
+    telegramUsername: sub.user?.telegramUsername,
+    telegramId: sub.user?.telegramId,
+  })
+
+  if (action === 'confirm') {
+    await activatePendingSubscription(subscriptionId, sub.restaurantId)
+    await answerCallbackQuery(callbackQueryId, { text: 'Подписка подтверждена' }, botToken)
+    await notifySubscriptionStatusChangedToCustomer({
+      restaurantId: sub.restaurantId,
+      subscriptionId,
+      subscriptionName: sub.name,
+      status: 'ACTIVE',
+      customerTelegramId: sub.user?.telegramId ?? null,
+    }).catch(() => {})
+    await notifySubscriptionStatusChangedToOwner({
+      restaurantId: sub.restaurantId,
+      subscriptionId,
+      subscriptionName: sub.name,
+      status: 'ACTIVE',
+      userName,
+    }).catch(() => {})
+  } else {
+    await rejectPendingSubscription(subscriptionId, sub.restaurantId)
+    await answerCallbackQuery(callbackQueryId, { text: 'Заявка отклонена' }, botToken)
+    await notifySubscriptionStatusChangedToCustomer({
+      restaurantId: sub.restaurantId,
+      subscriptionId,
+      subscriptionName: sub.name,
+      status: 'CANCELLED',
+      customerTelegramId: sub.user?.telegramId ?? null,
+    }).catch(() => {})
+  }
+  return true
 }
 
 async function handleOrderCallback(
@@ -311,6 +395,10 @@ export async function POST(request: Request) {
     const data = String(callbackQuery.data)
     if (data.startsWith('payok_') || data.startsWith('payno_')) {
       await handleManualPaymentCallback(callbackQuery.id, data, callbackQuery.from.id)
+      return NextResponse.json({ ok: true })
+    }
+    if (data.startsWith('sub_confirm_') || data.startsWith('sub_reject_')) {
+      await handleSubscriptionCallback(callbackQuery.id, data, callbackQuery.from.id)
       return NextResponse.json({ ok: true })
     }
     if (data.startsWith(ORDER_CALLBACK_PREFIX)) {

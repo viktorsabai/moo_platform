@@ -123,10 +123,18 @@ function ownerClosingPhraseAfterStatus(status: string): string | undefined {
 }
 
 const SUB_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'На подтверждении',
   ACTIVE: 'Активна',
   PAUSED: 'На паузе',
   CANCELLED: 'Отменена',
   EXPIRED: 'Истекла',
+  DRAFT: 'Черновик',
+}
+
+const SUB_STATUS_NEXT_CUSTOMER: Record<string, string> = {
+  PENDING: 'Заведение проверит рацион и подтвердит подписку.',
+  ACTIVE: 'Подписка активна — следите за доставками в приложении.',
+  CANCELLED: 'Подписка отменена. Можно оформить новую.',
 }
 
 const LEAD_TYPE_LABEL: Record<string, string> = {
@@ -427,7 +435,7 @@ export async function notifyOrderCreatedToCustomer(params: {
   )
 }
 
-/** Уведомление владельцу: новая подписка. */
+/** Уведомление владельцу: новая подписка / заявка на подтверждение. */
 export async function notifySubscriptionCreatedToOwner(params: {
   restaurantId: string
   subscriptionId: string
@@ -436,8 +444,9 @@ export async function notifySubscriptionCreatedToOwner(params: {
   price: number
   itemsSummary: string
   nextDeliveryLabel?: string
+  pendingApproval?: boolean
 }): Promise<void> {
-  const { restaurantId, subscriptionId, userName, name, price, itemsSummary, nextDeliveryLabel } = params
+  const { restaurantId, subscriptionId, userName, name, price, itemsSummary, nextDeliveryLabel, pendingApproval } = params
   const ownerIds = await getOpsTelegramIds(restaurantId)
   const botToken = await getBotToken(restaurantId)
   if (!botToken) {
@@ -460,12 +469,34 @@ export async function notifySubscriptionCreatedToOwner(params: {
         .map((l) => (l.startsWith('•') || l.startsWith('-') ? l : `• ${l}`))
     : undefined
   const text = formatNotificationMessage({
-    emoji: '🆕',
-    title: `Новая подписка #${escapeHtml(shortId)}`,
+    emoji: pendingApproval ? '⏳' : '🆕',
+    title: pendingApproval
+      ? `Подписка ждёт подтверждения #${escapeHtml(shortId)}`
+      : `Новая подписка #${escapeHtml(shortId)}`,
     metricsLine,
     bulletLines: bulletLines?.map((l) => escapeHtml(l)),
-    closingPhrase: nextDeliveryLabel ? `След. доставка: ${escapeHtml(nextDeliveryLabel)}` : undefined,
+    closingPhrase: pendingApproval
+      ? 'Подтвердите или отклоните заявку.'
+      : nextDeliveryLabel
+        ? `След. доставка: ${escapeHtml(nextDeliveryLabel)}`
+        : undefined,
   })
+
+  const inline_keyboard: Array<
+    Array<
+      | { text: string; callback_data: string }
+      | { text: string; web_app: { url: string } }
+    >
+  > = []
+  if (pendingApproval) {
+    inline_keyboard.push([
+      { text: '✓ Подтвердить', callback_data: `sub_confirm_${subscriptionId}` },
+      { text: '✕ Отклонить', callback_data: `sub_reject_${subscriptionId}` },
+    ])
+  }
+  inline_keyboard.push([
+    { text: 'Клиенты в ЛК', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } },
+  ])
 
   for (const chatId of ownerIds) {
     await sendTelegramMessage(
@@ -473,9 +504,7 @@ export async function notifySubscriptionCreatedToOwner(params: {
       {
         text,
         parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [[{ text: 'Открыть в ЛК', web_app: { url: buildWebAppUrl('/admin/subscriptions') } }]],
-        },
+        reply_markup: { inline_keyboard },
       },
       botToken
     )
@@ -497,10 +526,10 @@ export async function notifySubscriptionStatusChangedToCustomer(params: {
 
   const label = SUB_STATUS_LABEL[status] ?? status
   const text = formatNotificationMessage({
-    emoji: '📋',
+    emoji: status === 'ACTIVE' ? '✅' : '📋',
     title: 'Подписка обновлена',
     metricsLine: `«${escapeHtml(subscriptionName)}»: ${escapeHtml(label)}`,
-    closingPhrase: 'Откройте подписку для деталей.',
+    closingPhrase: SUB_STATUS_NEXT_CUSTOMER[status] ?? 'Откройте подписку для деталей.',
   })
 
   await sendTelegramMessage(
