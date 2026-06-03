@@ -113,10 +113,19 @@ function isOwnerContext(pathname: string) {
   return pathname.startsWith('/admin') || pathname === '/profile/owner'
 }
 
+/** Редактор подписок — своя шапка с «сохранить», нижняя панель не нужна. */
+function isSubscriptionAdminEditor(pathname: string) {
+  return pathname.startsWith('/admin/subscriptions')
+}
+
 export default function BottomNavbar() {
   const pathname = usePathname() || ''
   const inOwnerContext = isOwnerContext(pathname)
   const items = ALL_ITEMS
+
+  if (inOwnerContext && isSubscriptionAdminEditor(pathname)) {
+    return null
+  }
 
   if (inOwnerContext) {
     return (

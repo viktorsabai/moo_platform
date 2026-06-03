@@ -8,17 +8,14 @@ import { MEAL_SLOT_IDS, MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscriptio
 import {
   defaultSubscriptionConfig,
   getEnabledMealSlots,
-  getPeriodDiscountPercent,
-  periodLabel,
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
 import { EmptyStatePlaceholder } from '@/components/ui/EmptyStatePlaceholder'
 import { PillTabToggle } from '@/components/ui/PillTabToggle'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
-import { formatPeriodDiscountBreakdown } from '@/lib/subscription-offer-labels'
-import { SubscriptionGuestPeriodPreview } from '@/features/subscriptions/components/SubscriptionGuestPeriodPreview'
 import { AdminSubscriptionNav } from './AdminSubscriptionNav'
 import { AdminSubscriptionDishPickerSheet } from './AdminSubscriptionDishPickerSheet'
+import { AdminSubscriptionPricingSimple } from './AdminSubscriptionPricingSimple'
 
 export type CatalogProduct = {
   kind: 'dish' | 'option'
@@ -42,23 +39,6 @@ function productKey(p: CatalogProduct) {
 
 function countSlotDishes(config: SubscriptionConfig, slot: MealSlot) {
   return config.mealSlots[slot]?.dishIds.length ?? 0
-}
-
-/** Локальный пример одной доставки (1 блюдо) — как в pricing engine. */
-function previewOneDelivery(
-  retail: number,
-  cost: number | null,
-  commerce: SubscriptionConfig['commerce']
-) {
-  const c = cost != null && cost > 0 ? cost : 0
-  const byDiscount = retail * (1 - commerce.subscriptionDiscountPercent / 100)
-  const byMargin = c > 0 ? c * (1 + commerce.targetMarginPercent / 100) : 0
-  const floor = c > 0 ? c * (1 + commerce.minMarginPercent / 100) : 0
-  let guest = Math.max(byDiscount, byMargin, floor, 0)
-  guest = Math.round(guest)
-  const profit = c > 0 ? guest - c : null
-  const drivenBy = byMargin >= byDiscount && c > 0 ? 'margin' : 'discount'
-  return { retail, guest, profit, drivenBy, hasCost: c > 0 }
 }
 
 export function AdminSubscriptionDashboard() {
@@ -123,11 +103,6 @@ export function AdminSubscriptionDashboard() {
       return !d || d.costPrice == null || d.costPrice <= 0
     }).length
   }, [config, activeSlot, dishes])
-
-  const pricePreview = useMemo(() => {
-    if (!exampleDish) return null
-    return previewOneDelivery(exampleDish.price, exampleDish.costPrice, config.commerce)
-  }, [exampleDish, config.commerce])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -306,19 +281,43 @@ export function AdminSubscriptionDashboard() {
   }
 
   return (
-    <main className="ui-container ui-screen !pb-28 pt-1">
-      <header className="mb-3">
-        <AdminSubscriptionNav />
-        {isDirty ? (
-          <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-900">
-            Есть несохранённые изменения — нажмите «сохранить каталог» внизу экрана
+    <main className="ui-container ui-screen !pb-6 pt-1">
+      <header className="sticky top-0 z-30 -mx-4 mb-3 border-b border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/95 px-4 pb-3 pt-1 backdrop-blur-md sm:-mx-6 sm:px-6">
+        <div className="flex items-start gap-2">
+          <Link
+            href="/profile"
+            className="ui-back-button mt-1 shrink-0"
+            aria-label="назад в профиль"
+          >
+            ←
+          </Link>
+          <div className="min-w-0 flex-1">
+            <AdminSubscriptionNav />
           </div>
+          <button
+            type="button"
+            disabled={saving || !isDirty}
+            onClick={() => void saveAll()}
+            className={cn(
+              'mt-0.5 shrink-0 rounded-full px-4 py-2.5 text-[13px] font-bold transition',
+              isDirty
+                ? 'bg-[color:var(--primary)] text-white shadow-md'
+                : 'border border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--muted)]'
+            )}
+          >
+            {saving ? '…' : isDirty ? 'сохранить' : 'сохранено'}
+          </button>
+        </div>
+        {isDirty ? (
+          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-900">
+            {totalCatalogDishes} блюд · {slotDishCount} в {MEAL_SLOT_LABEL[activeSlot]} · не сохранено
+          </p>
         ) : totalCatalogDishes > 0 ? (
           <p className="ui-muted mt-2 text-[12px]">
-            В каталоге подписки {totalCatalogDishes} блюд · гости видят сохранённый набор
+            {totalCatalogDishes} блюд в каталоге · гости видят сохранённый набор
           </p>
         ) : (
-          <p className="ui-muted mt-2 text-[12px]">Нажмите на блюда, затем сохраните каталог</p>
+          <p className="ui-muted mt-2 text-[12px]">Добавьте блюда и нажмите «сохранить»</p>
         )}
       </header>
 
@@ -428,167 +427,12 @@ export function AdminSubscriptionDashboard() {
         onToggle={toggleDishInSlot}
       />
 
-      <details className="mb-4 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] group">
-        <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-bold [&::-webkit-details-marker]:hidden">
-          цены и скидки
-          <span className="ui-muted ml-2 text-[12px] font-normal">как у гостя при оформлении</span>
-        </summary>
-        <div className="border-t border-[color:var(--stroke)] px-4 pb-4 pt-2">
-        <p className="ui-muted text-[12px] leading-snug">
-          Себестоимость — в меню. Скидки ниже складываются так же, как на экране оформления.
-        </p>
-        <p className="ui-muted mt-1 text-[12px] leading-snug">
-          Себестоимость — в меню. Здесь задаёте, сколько хотите заработать и какую скидку дать гостю.
-        </p>
-
-        {slotDishCount === 0 ? (
-          <p className="ui-muted mt-3 text-[12px]">Добавьте блюда в слот — покажем пример расчёта.</p>
-        ) : pricePreview && exampleDish ? (
-          <div className="mt-3 rounded-xl bg-black/[0.03] p-3">
-            <p className="text-[11px] font-semibold text-[color:var(--muted)]">
-              пример · {exampleDish.name}
-            </p>
-            <div className="mt-2 flex items-baseline justify-between gap-2">
-              <div>
-                <p className="text-[11px] text-[color:var(--muted)]">гость платит за 1 доставку</p>
-                <p className="text-[22px] font-extrabold tabular-nums text-[color:var(--primary)]">
-                  {formatPrice(pricePreview.guest)}
-                </p>
-              </div>
-              <div className="text-right text-[12px] tabular-nums text-[color:var(--muted)]">
-                <p>розница {formatPrice(pricePreview.retail)}</p>
-                {pricePreview.profit != null ? (
-                  <p className="font-semibold text-[color:var(--text)]">
-                    ваша прибыль {formatPrice(pricePreview.profit)}
-                  </p>
-                ) : (
-                  <p className="text-amber-700">нет себест. в меню</p>
-                )}
-              </div>
-            </div>
-            {pricePreview.hasCost ? (
-              <p className="mt-2 text-[11px] text-[color:var(--muted)]">
-                {pricePreview.drivenBy === 'margin'
-                  ? 'Цена от маржи — скидка не опускает ниже вашего заработка.'
-                  : 'Цена от скидки — маржа выше минимума.'}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {missingCostInSlot > 0 ? (
-          <p className="mt-2 text-[12px] text-amber-700">
-            {missingCostInSlot} блюд без себестоимости —{' '}
-            <Link href="/admin/menu" className="font-semibold underline">
-              заполнить в меню
-            </Link>
-          </p>
-        ) : null}
-
-        <label className="mt-4 block">
-          <div className="mb-2 flex justify-between text-[13px] font-semibold">
-            <span>целевая маржа</span>
-            <span className="tabular-nums">{config.commerce.targetMarginPercent}%</span>
-          </div>
-          <input
-            type="range"
-            min={10}
-            max={70}
-            step={1}
-            value={config.commerce.targetMarginPercent}
-            onChange={(e) =>
-              patchConfig({
-                ...config,
-                commerce: { ...config.commerce, targetMarginPercent: Number(e.target.value) },
-              })
-            }
-            className="h-1.5 w-full accent-[color:var(--primary)]"
-          />
-          <p className="ui-muted mt-1 text-[11px]">Наценка на себестоимость — ваш заработок с блюда.</p>
-        </label>
-
-        <label className="mt-4 block">
-          <div className="mb-2 flex justify-between text-[13px] font-semibold">
-            <span>скидка гостю vs розница</span>
-            <span className="tabular-nums">−{config.commerce.subscriptionDiscountPercent}%</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={40}
-            step={1}
-            value={config.commerce.subscriptionDiscountPercent}
-            onChange={(e) =>
-              patchConfig({
-                ...config,
-                commerce: { ...config.commerce, subscriptionDiscountPercent: Number(e.target.value) },
-              })
-            }
-            className="h-1.5 w-full accent-[color:var(--primary)]"
-          />
-          <p className="ui-muted mt-1 text-[11px]">
-            Итоговая цена — что больше: маржа или скидка. У каждого гостя своя сумма (рацион × дни).
-          </p>
-        </label>
-
-        <div className="mt-4">
-          <p className="mb-2 text-[13px] font-semibold">скидка за длинный период</p>
-          <p className="ui-muted mb-3 text-[11px]">Дополнительно к базовой −{config.commerce.subscriptionDiscountPercent}%</p>
-          {(config.availablePeriods ?? [7, 14, 28]).map((days) => {
-            const val = config.periodDiscounts?.[days] ?? 0
-            return (
-              <label key={days} className="mt-3 block">
-                <div className="mb-1.5 flex flex-col gap-0.5 text-[12px]">
-                  <div className="flex justify-between font-medium">
-                    <span>{periodLabel(days)}</span>
-                    <span className="tabular-nums text-[color:var(--muted)]">+{val}% к базе</span>
-                  </div>
-                  <span className="text-[11px] text-[color:var(--primary)]">
-                    {formatPeriodDiscountBreakdown(config.commerce, config.periodDiscounts, days)}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={20}
-                  step={1}
-                  value={val}
-                  onChange={(e) => {
-                    const next = { ...(config.periodDiscounts ?? {}), [days]: Number(e.target.value) }
-                    patchConfig({ ...config, periodDiscounts: next })
-                  }}
-                  className="h-1.5 w-full accent-[color:var(--primary)]"
-                />
-              </label>
-            )
-          })}
-          <SubscriptionGuestPeriodPreview config={config} compact title="превью карточек периода" />
-        </div>
-        </div>
-      </details>
-
-      <footer
-        className={cn(
-          'fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-md p-3 pb-[max(12px,env(safe-area-inset-bottom))]',
-          isDirty ? 'border-amber-300 bg-amber-50/95' : 'border-[color:var(--stroke)] bg-[color:var(--surface)]/95'
-        )}
-      >
-        <div className="ui-container space-y-1.5">
-          {isDirty ? (
-            <p className="text-center text-[11px] font-semibold text-amber-900">
-              {slotDishCount} в {MEAL_SLOT_LABEL[activeSlot]} · изменения не сохранены
-            </p>
-          ) : null}
-          <button
-            type="button"
-            disabled={saving || !isDirty}
-            onClick={() => void saveAll()}
-            className="btn btn-primary h-12 w-full rounded-full text-[15px] font-bold disabled:opacity-50"
-          >
-            {saving ? 'сохраняем…' : isDirty ? 'сохранить каталог' : 'каталог сохранён'}
-          </button>
-        </div>
-      </footer>
+      <AdminSubscriptionPricingSimple
+        config={config}
+        exampleDish={exampleDish}
+        missingCostCount={missingCostInSlot}
+        onPatchConfig={patchConfig}
+      />
     </main>
   )
 }
