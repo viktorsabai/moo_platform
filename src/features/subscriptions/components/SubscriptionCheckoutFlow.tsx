@@ -29,7 +29,6 @@ import {
   buildRequiredSlotsByJsDay,
   categoriesFromDishes,
   dishHasConfigurableOptions,
-  dishMatchesTagFilter,
   jsDayToWizard,
   lineKey,
   mapSubscriptionDish,
@@ -75,7 +74,6 @@ export function SubscriptionCheckoutFlow() {
   const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const [slotsByWizardDay, setSlotsByWizardDay] = useState<Record<number, MealSlot[]>>({})
   const [menuCategories, setMenuCategories] = useState<MenuCategory[]>([])
-  const [categoryFilter, setCategoryFilter] = useState('all')
   const [editingLine, setEditingLine] = useState<SelectedLine | null>(null)
   const createRequestIdRef = useRef<string | null>(null)
 
@@ -393,13 +391,8 @@ export function SubscriptionCheckoutFlow() {
       const allowed = new Set(ids)
       list = list.filter((d) => allowed.has(d.id))
     }
-    if (categoryFilter.startsWith('tag:')) {
-      list = list.filter((d) => dishMatchesTagFilter(d, categoryFilter.slice(4)))
-    } else if (categoryFilter !== 'all') {
-      list = list.filter((d) => d.categoryId === categoryFilter)
-    }
     return list
-  }, [catalogDishes, subConfig, activeSlot, categoryFilter])
+  }, [catalogDishes, subConfig, activeSlot])
 
   const recommendedDishIds = useMemo(() => {
     const sc = subConfig.mealSlots[activeSlot]
@@ -697,7 +690,6 @@ export function SubscriptionCheckoutFlow() {
         lines={lines}
         recommendedDishIds={recommendedDishIds}
         menuCategories={menuCategories}
-        categoryFilter={categoryFilter}
         subConfig={subConfig}
         minDays={minDays}
         maxDays={maxDays}
@@ -705,10 +697,8 @@ export function SubscriptionCheckoutFlow() {
         periodDays={periodDays}
         onDayCell={handleDayCell}
         onToggleMealSlot={toggleMealSlotForDay}
-        onCategoryFilter={setCategoryFilter}
         onActiveSlot={setActiveSlot}
         onAddDish={addDish}
-        onRemoveLine={removeLine}
         onEditLine={(line) => setEditingLine(line)}
         onCopyToAllWeek={copyActiveDayToAllWeek}
         onClearDay={clearActiveDay}
@@ -766,9 +756,6 @@ export function SubscriptionCheckoutFlow() {
       onStartDate={setStartDate}
       onDeliveryTime={setDeliveryTime}
       onName={setName}
-      onRemoveLine={removeLine}
-      onUpdateQty={updateQty}
-      onLineModifiers={setLineModifierIds}
       onEditRation={() => setPhase('build')}
       onSubmit={() => void submit()}
     />

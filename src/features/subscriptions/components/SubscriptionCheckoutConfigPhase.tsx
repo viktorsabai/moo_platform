@@ -3,8 +3,8 @@
 import type { Dish } from '@/types'
 import { formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { periodLabel, periodLabelAccusative, type SubscriptionConfig } from '@/lib/subscription-config'
-import { formatQuoteSavingsBadge } from '@/lib/subscription-offer-labels'
+import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
+import { SubscriptionSavingsStrip } from '@/features/subscriptions/components/SubscriptionSavingsStrip'
 import type { MealSlot } from '@/lib/subscription-meal-slots'
 import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
 import { SubscriptionPeriodCards } from '@/features/subscriptions/components/SubscriptionPeriodCards'
@@ -45,9 +45,6 @@ type Props = {
   onStartDate: (date: Date) => void
   onDeliveryTime: (time: string) => void
   onName: (name: string) => void
-  onRemoveLine: (line: SelectedLine) => void
-  onUpdateQty: (line: SelectedLine, delta: number) => void
-  onLineModifiers: (line: SelectedLine, ids: string[]) => void
   onEditRation: () => void
   onSubmit: () => void
 }
@@ -77,17 +74,12 @@ export function SubscriptionCheckoutConfigPhase({
   onStartDate,
   onDeliveryTime,
   onName,
-  onRemoveLine,
-  onUpdateQty,
-  onLineModifiers,
   onEditRation,
   onSubmit,
 }: Props) {
   const totalPrice = activeQuote?.guestPrice ?? 0
   const retailPrice = activeQuote?.periodRetail ?? 0
   const deliveryCount = activeQuote?.deliveriesInPeriod ?? 0
-  const perDelivery = activeQuote?.perDeliveryRetail ?? 0
-  const savingsBadge = activeQuote ? formatQuoteSavingsBadge(activeQuote) : null
   const canSubmit = Boolean(name.trim()) && lines.length > 0 && selectedDays.length >= minDays
 
   const deliveryDaysLabel = selectedDays.map((d) => WEEKDAYS[d]).join(', ')
@@ -95,7 +87,7 @@ export function SubscriptionCheckoutConfigPhase({
   const rationSummary = formatRationCheckoutSummary(lines, selectedDays)
 
   return (
-    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+120px)]">
+    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+88px)]">
       <div className="flex items-start gap-2">
         <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
@@ -107,6 +99,7 @@ export function SubscriptionCheckoutConfigPhase({
 
       <section className="mb-4 overflow-visible">
         <h3 className="mb-2 text-[13px] font-extrabold">период</h3>
+        <SubscriptionSavingsStrip quote={activeQuote} periodLabel={periodLabel(periodDays)} />
         <SubscriptionPeriodCards
           config={subConfig}
           periods={periods}
@@ -114,13 +107,6 @@ export function SubscriptionCheckoutConfigPhase({
           selectedPeriodDays={periodDays}
           onSelect={onPeriodDays}
         />
-        {deliveryCount > 0 ? (
-          <p className="mt-2 text-[11px] leading-snug text-[color:var(--muted)]">
-            {deliveryCount} {deliveryCount === 1 ? 'доставка' : deliveryCount < 5 ? 'доставки' : 'доставок'} за{' '}
-            {periodLabelAccusative(periodDays)}
-            {perDelivery > 0 ? ` · ~${formatPrice(perDelivery)} за доставку` : ''}
-          </p>
-        ) : null}
       </section>
 
       <section className="mb-4 rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-3 shadow-[var(--shadow-soft)]">
@@ -186,11 +172,7 @@ export function SubscriptionCheckoutConfigPhase({
         selectedDays={selectedDays}
         slotsByWizardDay={slotsByWizardDay}
         enabledSlots={enabledSlots}
-        subConfig={subConfig}
         summaryLine={rationSummary}
-        onRemoveLine={onRemoveLine}
-        onUpdateQty={onUpdateQty}
-        onLineModifiers={onLineModifiers}
         onEditRation={onEditRation}
       />
 
@@ -211,38 +193,27 @@ export function SubscriptionCheckoutConfigPhase({
         </div>
       </section>
 
-      {retailPrice > totalPrice || savingsBadge ? (
-        <div className="mb-3 flex flex-wrap items-baseline gap-2 px-0.5">
-          {retailPrice > totalPrice ? (
-            <span className="text-[13px] line-through text-[color:var(--muted)] tabular-nums">{formatPrice(retailPrice)}</span>
-          ) : null}
-          {savingsBadge ? (
-            <span className="rounded-full bg-[color:var(--accent)]/15 px-2 py-0.5 text-[11px] font-bold">{savingsBadge}</span>
-          ) : null}
-        </div>
-      ) : null}
-
-      <p className="px-0.5 text-[11px] text-[color:var(--muted)]">
-        {periodLabel(periodDays)} · доставка в цене · подтверждение в Telegram
-      </p>
-
       <div
-        className="fixed left-0 right-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98 px-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-md"
-        style={{
-          bottom: 'calc(var(--ufo-bottomnav-h, 72px) + env(safe-area-inset-bottom))',
-          paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-        }}
+        className="fixed inset-x-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98 backdrop-blur-md"
+        style={{ bottom: 'calc(var(--ufo-bottomnav-h, 72px) + env(safe-area-inset-bottom))' }}
       >
-        <button
-          type="button"
-          disabled={!canSubmit || submitting}
-          onClick={onSubmit}
-          className="btn btn-primary h-12 w-full text-[16px] font-bold disabled:opacity-50"
-          style={{ borderRadius: 'var(--radius-pill)' }}
-        >
-          {submitting ? '…' : resumeId ? `сохранить · ${formatPrice(totalPrice)}` : `оформить · ${formatPrice(totalPrice)}`}
-        </button>
-        <p className="mt-2 text-center text-[11px] text-[color:var(--muted)]">🔒 без скрытых платежей</p>
+        <div className="px-3 py-2.5">
+          {retailPrice > totalPrice ? (
+            <p className="mb-1.5 text-center text-[11px] tabular-nums text-[color:var(--muted)]">
+              <span className="line-through">{formatPrice(retailPrice)}</span>
+              <span className="mx-1.5 font-bold text-[color:var(--text)]">→ {formatPrice(totalPrice)}</span>
+            </p>
+          ) : null}
+          <button
+            type="button"
+            disabled={!canSubmit || submitting}
+            onClick={onSubmit}
+            className="btn btn-primary h-11 w-full text-[15px] font-bold disabled:opacity-50"
+            style={{ borderRadius: 'var(--radius-pill)' }}
+          >
+            {submitting ? '…' : resumeId ? `сохранить · ${formatPrice(totalPrice)}` : `оформить · ${formatPrice(totalPrice)}`}
+          </button>
+        </div>
       </div>
     </main>
   )
