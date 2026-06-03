@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import Link from 'next/link'
 import { useVenue } from '@/lib/venue-context'
@@ -24,6 +24,7 @@ const STATUS_OPTIONS: { value: StatusFilterKey; label: string }[] = [
 ]
 
 export default function SubscriptionsPage() {
+  const router = useRouter()
   const pathname = usePathname()
   const { settings, error: venueError, isLoading: venueLoading, refetch: refetchVenue } = useVenue()
   const storeSubscriptions = useSubscriptionStore((state) => state.subscriptions)
@@ -86,6 +87,11 @@ export default function SubscriptionsPage() {
   }, [loadSubscriptions])
 
   const subscriptions = useMemo(() => storeSubscriptions, [storeSubscriptions])
+
+  useEffect(() => {
+    if (refreshing || loadError || subscriptions.length > 0) return
+    router.replace('/subscriptions/new')
+  }, [refreshing, loadError, subscriptions.length, router])
 
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return subscriptions
@@ -185,20 +191,22 @@ export default function SubscriptionsPage() {
           <div className="ui-surface-card p-5 text-center" style={{ borderRadius: 'var(--radius-large)' }}>
             <p className="ui-muted text-[13px]">
               {subscriptions.length === 0
-                ? 'Пока нет подписок'
+                ? 'Открываем оформление…'
                 : statusFilter === 'all'
                   ? 'Нет подписок'
                   : 'Нет подписок с этим статусом'}
             </p>
-            <Link
-              href="/subscriptions/new"
-              prefetch={false}
-              scroll={false}
-              className="btn btn-soft mt-4 inline-flex rounded-full px-4 py-2.5 text-[14px] font-semibold"
-              style={{ borderRadius: 'var(--radius-pill)' }}
-            >
-              создать подписку
-            </Link>
+            {subscriptions.length > 0 ? (
+              <Link
+                href="/subscriptions/new"
+                prefetch={false}
+                scroll={false}
+                className="btn btn-soft mt-4 inline-flex rounded-full px-4 py-2.5 text-[14px] font-semibold"
+                style={{ borderRadius: 'var(--radius-pill)' }}
+              >
+                создать подписку
+              </Link>
+            ) : null}
           </div>
         ) : (
           filtered.map((s) => (

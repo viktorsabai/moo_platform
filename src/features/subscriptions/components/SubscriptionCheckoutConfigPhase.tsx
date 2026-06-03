@@ -6,14 +6,16 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { InlineCounter } from '@/components/ui/InlineCounter'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
-import { formatGuestPeriodBadge } from '@/lib/subscription-offer-labels'
 import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
+import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
+import { SubscriptionPeriodCards } from '@/features/subscriptions/components/SubscriptionPeriodCards'
 import {
   WEEKDAYS,
   allowedOptionIdsForLine,
   type PeriodQuote,
   type SelectedLine,
   formatFirstDeliveryMessage,
+  formatWeeklyRationHint,
   lineKey,
   mealSlotShort,
 } from '@/features/subscriptions/lib/subscription-checkout-utils'
@@ -88,6 +90,7 @@ export function SubscriptionCheckoutConfigPhase({
 
   const deliveryDaysLabel = selectedDays.map((d) => WEEKDAYS[d]).join(', ')
   const periods = subConfig.availablePeriods ?? [7, 14, 28]
+  const scheduleHint = formatWeeklyRationHint(lines, selectedDays)
 
   return (
     <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+120px)]">
@@ -95,8 +98,16 @@ export function SubscriptionCheckoutConfigPhase({
         <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
         </button>
-        <PageHeader title="оформление подписки" subtitle="настройте доставку и период" compact className="min-w-0 flex-1" />
+        <PageHeader title="доставка и оплата" subtitle="дни, период и итог" compact className="min-w-0 flex-1" />
       </div>
+
+      <SubscriptionFlowProgress step="delivery" />
+
+      {scheduleHint ? (
+        <p className="mb-4 rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[12px] leading-snug text-[color:var(--muted)]">
+          {scheduleHint}
+        </p>
+      ) : null}
 
       <div
         className="mb-4 flex items-center justify-between gap-3 rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-3 shadow-[var(--shadow-soft)]"
@@ -238,42 +249,18 @@ export function SubscriptionCheckoutConfigPhase({
 
       <section className="mb-5">
         <h3 className="mb-3 text-[14px] font-extrabold">период подписки</h3>
-        <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {periods.map((d) => {
-            const q = quotesByPeriod[d]
-            const badge = formatGuestPeriodBadge(subConfig.commerce, subConfig.periodDiscounts, d)
-            const sel = periodDays === d
-            return (
-              <button
-                key={d}
-                type="button"
-                onClick={() => onPeriodDays(d)}
-                className={cn(
-                  'relative flex w-[120px] shrink-0 flex-col rounded-[var(--radius-large)] border px-3 py-3 text-left transition',
-                  sel ? 'border-[color:var(--text)] bg-[color:var(--text)] text-[color:var(--surface)]' : 'border-[color:var(--stroke)] bg-[color:var(--surface)]'
-                )}
-              >
-                {badge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-[color:var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
-                    {badge}
-                  </span>
-                ) : null}
-                <span className="text-[14px] font-extrabold">{periodLabel(d)}</span>
-                <span className="mt-1 text-[11px] opacity-80">{d} дн.</span>
-                {q ? (
-                  <div className="mt-2">
-                    <span className="text-[15px] font-extrabold tabular-nums">{formatPrice(q.guestPrice)}</span>
-                    {q.periodRetail > q.guestPrice ? (
-                      <span className="ml-1 text-[11px] line-through opacity-60 tabular-nums">{formatPrice(q.periodRetail)}</span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <span className="mt-2 text-[11px] opacity-60">…</span>
-                )}
-              </button>
-            )
-          })}
-        </div>
+        <SubscriptionPeriodCards
+          config={subConfig}
+          periods={periods}
+          quotesByPeriod={quotesByPeriod}
+          selectedPeriodDays={periodDays}
+          onSelect={onPeriodDays}
+        />
+        {deliveryCount > 0 ? (
+          <p className="mt-2 text-[11px] text-[color:var(--muted)]">
+            {deliveryCount} доставок за {periodLabel(periodDays).toLowerCase()} — в каждую тот же рацион
+          </p>
+        ) : null}
       </section>
 
       <section className="mb-5">

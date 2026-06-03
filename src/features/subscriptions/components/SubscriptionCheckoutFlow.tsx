@@ -11,7 +11,7 @@ import {
   getEnabledMealSlots,
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
-import { suggestDeliveryDays } from '@/lib/subscription-prefill'
+import { buildPrefillItems, suggestDeliveryDays } from '@/lib/subscription-prefill'
 import { MEAL_SLOT_LABEL, parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import { loadDeliveryProfile } from '@/lib/delivery-profile'
@@ -109,6 +109,45 @@ export function SubscriptionCheckoutFlow() {
         }
         const mappedDishes = dishList.map(mapSubscriptionDish)
         setDishes(mappedDishes)
+
+        if (!resumeId && cfgData?.ok && cfgData.config) {
+          const cfg = cfgData.config as SubscriptionConfig
+          const slots = getEnabledMealSlots(cfg)
+          let favoriteIds: string[] = []
+          try {
+            const favRes = await fetch('/api/favorites', {
+              cache: 'no-store',
+              credentials: 'include',
+              headers: { ...telegramInitHeaderRecord() },
+            })
+            const favData = await favRes.json().catch(() => null)
+            if (favRes.ok && Array.isArray(favData?.ids)) favoriteIds = favData.ids.map(String)
+          } catch {
+            // ignore
+          }
+          const days = suggestDeliveryDays(cfg, slots)
+          const prefill = buildPrefillItems(
+            cfg,
+            mappedDishes.map((d) => ({ id: d.id, tags: d.tags })),
+            {
+              enabledSlots: slots,
+              deliveryDays: days,
+              personCount: cfg.minPersons ?? 1,
+              periodDays: cfg.defaultPeriodDays ?? 28,
+            },
+            favoriteIds
+          )
+          if (prefill.length) {
+            setLines(
+              prefill.map((it) => ({
+                dishId: it.dishId,
+                quantity: it.quantity,
+                mealSlot: parseMealSlot(it.mealSlot),
+                modifierIds: it.modifierIds ?? [],
+              }))
+            )
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -231,8 +270,6 @@ export function SubscriptionCheckoutFlow() {
     return defs.filter((id) => dishesForSlot.some((d) => d.id === id))
   }, [subConfig, activeSlot, dishesForSlot])
 
-  const slotStepIndex = Math.max(0, enabledSlots.indexOf(activeSlot))
-
   const activeQuote = quotesByPeriod[periodDays] ?? null
   const perDeliveryEstimate = activeQuote?.perDeliveryRetail ?? quotesByPeriod[subConfig.defaultPeriodDays ?? 28]?.perDeliveryRetail ?? 0
 
@@ -250,12 +287,10 @@ export function SubscriptionCheckoutFlow() {
   function addDish(dishId: string) {
     const item: SelectedLine = { dishId, quantity: 1, mealSlot: activeSlot, modifierIds: [] }
     setLines((prev) => {
-      if (prev.some((x) => lineKey(x) === lineKey(item))) {
-        toast.error('уже в рационе')
-        return prev
-      }
-      toast.success('добавлено в рацион')
-      return [...prev, item]
+      const k = lineKey(item)
+      if (prev.some((x) => lineKey(x) === k)) return prev
+      const withoutSlot = prev.filter((x) => x.mealSlot !== activeSlot)
+      return [...withoutSlot, item]
     })
   }
 
@@ -278,19 +313,6 @@ export function SubscriptionCheckoutFlow() {
   }
 
   function goToCheckout() {
-    if (!lines.some((l) => l.mealSlot === activeSlot)) {
-      toast.error(`выберите блюдо · ${MEAL_SLOT_LABEL[activeSlot]}`)
-      return
-    }
-    const idx = enabledSlots.indexOf(activeSlot)
-    if (idx >= 0 && idx < enabledSlots.length - 1) {
-      const nextSlot = enabledSlots[idx + 1]
-      if (!lines.some((l) => l.mealSlot === nextSlot)) {
-        setActiveSlot(nextSlot)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-        return
-      }
-    }
     for (const slot of enabledSlots) {
       if (!lines.some((l) => l.mealSlot === slot)) {
         setActiveSlot(slot)
@@ -416,13 +438,17 @@ export function SubscriptionCheckoutFlow() {
   if (phase === 'menu') {
     return (
       <SubscriptionMenuPickerPhase
-        dishes={dishesForSlot}
+        allDishes={catalogDishes}
+        pickerDishes={dishesForSlot}
         lines={lines}
         activeSlot={activeSlot}
         enabledSlots={enabledSlots}
-        slotStepIndex={slotStepIndex}
         recommendedDishIds={recommendedDishIds}
         subConfig={subConfig}
+        quotesByPeriod={quotesByPeriod}
+        periodDays={periodDays}
+        selectedDays={selectedDays}
+        onPeriodDays={setPeriodDays}
         perDeliveryEstimate={perDeliveryEstimate}
         onActiveSlot={setActiveSlot}
         onAddDish={addDish}

@@ -115,6 +115,15 @@ export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[])
   return Array.from(map.values())
 }
 
+/** Пояснение для гостя: одни и те же блюда в каждый день доставки. */
+export function formatWeeklyRationHint(lines: SelectedLine[], wizardDays: number[]) {
+  if (!lines.length || !wizardDays.length) return null
+  const dayPart = wizardDays.map((d) => WEEKDAYS[d]).join(', ')
+  const slots = [...new Set(lines.map((l) => l.mealSlot).filter(Boolean))] as MealSlot[]
+  const slotLabels = slots.map((s) => MEAL_SLOT_LABEL[s].toLowerCase()).join(' и ')
+  return `В ${dayPart} привозим один и тот же рацион${slotLabels ? `: ${slotLabels}` : ''}. Меню на день можно уточнить у заведения.`
+}
+
 export function mealSlotShort(slot: MealSlot | null) {
   return slot ? MEAL_SLOT_LABEL[slot] : 'весь день'
 }
