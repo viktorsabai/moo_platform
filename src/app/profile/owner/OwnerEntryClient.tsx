@@ -113,11 +113,20 @@ export function OwnerEntryClient({
     return (
       <div className="ui-surface-card">
         <div className="ui-kicker">кабинет</div>
-        <p className="ui-muted mt-2 text-[13px]">Пока нет подключённых точек. Создайте заведение — дальше настройки внутри кабинета.</p>
+        <p className="ui-muted mt-2 text-[13px] leading-snug">
+          Не нашли заведение для этого аккаунта. Если вы только что сбросили кэш — откройте список ещё раз или создайте точку.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          className="btn btn-soft mt-4 h-11 w-full rounded-full text-[14px] font-semibold"
+        >
+          обновить список
+        </button>
         <Link
           href="/profile/restaurant/new"
           prefetch={false}
-          className="btn btn-primary mt-4 flex h-11 w-full items-center justify-center rounded-full px-6 text-[14px] font-semibold transition active:opacity-90"
+          className="btn btn-primary mt-3 flex h-11 w-full items-center justify-center rounded-full px-6 text-[14px] font-semibold transition active:opacity-90"
           style={{ borderRadius: 'var(--radius-pill)' }}
         >
           Создать заведение

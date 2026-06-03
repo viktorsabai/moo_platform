@@ -12,6 +12,6 @@ export default async function AdminSubscriptionClientsPage() {
     const initialClientSubscriptions = await getAdminSubscriptions(admin.restaurantId)
     return <AdminSubscriptionClientsPanel initialClientSubscriptions={initialClientSubscriptions} />
   } catch {
-    redirect('/profile')
+    redirect('/profile/owner')
   }
 }

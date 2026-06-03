@@ -1,6 +1,7 @@
- 'use client'
+'use client'
 
- import { useEffect } from 'react'
+import { useEffect } from 'react'
+import { softResetClientApp } from '@/lib/client-app-recovery'
 
  export default function GlobalError({
    error,
@@ -26,16 +27,9 @@
      } catch {}
    }, [error])
 
-   const clearAndReload = () => {
-     try {
-       localStorage.removeItem('cart-storage')
-       localStorage.removeItem('orders-storage')
-       localStorage.removeItem('subscriptions-storage')
-     } catch {}
-     try {
-       location.reload()
-     } catch {}
-   }
+  const clearAndReload = () => {
+    softResetClientApp('/profile/owner')
+  }
 
    return (
      <main className="mx-auto w-full max-w-[1100px] px-4 pt-8 pb-28">
@@ -63,7 +57,7 @@
              onClick={clearAndReload}
              className="inline-flex h-11 items-center justify-center rounded-full bg-black/[0.03] px-6 text-[13px] font-semibold text-black/70 transition active:scale-[0.98]"
            >
-             сбросить кэш и перезагрузить
+             выбрать заведение заново
            </button>
          </div>
        </div>

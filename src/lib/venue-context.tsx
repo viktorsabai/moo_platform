@@ -174,12 +174,13 @@ export function VenueProvider({ children }: { children: ReactNode }) {
             ? { 'x-ufo-restaurant': explicitRestaurantId }
             : undefined,
       })
-      let res = await fetch('/api/venue/context', contextFetchOptions())
+      const contextUrl = inOwnerContext ? '/api/owner/venue/context' : '/api/venue/context'
+      let res = await fetch(contextUrl, contextFetchOptions())
       let data = await res.json().catch(() => null)
       // Retry при transient failure (БД, сеть)
       if ((!res.ok || !data?.ok) && res.status >= 500) {
         await new Promise((r) => setTimeout(r, 800))
-        res = await fetch('/api/venue/context', contextFetchOptions())
+        res = await fetch(contextUrl, contextFetchOptions())
         data = await res.json().catch(() => null)
       }
       if (res.ok && data?.ok) {

@@ -55,12 +55,6 @@ export async function getRestaurantContext(): Promise<RestaurantContext | null> 
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
   if (!userId) {
-    // #region agent log
-    try {
-      const fs = require('fs')
-      require('fs').appendFileSync(require('path').join(process.cwd(), '.cursor', 'debug.log'), JSON.stringify({ location: 'restaurant-context:noUserId', message: 'no userId', data: { hasSession: !!session }, timestamp: Date.now(), hypothesisId: 'F' }) + '\n')
-    } catch {}
-    // #endregion
     return null
   }
 
@@ -220,12 +214,6 @@ export async function getRestaurantContext(): Promise<RestaurantContext | null> 
     }
   }
 
-  // #region agent log
-  try {
-    const fs = require('fs')
-    require('fs').appendFileSync(require('path').join(process.cwd(), '.cursor', 'debug.log'), JSON.stringify({ location: 'restaurant-context:ctxResult', data: { userId, restaurantId, platformRole, memberRole }, timestamp: Date.now(), hypothesisId: 'A' }) + '\n')
-  } catch {}
-  // #endregion
   return { userId, restaurantId, platformRole, memberRole }
 }
 
@@ -334,9 +322,6 @@ export async function getConsumerRestaurantResolution(): Promise<{
       source = 'cookie'
     }
   }
-  // #region agent log
-  try{require('fs').appendFileSync(require('path').join(process.cwd(),'.cursor','debug.log'),JSON.stringify({location:'restaurant-context:getConsumerRestaurantId',message:'result',data:{hasCtxUserId:!!ctx?.userId,ctxRestaurantId:ctx?.restaurantId,cookieValue:overridden??null,result},timestamp:Date.now(),hypothesisId:'H2'})+'\n')}catch{}
-  // #endregion
   return {
     restaurantId: result,
     source,
@@ -369,12 +354,6 @@ export function requireRestaurantAdmin(ctx: RestaurantContext | null) {
     c.memberRole === 'OWNER' ||
     c.memberRole === 'ADMIN'
   if (!ok) {
-    // #region agent log
-    try {
-      const fs = require('fs')
-      require('fs').appendFileSync(require('path').join(process.cwd(), '.cursor', 'debug.log'), JSON.stringify({ location: 'restaurant-context:forbidden', data: { platformRole: c.platformRole, memberRole: c.memberRole, restaurantId: c.restaurantId }, timestamp: Date.now(), hypothesisId: 'A' }) + '\n')
-    } catch {}
-    // #endregion
     const err = new Error('forbidden')
     ;(err as any).statusCode = 403
     throw err

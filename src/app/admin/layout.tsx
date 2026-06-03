@@ -11,7 +11,7 @@ export default async function AdminLayout({
   try {
     ctx = await getRestaurantContext()
   } catch {
-    redirect('/profile')
+    redirect('/profile/owner')
   }
   const ok = Boolean(
     ctx?.userId &&
@@ -20,7 +20,7 @@ export default async function AdminLayout({
         ctx.memberRole === 'ADMIN')
   )
   if (!ok || !ctx) {
-    redirect('/profile')
+    redirect('/profile/owner')
   }
   const cookieStore = await cookies()
   const existingCookie = (cookieStore.get('ufo_restaurant')?.value ?? '').trim()

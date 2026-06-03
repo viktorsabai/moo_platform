@@ -5,11 +5,11 @@ import { AdminSubscriptionDashboard } from './AdminSubscriptionDashboard'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminSubscriptionsPage() {
-  const ctx = await getRestaurantContext()
   try {
+    const ctx = await getRestaurantContext()
     requireRestaurantAdmin(ctx)
     return <AdminSubscriptionDashboard />
   } catch {
-    redirect('/profile')
+    redirect('/profile/owner')
   }
 }
