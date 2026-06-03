@@ -1,59 +1,73 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import type { Dish } from '@/types'
 import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { IconChevronLeft, IconChevronUp } from '@/components/ui/icons'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
-import { itemsPerDeliveryBySlot } from '@/lib/subscription-meal-slot-rules'
 import type { SubscriptionConfig } from '@/lib/subscription-config'
-import type { PeriodQuote, SelectedLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
-import { WEEKDAYS, wizardDayToJs } from '@/features/subscriptions/lib/subscription-checkout-utils'
+import type { MenuCategory, PeriodQuote, SelectedLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
+import {
+  dishHasConfigurableOptions,
+  groupDishesForPicker,
+  nextMissingMealHint,
+  slotsForWizardDay,
+  TAG_FILTERS,
+  WEEKDAYS,
+  wizardDayToJs,
+} from '@/features/subscriptions/lib/subscription-checkout-utils'
 import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
 
 type Props = {
   selectedDays: number[]
   activeWizardDay: number
   activeSlot: MealSlot
+  slotsForActiveDay: MealSlot[]
+  slotsByWizardDay: Record<number, MealSlot[]>
   enabledSlots: MealSlot[]
   pickerDishes: Dish[]
+  allDishes: Dish[]
   lines: SelectedLine[]
   recommendedDishIds: string[]
+  menuCategories: MenuCategory[]
+  categoryFilter: string
   subConfig: SubscriptionConfig
   minDays: number
   maxDays: number
   quotesByPeriod: Record<number, PeriodQuote | undefined>
   periodDays: number
   onDayCell: (wizardDay: number) => void
+  onToggleMealSlot: (slot: MealSlot) => void
+  onCategoryFilter: (id: string) => void
   onActiveSlot: (s: MealSlot) => void
   onAddDish: (dishId: string) => void
   onRemoveLine: (line: SelectedLine) => void
+  onEditLine: (line: SelectedLine) => void
   onCopyToAllWeek: () => void
   onClearDay: () => void
   onContinue: () => void
   onOpenPay?: () => void
 }
 
-function slotHasItems(lines: SelectedLine[], jsDay: number, slot: MealSlot) {
-  return lines.some((l) => l.dayOfWeek === jsDay && l.mealSlot === slot)
-}
-
 function dayComplete(lines: SelectedLine[], wizardDay: number, slots: MealSlot[]) {
   const js = wizardDayToJs(wizardDay)
-  return slots.every((slot) => slotHasItems(lines, js, slot))
+  if (!slots.length) return false
+  return slots.every((slot) => lines.some((l) => l.dayOfWeek === js && l.mealSlot === slot))
 }
 
 function CompactDishRow({
   dish,
   selected,
   highlight,
+  hasOptions,
   onAdd,
 }: {
   dish: Dish
   selected: boolean
   highlight?: boolean
+  hasOptions?: boolean
   onAdd: () => void
 }) {
   return (
@@ -78,7 +92,10 @@ function CompactDishRow({
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-semibold leading-tight">{dish.name}</p>
-        <p className="text-[12px] font-bold tabular-nums text-[color:var(--muted)]">{formatPrice(dish.price)}</p>
+        <p className="text-[12px] font-bold tabular-nums text-[color:var(--muted)]">
+          {formatPrice(dish.price)}
+          {hasOptions ? ' · настроить' : ''}
+        </p>
       </div>
       <span
         className={cn(
@@ -96,37 +113,64 @@ export function SubscriptionBuildPhase({
   selectedDays,
   activeWizardDay,
   activeSlot,
+  slotsForActiveDay,
+  slotsByWizardDay,
   enabledSlots,
   pickerDishes,
-  lines,
-  recommendedDishIds,
-  subConfig,
+  menuCategories,
+  categoryFilter,
   minDays,
   maxDays,
-  quotesByPeriod,
-  periodDays,
+  lines,
+  recommendedDishIds,
   onDayCell,
+  onToggleMealSlot,
+  onCategoryFilter,
   onActiveSlot,
   onAddDish,
-  onRemoveLine,
+  onEditLine,
   onCopyToAllWeek,
   onClearDay,
   onContinue,
   onOpenPay,
 }: Props) {
-  const jsDay = wizardDayToJs(activeWizardDay)
-  const recommended = pickerDishes.filter((d) => recommendedDishIds.includes(d.id))
-  const rest = pickerDishes.filter((d) => !recommendedDishIds.includes(d.id))
   const daysOk = selectedDays.length >= minDays
-  const allComplete = daysOk && selectedDays.every((d) => dayComplete(lines, d, enabledSlots))
-  const activeQuote = quotesByPeriod[periodDays]
-  const activeDayComplete = dayComplete(lines, activeWizardDay, enabledSlots)
+  const [editingDays, setEditingDays] = useState(!daysOk)
 
+  useEffect(() => {
+    if (!daysOk) setEditingDays(true)
+  }, [daysOk])
+
+  const jsDay = wizardDayToJs(activeWizardDay)
+  const allComplete =
+    daysOk &&
+    selectedDays.every((d) => dayComplete(lines, d, slotsForWizardDay(slotsByWizardDay, d, enabledSlots)))
+  const missingHint = daysOk && !allComplete ? nextMissingMealHint(lines, selectedDays, slotsByWizardDay, enabledSlots) : null
   const slotLines = lines.filter((l) => l.dayOfWeek === jsDay && l.mealSlot === activeSlot)
-  const slotQty = itemsPerDeliveryBySlot(slotLines)[activeSlot] ?? 0
-  const maxSlot = subConfig.mealSlots[activeSlot]?.maxItemsPerDelivery ?? 0
-  const maxForSlot = maxSlot <= 0 ? 999 : maxSlot
-  const hasTemplateForWeek = slotLines.length > 0 || lines.some((l) => l.dayOfWeek === jsDay)
+
+  const pickerCategories = useMemo(
+    () => menuCategories.filter((c) => pickerDishes.some((d) => (d.categoryId || 'uncat') === c.id)),
+    [menuCategories, pickerDishes]
+  )
+
+  const dishSections = useMemo(
+    () => groupDishesForPicker(pickerDishes, pickerCategories.length ? pickerCategories : menuCategories, categoryFilter),
+    [pickerDishes, pickerCategories, menuCategories, categoryFilter]
+  )
+
+  function handleMealPress(slot: MealSlot) {
+    const on = slotsForActiveDay.includes(slot)
+    if (!on) {
+      onToggleMealSlot(slot)
+      onActiveSlot(slot)
+      return
+    }
+    if (activeSlot !== slot) {
+      onActiveSlot(slot)
+      return
+    }
+    onToggleMealSlot(slot)
+  }
 
   return (
     <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+92px)]">
@@ -134,138 +178,210 @@ export function SubscriptionBuildPhase({
         <a href="/subscriptions" className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
         </a>
-        <PageHeader title="соберите рацион" subtitle="тап по дню → приём → блюда" compact className="min-w-0 flex-1" />
+        <PageHeader title="рацион" subtitle="день → приём → блюдо" compact className="min-w-0 flex-1" />
       </div>
 
       <SubscriptionFlowProgress step="build" onStep={(s) => s === 'pay' && allComplete && onOpenPay?.()} payEnabled={allComplete} />
 
       <section className="mb-3">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
-          дни · {selectedDays.length} из {minDays}–{maxDays}
-        </p>
-        <div className="grid grid-cols-7 gap-1.5">
-          {WEEKDAYS.map((label, idx) => {
-            const isDelivery = selectedDays.includes(idx)
-            const isActive = activeWizardDay === idx && isDelivery
-            const done = isDelivery && dayComplete(lines, idx, enabledSlots)
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => onDayCell(idx)}
-                className={cn(
-                  'relative flex aspect-square max-h-11 flex-col items-center justify-center rounded-full text-[11px] font-bold transition active:scale-[0.96]',
-                  isActive
-                    ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
-                    : isDelivery
-                      ? done
-                        ? 'border-2 border-[color:var(--text)] bg-[color:var(--surface)] text-[color:var(--text)]'
-                        : 'border-2 border-[color:var(--text)]/40 bg-[color:var(--surface)]'
-                      : 'border border-[color:var(--stroke)] text-[color:var(--muted)]'
-                )}
-              >
-                {label}
-                {done && !isActive ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[color:var(--text)] text-[8px] text-[color:var(--surface)]">
-                    ✓
-                  </span>
-                ) : null}
-              </button>
-            )
-          })}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
+            дни · {selectedDays.length}/{minDays}–{maxDays}
+          </p>
+          {daysOk ? (
+            <button
+              type="button"
+              onClick={() => setEditingDays((v) => !v)}
+              className="text-[11px] font-bold text-[color:var(--muted)] underline-offset-2 hover:underline"
+            >
+              {editingDays ? 'готово' : 'изменить дни'}
+            </button>
+          ) : null}
         </div>
-        <p className="mt-1.5 text-[10px] text-[color:var(--muted)]">серые — не доставляем · тап — выбрать день меню</p>
+
+        {editingDays || !daysOk ? (
+          <div className="grid grid-cols-7 gap-1.5">
+            {WEEKDAYS.map((label, idx) => {
+              const isDelivery = selectedDays.includes(idx)
+              const isActive = activeWizardDay === idx && isDelivery
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    onDayCell(idx)
+                    if (selectedDays.includes(idx) || selectedDays.length + 1 >= minDays) {
+                      setEditingDays(false)
+                    }
+                  }}
+                  className={cn(
+                    'flex aspect-square max-h-11 items-center justify-center rounded-full text-[11px] font-bold transition active:scale-[0.96]',
+                    isActive
+                      ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                      : isDelivery
+                        ? 'border-2 border-[color:var(--text)]'
+                        : 'border border-[color:var(--stroke)] text-[color:var(--muted)]'
+                  )}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {selectedDays.map((idx) => {
+              const isActive = activeWizardDay === idx
+              const done = dayComplete(lines, idx, slotsForWizardDay(slotsByWizardDay, idx, enabledSlots))
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => onDayCell(idx)}
+                  className={cn(
+                    'shrink-0 rounded-full px-3.5 py-2 text-[12px] font-bold',
+                    isActive
+                      ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                      : done
+                        ? 'border border-[color:var(--text)]'
+                        : 'border border-[color:var(--stroke)] text-[color:var(--muted)]'
+                  )}
+                >
+                  {WEEKDAYS[idx]}
+                  {done ? ' ✓' : ''}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {daysOk ? (
         <>
-          {enabledSlots.length > 1 ? (
-            <div className="mb-2">
-              <SegmentedControl
-                className="flex w-full max-w-none [&>button]:min-w-0 [&>button]:flex-1 [&>button]:justify-center"
-                value={activeSlot}
-                onChange={(v) => onActiveSlot(v as MealSlot)}
-                options={enabledSlots.map((s) => ({
-                  value: s,
-                  label: MEAL_SLOT_LABEL[s],
-                }))}
-              />
-            </div>
-          ) : null}
-
-          {hasTemplateForWeek ? (
-            <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <button
-                type="button"
-                onClick={onCopyToAllWeek}
-                className="shrink-0 rounded-full border border-[color:var(--text)] bg-[color:var(--text)] px-3 py-1.5 text-[11px] font-bold text-[color:var(--surface)]"
-              >
-                на всю неделю
-              </button>
-              <button
-                type="button"
-                onClick={onClearDay}
-                className="shrink-0 rounded-full border border-[color:var(--stroke)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--muted)]"
-              >
-                очистить {WEEKDAYS[activeWizardDay]}
-              </button>
-            </div>
-          ) : null}
-
-          {slotLines.length > 0 ? (
-            <div className="mb-2 flex flex-wrap gap-1">
-              {slotLines.map((l) => {
-                const dish = pickerDishes.find((d) => d.id === l.dishId)
-                if (!dish) return null
+          <div className="mb-3">
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
+              {WEEKDAYS[activeWizardDay]} · приёмы
+            </p>
+            <div className="flex gap-1.5">
+              {enabledSlots.map((s) => {
+                const enabled = slotsForActiveDay.includes(s)
+                const active = activeSlot === s && enabled
                 return (
                   <button
-                    key={`${l.dayOfWeek}-${l.dishId}-${l.mealSlot}`}
+                    key={s}
                     type="button"
-                    onClick={() => onRemoveLine(l)}
-                    className="inline-flex max-w-[140px] items-center gap-1 rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] py-0.5 pl-0.5 pr-2 text-[10px] font-semibold"
+                    onClick={() => handleMealPress(s)}
+                    className={cn(
+                      'min-w-0 flex-1 rounded-full py-2 text-[12px] font-bold capitalize transition',
+                      active
+                        ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                        : enabled
+                          ? 'border-2 border-[color:var(--text)]/50'
+                          : 'border border-dashed border-[color:var(--stroke)] text-[color:var(--muted)] opacity-55'
+                    )}
                   >
-                    <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-full bg-black/[0.04]">
-                      {dish.image ? <OptimizedImage src={dish.image} alt="" className="object-cover" sizes="20px" /> : null}
-                    </span>
-                    <span className="truncate">{dish.name}</span>
-                    <span className="text-[color:var(--muted)]">×</span>
+                    {MEAL_SLOT_LABEL[s]}
                   </button>
                 )
               })}
-              {slotQty < maxForSlot ? (
-                <span className="self-center px-1 text-[10px] text-[color:var(--muted)]">+ ещё</span>
-              ) : null}
+            </div>
+            <p className="mt-1 text-[10px] text-[color:var(--muted)]">тап — выбрать приём · повторный — выключить</p>
+          </div>
+
+          <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={() => onCategoryFilter('all')}
+              className={cn(
+                'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
+                categoryFilter === 'all' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+              )}
+            >
+              всё
+            </button>
+            {pickerCategories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onCategoryFilter(c.id)}
+                className={cn(
+                  'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
+                  categoryFilter === c.id ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+                )}
+              >
+                {c.emoji ? `${c.emoji} ` : ''}
+                {c.name}
+              </button>
+            ))}
+            {TAG_FILTERS.filter((t) => t.id !== 'all').map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onCategoryFilter(`tag:${t.id}`)}
+                className={cn(
+                  'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
+                  categoryFilter === `tag:${t.id}` ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-2 flex gap-2">
+            <button
+              type="button"
+              onClick={onCopyToAllWeek}
+              className="text-[11px] font-semibold text-[color:var(--muted)] underline-offset-2 hover:underline"
+            >
+              на всю неделю
+            </button>
+            <span className="text-[color:var(--stroke)]">·</span>
+            <button
+              type="button"
+              onClick={onClearDay}
+              className="text-[11px] font-semibold text-[color:var(--muted)] underline-offset-2 hover:underline"
+            >
+              очистить {WEEKDAYS[activeWizardDay]}
+            </button>
+          </div>
+
+          {dishSections.length > 0 ? (
+            <div className="space-y-4">
+              {dishSections.map(({ category, dishes }) => (
+                <section key={category.id}>
+                  <h3 className="mb-1.5 px-0.5 text-[12px] font-extrabold text-[color:var(--muted)]">
+                    {category.emoji ? `${category.emoji} ` : ''}
+                    {category.name}
+                  </h3>
+                  <ul className="space-y-2">
+                    {dishes.map((d) => {
+                      const line = slotLines.find((l) => l.dishId === d.id)
+                      return (
+                        <li key={d.id}>
+                          <CompactDishRow
+                            dish={d}
+                            highlight={recommendedDishIds.includes(d.id)}
+                            selected={Boolean(line)}
+                            hasOptions={dishHasConfigurableOptions(d)}
+                            onAdd={() => (line ? onEditLine(line) : onAddDish(d.id))}
+                          />
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              ))}
             </div>
           ) : (
-            <p className="mb-2 text-[12px] font-medium text-[color:var(--muted)]">
-              {WEEKDAYS[activeWizardDay]} · {MEAL_SLOT_LABEL[activeSlot]} — выберите блюда
-            </p>
+            <p className="text-[13px] text-[color:var(--muted)]">Нет блюд для этого приёма</p>
           )}
-
-          <ul className="space-y-2">
-            {[...recommended, ...rest].map((d) => (
-              <li key={d.id}>
-                <CompactDishRow
-                  dish={d}
-                  highlight={recommendedDishIds.includes(d.id)}
-                  selected={slotLines.some((l) => l.dishId === d.id)}
-                  onAdd={() => onAddDish(d.id)}
-                />
-              </li>
-            ))}
-          </ul>
         </>
       ) : (
         <p className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] px-3 py-3 text-[13px] text-[color:var(--muted)]">
-          Выберите минимум {minDays} {minDays === 1 ? 'день' : 'дня'} доставки (тап по кружкам выше).
+          Выберите {minDays}–{maxDays} дней доставки в сетке выше.
         </p>
       )}
-
-      {allComplete && activeQuote && activeQuote.guestSavingsPercent > 0 ? (
-        <p className="mt-4 text-center text-[12px] font-semibold text-[color:var(--muted)]">
-          выгода <span className="font-extrabold text-[color:var(--text)]">−{Math.round(activeQuote.guestSavingsPercent)}%</span>
-        </p>
-      ) : null}
 
       <div
         className="fixed left-0 right-0 z-[110] px-3"
@@ -277,11 +393,11 @@ export function SubscriptionBuildPhase({
               {!daysOk
                 ? `ещё ${minDays - selectedDays.length} дн.`
                 : allComplete
-                  ? `${lines.length} блюд · готово`
-                  : `${WEEKDAYS[activeWizardDay]} · ${MEAL_SLOT_LABEL[activeSlot]}`}
+                  ? `${lines.length} блюд · можно к оплате`
+                  : missingHint ?? `${WEEKDAYS[activeWizardDay]} · ${MEAL_SLOT_LABEL[activeSlot]}`}
             </p>
-            {daysOk && !allComplete && !activeDayComplete ? (
-              <p className="text-[11px] font-medium text-[color:var(--muted)]">заполните этот день или «на всю неделю»</p>
+            {daysOk && !allComplete ? (
+              <p className="text-[11px] text-[color:var(--muted)]">только включённые приёмы</p>
             ) : null}
           </div>
           <button

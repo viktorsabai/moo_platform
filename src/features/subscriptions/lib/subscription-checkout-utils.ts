@@ -105,8 +105,32 @@ export function parseJsonArray<T = unknown>(data: unknown): T[] {
   return []
 }
 
+export function buildRequiredSlotsByJsDay(
+  selectedWizardDays: number[],
+  slotsByWizardDay: Record<number, MealSlot[]>,
+  fallbackSlots: MealSlot[]
+): Record<number, MealSlot[]> {
+  const out: Record<number, MealSlot[]> = {}
+  for (const w of selectedWizardDays) {
+    const js = wizardDayToJs(w)
+    const slots = slotsByWizardDay[w]?.length ? slotsByWizardDay[w] : fallbackSlots
+    out[js] = [...slots]
+  }
+  return out
+}
+
+export function dishHasConfigurableOptions(dish: Dish): boolean {
+  const mods = dish.modifiers ?? []
+  const groups = dish.optionGroups ?? []
+  return mods.length > 0 || groups.some((g) => (g.values?.length ?? 0) > 0)
+}
+
 export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[]): MenuCategory[] {
-  if (categories.length > 0) return categories
+  const dishCatIds = new Set(dishes.map((d) => d.categoryId || 'uncat'))
+  if (categories.length > 0) {
+    const fromApi = categories.filter((c) => dishCatIds.has(c.id))
+    if (fromApi.length > 0) return fromApi
+  }
   const map = new Map<string, MenuCategory>()
   for (const d of dishes) {
     const cid = d.categoryId || 'uncat'
@@ -122,24 +146,103 @@ export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[])
   return Array.from(map.values())
 }
 
-/** Краткое описание рациона по дням для чекаута. */
-export function formatWeeklyRationHint(lines: SelectedLine[], wizardDays: number[]) {
+export type DishPickerSection = { category: MenuCategory; dishes: Dish[] }
+
+/** Секции меню с заголовками категорий (для списка блюд). */
+export function groupDishesForPicker(
+  dishes: Dish[],
+  categories: MenuCategory[],
+  categoryFilter: string
+): DishPickerSection[] {
+  let list = dishes
+  if (categoryFilter.startsWith('tag:')) {
+    list = list.filter((d) => dishMatchesTagFilter(d, categoryFilter.slice(4)))
+  } else if (categoryFilter !== 'all') {
+    list = list.filter((d) => (d.categoryId || 'uncat') === categoryFilter)
+  }
+
+  const byCat = new Map<string, Dish[]>()
+  for (const d of list) {
+    const cid = d.categoryId || 'uncat'
+    const arr = byCat.get(cid) ?? []
+    arr.push(d)
+    byCat.set(cid, arr)
+  }
+
+  const sections: DishPickerSection[] = []
+  const seen = new Set<string>()
+  for (const cat of categories) {
+    const items = byCat.get(cat.id)
+    if (!items?.length) continue
+    seen.add(cat.id)
+    sections.push({ category: cat, dishes: items })
+  }
+  for (const [cid, items] of byCat) {
+    if (seen.has(cid) || !items.length) continue
+    const cat = categories.find((c) => c.id === cid)
+    sections.push({
+      category: cat ?? { id: cid, name: 'меню', slug: cid, emoji: null },
+      dishes: items,
+    })
+  }
+  return sections
+}
+
+/** Следующий незаполненный приём (для подсказки внизу). */
+export function nextMissingMealHint(
+  lines: SelectedLine[],
+  wizardDays: number[],
+  slotsByWizardDay: Record<number, MealSlot[]>,
+  enabledSlots: MealSlot[]
+): string | null {
+  for (const w of [...wizardDays].sort((a, b) => a - b)) {
+    const js = wizardDayToJs(w)
+    const slots = slotsForWizardDay(slotsByWizardDay, w, enabledSlots)
+    for (const slot of slots) {
+      if (!lines.some((l) => l.dayOfWeek === js && l.mealSlot === slot)) {
+        return `${WEEKDAYS[w]} · ${MEAL_SLOT_LABEL[slot]}`
+      }
+    }
+  }
+  return null
+}
+
+/** Одна строка для шапки чекаута — без перечисления каждого приёма. */
+export function formatRationCheckoutSummary(lines: SelectedLine[], wizardDays: number[]) {
   if (!lines.length || !wizardDays.length) return null
-  const parts = wizardDays.map((wizardDay) => {
-    const js = wizardDayToJs(wizardDay)
-    const dayItems = lines.filter((l) => l.dayOfWeek === js)
-    if (!dayItems.length) return null
-    const meals = dayItems
-      .map((l) => {
-        const slot = l.mealSlot ? MEAL_SLOT_LABEL[l.mealSlot].toLowerCase() : 'блюдо'
-        return slot
-      })
-      .join(', ')
-    return `${WEEKDAYS[wizardDay]}: ${meals}`
-  })
-  const filled = parts.filter(Boolean)
-  if (!filled.length) return null
-  return `Меню по дням: ${filled.join(' · ')}`
+  const dishWord = lines.length === 1 ? 'блюдо' : lines.length < 5 ? 'блюда' : 'блюд'
+  const dayWord = wizardDays.length === 1 ? 'день' : wizardDays.length < 5 ? 'дня' : 'дней'
+  return `${lines.length} ${dishWord} · ${wizardDays.length} ${dayWord} доставки`
+}
+
+export function formatStartDateRu(date: Date) {
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+export function slotsForWizardDay(
+  slotsByWizardDay: Record<number, MealSlot[]>,
+  wizardDay: number,
+  enabledSlots: MealSlot[]
+): MealSlot[] {
+  const custom = slotsByWizardDay[wizardDay]
+  return custom?.length ? custom : enabledSlots
+}
+
+/** Группы строк рациона по приёмам пищи (только слоты, где есть позиции). */
+export function groupDayLinesByMealSlot(
+  lines: SelectedLine[],
+  jsDay: number,
+  slotOrder: MealSlot[]
+): { slot: MealSlot | null; items: SelectedLine[] }[] {
+  const dayItems = lines.filter((l) => l.dayOfWeek === jsDay)
+  const groups: { slot: MealSlot | null; items: SelectedLine[] }[] = []
+  for (const slot of slotOrder) {
+    const items = dayItems.filter((l) => l.mealSlot === slot)
+    if (items.length) groups.push({ slot, items })
+  }
+  const other = dayItems.filter((l) => !l.mealSlot || !slotOrder.includes(l.mealSlot as MealSlot))
+  if (other.length) groups.push({ slot: null, items: other })
+  return groups
 }
 
 export function mealSlotShort(slot: MealSlot | null) {

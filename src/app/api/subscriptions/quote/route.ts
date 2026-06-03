@@ -5,8 +5,8 @@ import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
 import { prisma } from '@/lib/prisma'
 import { getPeriodDiscountPercent } from '@/lib/subscription-config'
 import { calculateSubscriptionQuote } from '@/lib/subscription-pricing'
-import { parseMealSlot } from '@/lib/subscription-meal-slots'
-import { validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
+import { parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
+import { parseRequiredMealSlotsByDay, validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
 
 export const runtime = 'nodejs'
@@ -80,7 +80,15 @@ export async function POST(request: Request) {
     const eligibleIds = new Set(
       dishes.filter((d) => d.isAvailable && d.subscriptionEligible).map((d) => d.id)
     )
-    const validation = validateSubscriptionItemsByMealSlots(items, config, eligibleIds, deliveryDaysJs)
+    const requiredSlotsByJsDay = parseRequiredMealSlotsByDay(body?.requiredMealSlotsByDay)
+
+    const validation = validateSubscriptionItemsByMealSlots(
+      items,
+      config,
+      eligibleIds,
+      deliveryDaysJs,
+      Object.keys(requiredSlotsByJsDay).length ? requiredSlotsByJsDay : undefined
+    )
     if (!validation.valid) {
       return NextResponse.json({ ok: false, error: validation.error }, { status: 400 })
     }

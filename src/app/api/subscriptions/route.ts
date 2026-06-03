@@ -11,7 +11,7 @@ import { parseMealSlot } from '@/lib/subscription-meal-slots'
 import { allowedModifierIdsByDish, filterModifierIdsForDish } from '@/lib/dish-modifier-sync'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
-import { validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
+import { parseRequiredMealSlotsByDay, validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
 import { computeSubscriptionQuoteForRestaurant } from '@/lib/subscription-quote-server'
 
 export const runtime = 'nodejs'
@@ -239,6 +239,7 @@ export async function POST(request: Request) {
   }
 
   const eligibleDishIds = new Set(existingDishes.filter((d) => d.subscriptionEligible && d.isAvailable).map((d) => d.id))
+  const requiredSlotsByJsDay = parseRequiredMealSlotsByDay(body?.requiredMealSlotsByDay)
   const mealSlotValidation = validateSubscriptionItemsByMealSlots(
     itemCreates.map((it) => ({
       dishId: it.dishId,
@@ -249,7 +250,8 @@ export async function POST(request: Request) {
     })),
     subConfig,
     eligibleDishIds,
-    deliveryDays
+    deliveryDays,
+    Object.keys(requiredSlotsByJsDay).length ? requiredSlotsByJsDay : undefined
   )
   if (!mealSlotValidation.valid) {
     return NextResponse.json({ ok: false, error: mealSlotValidation.error }, { status: 400 })

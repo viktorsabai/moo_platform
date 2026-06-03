@@ -1,4 +1,4 @@
-import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
+import { MEAL_SLOT_LABEL, parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { getEnabledMealSlots, type SubscriptionConfig } from '@/lib/subscription-config'
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const
@@ -6,6 +6,18 @@ const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] 
 function jsDayToWizardLabel(jsDay: number) {
   const wizard = jsDay === 0 ? 6 : jsDay - 1
   return WEEKDAY_LABELS[wizard] ?? 'день'
+}
+
+export function parseRequiredMealSlotsByDay(raw: unknown): Record<number, MealSlot[]> {
+  const out: Record<number, MealSlot[]> = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    const js = Number(key)
+    if (!Number.isFinite(js) || js < 0 || js > 6 || !Array.isArray(val)) continue
+    const slots = val.map((s) => parseMealSlot(s)).filter((s): s is MealSlot => Boolean(s))
+    if (slots.length) out[js] = slots
+  }
+  return out
 }
 
 export type SubscriptionItemInput = {
@@ -52,11 +64,13 @@ export function itemsPerDeliveryBySlot(items: SubscriptionItemInput[]): Record<M
   return out
 }
 
+/** Какие приёмы обязательны в конкретный день доставки (js 0–6). Без карты — все включённые слоты. */
 export function validateSubscriptionItemsByMealSlots(
   items: SubscriptionItemInput[],
   config: SubscriptionConfig,
   dishIdsEligible: Set<string>,
-  deliveryDaysJs?: number[]
+  deliveryDaysJs?: number[],
+  requiredSlotsByJsDay?: Record<number, MealSlot[]>
 ): { valid: true } | { valid: false; error: string } {
   const rules = resolveMealSlotRules(config)
   if (rules.enabledSlots.size === 0) {
@@ -86,7 +100,17 @@ export function validateSubscriptionItemsByMealSlots(
     for (const jsDay of jsDays) {
       const dayItems = items.filter((it) => it.dayOfWeek === jsDay)
       const bySlot = itemsPerDeliveryBySlot(dayItems)
-      for (const slot of rules.enabledSlots) {
+      const required =
+        requiredSlotsByJsDay?.[jsDay]?.filter((s) => rules.enabledSlots.has(s)) ??
+        [...rules.enabledSlots]
+      if (required.length === 0) {
+        return { valid: false, error: `На ${jsDayToWizardLabel(jsDay)} выберите хотя бы один приём пищи.` }
+      }
+      const dayQty = required.reduce((sum, slot) => sum + bySlot[slot], 0)
+      if (dayQty <= 0) {
+        return { valid: false, error: `На ${jsDayToWizardLabel(jsDay)} добавьте блюда в выбранные приёмы.` }
+      }
+      for (const slot of required) {
         const max = rules.maxItemsBySlot[slot] ?? 999
         if (bySlot[slot] <= 0) {
           return {

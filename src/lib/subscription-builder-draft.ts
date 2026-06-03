@@ -19,6 +19,8 @@ export type SubscriptionBuilderDraft = {
     modifierIds: string[]
     dayOfWeek: number
   }>
+  /** wizard day 0–6 → какие приёмы нужны в этот день */
+  slotsByWizardDay?: Record<number, MealSlot[]>
 }
 
 const PREFIX = 'ufo:subscription-builder:'
