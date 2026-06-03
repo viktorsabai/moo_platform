@@ -1,18 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Dish } from '@/types'
 import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IconChevronLeft, IconChevronUp } from '@/components/ui/icons'
 import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
-import type { SubscriptionConfig } from '@/lib/subscription-config'
 import type { MenuCategory, PeriodQuote, SelectedLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
 import {
   dishHasConfigurableOptions,
   groupDishesForPicker,
   nextMissingMealHint,
   slotsForWizardDay,
+  summarizeLineModifiers,
   WEEKDAYS,
   wizardDayToJs,
 } from '@/features/subscriptions/lib/subscription-checkout-utils'
@@ -28,9 +28,7 @@ type Props = {
   enabledSlots: MealSlot[]
   pickerDishes: Dish[]
   lines: SelectedLine[]
-  recommendedDishIds: string[]
   menuCategories: MenuCategory[]
-  subConfig: SubscriptionConfig
   minDays: number
   maxDays: number
   quotesByPeriod: Record<number, PeriodQuote | undefined>
@@ -41,6 +39,7 @@ type Props = {
   onAddDish: (dishId: string) => void
   onEditLine: (line: SelectedLine) => void
   onCopyToAllWeek: () => void
+  onCopyFromPrevDay: () => void
   onClearDay: () => void
   onContinue: () => void
   onOpenPay?: () => void
@@ -72,11 +71,13 @@ export function SubscriptionBuildPhase({
   onAddDish,
   onEditLine,
   onCopyToAllWeek,
+  onCopyFromPrevDay,
   onClearDay,
   onContinue,
   onOpenPay,
 }: Props) {
   const daysOk = selectedDays.length >= minDays
+  const [activeCategory, setActiveCategory] = useState<string>('all')
   const jsDay = wizardDayToJs(activeWizardDay)
   const allComplete =
     daysOk &&
@@ -84,6 +85,11 @@ export function SubscriptionBuildPhase({
   const missingHint = daysOk && !allComplete ? nextMissingMealHint(lines, selectedDays, slotsByWizardDay, enabledSlots) : null
   const slotLines = lines.filter((l) => l.dayOfWeek === jsDay && l.mealSlot === activeSlot)
   const periodQuote = quotesByPeriod[periodDays]
+
+  const prevWizardDay = useMemo(() => {
+    const idx = selectedDays.indexOf(activeWizardDay)
+    return idx > 0 ? selectedDays[idx - 1] : null
+  }, [selectedDays, activeWizardDay])
 
   const pickerCategories = useMemo(
     () => menuCategories.filter((c) => pickerDishes.some((d) => (d.categoryId || 'uncat') === c.id)),
@@ -93,6 +99,11 @@ export function SubscriptionBuildPhase({
   const dishSections = useMemo(
     () => groupDishesForPicker(pickerDishes, pickerCategories.length ? pickerCategories : menuCategories, 'all'),
     [pickerDishes, pickerCategories, menuCategories]
+  )
+
+  const visibleSections = useMemo(
+    () => (activeCategory === 'all' ? dishSections : dishSections.filter((s) => s.category.id === activeCategory)),
+    [dishSections, activeCategory]
   )
 
   function handleMealPress(slot: MealSlot) {
@@ -107,6 +118,10 @@ export function SubscriptionBuildPhase({
       return
     }
     onToggleMealSlot(slot)
+  }
+
+  function lineForDish(dishId: string) {
+    return slotLines.find((l) => l.dishId === dishId)
   }
 
   return (
@@ -154,7 +169,7 @@ export function SubscriptionBuildPhase({
 
       {daysOk ? (
         <>
-          <div className="mb-3">
+          <div className="mb-2">
             <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
               {WEEKDAYS[activeWizardDay]} · приёмы
             </p>
@@ -172,7 +187,7 @@ export function SubscriptionBuildPhase({
                       active
                         ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
                         : enabled
-                          ? 'border-2 border-[color:var(--text)]/45 bg-[color:var(--surface)]'
+                          ? 'border-2 border-[color:var(--text)]/45'
                           : 'border border-[color:var(--stroke)] text-[color:var(--muted)] opacity-50'
                     )}
                   >
@@ -183,36 +198,89 @@ export function SubscriptionBuildPhase({
             </div>
           </div>
 
-          <div className="mb-3 flex gap-3 text-[11px] font-semibold text-[color:var(--muted)]">
-            <button type="button" onClick={onCopyToAllWeek} className="underline-offset-2 hover:underline">
+          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={onCopyToAllWeek}
+              className="shrink-0 rounded-full border border-[color:var(--text)] bg-[color:var(--text)] px-3 py-2 text-[11px] font-bold text-[color:var(--surface)]"
+            >
               на всю неделю
             </button>
-            <button type="button" onClick={onClearDay} className="underline-offset-2 hover:underline">
+            {prevWizardDay != null ? (
+              <button
+                type="button"
+                onClick={onCopyFromPrevDay}
+                className="shrink-0 rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2 text-[11px] font-bold"
+              >
+                как {WEEKDAYS[prevWizardDay]}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClearDay}
+              className="shrink-0 rounded-full border border-[color:var(--stroke)] px-3 py-2 text-[11px] font-semibold text-[color:var(--muted)]"
+            >
               очистить день
             </button>
           </div>
 
-          {dishSections.length > 0 ? (
-            <div className="space-y-4 pb-2">
-              {dishSections.map(({ category, dishes }) => (
+          {pickerCategories.length > 0 ? (
+            <div className="sticky top-0 z-[5] -mx-1 mb-2 flex gap-1.5 overflow-x-auto bg-[color:var(--bg)]/95 py-1 backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={() => setActiveCategory('all')}
+                className={cn(
+                  'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
+                  activeCategory === 'all' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+                )}
+              >
+                всё
+              </button>
+              {pickerCategories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setActiveCategory(c.id)}
+                  className={cn(
+                    'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
+                    activeCategory === c.id ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
+                  )}
+                >
+                  {c.emoji ? `${c.emoji} ` : ''}
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {visibleSections.length > 0 ? (
+            <div className="space-y-5 pb-2">
+              {visibleSections.map(({ category, dishes }) => (
                 <section key={category.id}>
-                  <h3 className="mb-2 px-0.5 text-[13px] font-extrabold">
-                    {category.emoji ? `${category.emoji} ` : ''}
-                    {category.name}
-                  </h3>
+                  {activeCategory === 'all' ? (
+                    <h3 className="mb-2 px-0.5 text-[13px] font-extrabold">
+                      {category.emoji ? `${category.emoji} ` : ''}
+                      {category.name}
+                    </h3>
+                  ) : null}
                   <div
-                    className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    className="-mx-1 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     style={{ WebkitOverflowScrolling: 'touch' }}
                   >
                     {dishes.map((d) => {
-                      const line = slotLines.find((l) => l.dishId === d.id)
+                      const line = lineForDish(d.id)
+                      const hasOpts = dishHasConfigurableOptions(d)
+                      const summary = line ? summarizeLineModifiers(d, line.modifierIds) : null
                       return (
                         <SubscriptionDishCarouselCard
                           key={d.id}
                           dish={d}
                           selected={Boolean(line)}
-                          hasOptions={dishHasConfigurableOptions(d)}
+                          hasOptions={hasOpts}
+                          optionsSummary={summary}
+                          needsOptions={Boolean(line && hasOpts && !summary)}
                           onPress={() => (line ? onEditLine(line) : onAddDish(d.id))}
+                          onOptionsPress={hasOpts ? () => (line ? onEditLine(line) : onAddDish(d.id)) : undefined}
                         />
                       )
                     })}
@@ -221,7 +289,7 @@ export function SubscriptionBuildPhase({
               ))}
             </div>
           ) : (
-            <p className="text-[13px] text-[color:var(--muted)]">Нет блюд для этого приёма</p>
+            <p className="text-[13px] text-[color:var(--muted)]">Нет блюд в этой категории</p>
           )}
         </>
       ) : (

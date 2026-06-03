@@ -125,6 +125,24 @@ export function dishHasConfigurableOptions(dish: Dish): boolean {
   return mods.length > 0 || groups.some((g) => (g.values?.length ?? 0) > 0)
 }
 
+/** Краткая подпись выбранных опций для карточки блюда. */
+export function summarizeLineModifiers(dish: Dish, modifierIds: string[] | undefined): string | null {
+  const ids = modifierIds ?? []
+  if (!ids.length) return null
+  const names: string[] = []
+  for (const m of dish.modifiers ?? []) {
+    if (ids.includes(m.id) && m.name) names.push(m.name)
+  }
+  for (const g of dish.optionGroups ?? []) {
+    for (const v of g.values ?? []) {
+      if (ids.includes(v.id) && v.name) names.push(v.name)
+    }
+  }
+  if (!names.length) return null
+  if (names.length <= 2) return names.join(', ')
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+}
+
 export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[]): MenuCategory[] {
   const dishCatIds = new Set(dishes.map((d) => d.categoryId || 'uncat'))
   if (categories.length > 0) {

@@ -523,6 +523,34 @@ export function SubscriptionCheckoutFlow() {
     setLines((prev) => prev.filter((l) => l.dayOfWeek !== js))
   }
 
+  function copyFromPreviousDay() {
+    const idx = selectedDays.indexOf(activeWizardDay)
+    if (idx <= 0) {
+      toast.error('нет предыдущего дня доставки')
+      return
+    }
+    const prevW = selectedDays[idx - 1]!
+    const fromJs = wizardDayToJs(prevW)
+    const toJs = wizardDayToJs(activeWizardDay)
+    const template = lines.filter((l) => l.dayOfWeek === fromJs)
+    if (!template.length) {
+      toast.error(`сначала заполните ${WEEKDAYS[prevW]}`)
+      return
+    }
+    const templateSlots = slotsByWizardDay[prevW] ?? [...enabledSlots]
+    setLines((prev) => {
+      const other = prev.filter((l) => l.dayOfWeek !== toJs)
+      const copied = template.map((l) => ({
+        ...l,
+        dayOfWeek: toJs,
+        modifierIds: [...(l.modifierIds ?? [])],
+      }))
+      return [...other, ...copied]
+    })
+    setSlotsByWizardDay((prev) => ({ ...prev, [activeWizardDay]: [...templateSlots] }))
+    toast.success(`скопировано с ${WEEKDAYS[prevW]}`)
+  }
+
   function daySlotsComplete(wizardDay: number) {
     const js = wizardDayToJs(wizardDay)
     const required = slotsByWizardDay[wizardDay] ?? enabledSlots
@@ -686,7 +714,6 @@ export function SubscriptionCheckoutFlow() {
         slotsByWizardDay={slotsByWizardDay}
         enabledSlots={enabledSlots}
         pickerDishes={dishesForSlot}
-        allDishes={dishes}
         lines={lines}
         recommendedDishIds={recommendedDishIds}
         menuCategories={menuCategories}
@@ -701,6 +728,7 @@ export function SubscriptionCheckoutFlow() {
         onAddDish={addDish}
         onEditLine={(line) => setEditingLine(line)}
         onCopyToAllWeek={copyActiveDayToAllWeek}
+        onCopyFromPrevDay={copyFromPreviousDay}
         onClearDay={clearActiveDay}
         onContinue={goToCheckout}
         onOpenPay={goToCheckout}
