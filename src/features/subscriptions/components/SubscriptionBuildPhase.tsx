@@ -178,7 +178,7 @@ export function SubscriptionBuildPhase({
         <a href="/subscriptions" className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
         </a>
-        <PageHeader title="рацион" subtitle="день → приём → блюдо" compact className="min-w-0 flex-1" />
+        <PageHeader title="рацион" subtitle="день → приём → блюдо · v2" compact className="min-w-0 flex-1" />
       </div>
 
       <SubscriptionFlowProgress step="build" onStep={(s) => s === 'pay' && allComplete && onOpenPay?.()} payEnabled={allComplete} />

@@ -1,5 +1,8 @@
 // next.js config
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_SUB_BUILD_TAG: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
+  },
   reactStrictMode: false,
   experimental: {
     // Avoid bundling form-data/axios — can cause infinite compile on Vercel
