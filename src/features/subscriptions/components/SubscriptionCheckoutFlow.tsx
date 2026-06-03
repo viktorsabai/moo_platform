@@ -492,6 +492,15 @@ export function SubscriptionCheckoutFlow() {
     setActiveWizardDay(wizardDay)
   }
 
+  function handleRemoveDayDelivery(wizardDay: number) {
+    if (!selectedDays.includes(wizardDay)) return
+    if (selectedDays.length <= minDays) {
+      toast.error(`минимум ${minDays} ${minDays === 1 ? 'день' : minDays < 5 ? 'дня' : 'дней'} доставки`)
+      return
+    }
+    toggleDay(wizardDay)
+  }
+
   function copyActiveDayToAllWeek() {
     const fromJs = wizardDayToJs(activeWizardDay)
     const template = lines.filter((l) => l.dayOfWeek === fromJs)
@@ -725,6 +734,7 @@ export function SubscriptionCheckoutFlow() {
         quotesByPeriod={quotesByPeriod}
         periodDays={periodDays}
         onDayCell={handleDayCell}
+        onRemoveDayDelivery={handleRemoveDayDelivery}
         onToggleMealSlot={toggleMealSlotForDay}
         onActiveSlot={setActiveSlot}
         onAddDish={addDish}
