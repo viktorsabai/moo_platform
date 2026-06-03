@@ -64,10 +64,14 @@ function ClientErrorReporter() {
 function TelegramAutoLogin() {
   const { data: session, status } = useSession()
   const inFlightRef = useRef(false)
+  const wasAuthenticatedRef = useRef(false)
   const hasValidUserId = Boolean((session?.user as any)?.id)
 
   useEffect(() => {
-    if (status === 'authenticated' && hasValidUserId) return
+    if (status === 'authenticated' && hasValidUserId) {
+      wasAuthenticatedRef.current = true
+      return
+    }
 
     const w = globalThis as any
     const tg = w?.Telegram?.WebApp
@@ -118,7 +122,8 @@ function TelegramAutoLogin() {
             }).catch(() => null)
             const res = await signIn('telegram', { initData, redirect: false, callbackUrl: '/' })
             if ((res as any)?.ok) {
-              dispatchVenueRebootstrap()
+              if (!wasAuthenticatedRef.current) dispatchVenueRebootstrap()
+              wasAuthenticatedRef.current = true
               return
             }
           } catch {

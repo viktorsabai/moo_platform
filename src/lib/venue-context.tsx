@@ -89,25 +89,27 @@ function isOwnerPath(pathname: string) {
 }
 
 export function VenueProvider({ children }: { children: ReactNode }) {
-  const [restaurantId, setRestaurantId] = useState<string>('default')
-  const [name, setName] = useState<string | undefined>(undefined)
-  const [settings, setSettings] = useState<VenueSettings>(defaultSettings)
-  const [isLoading, setIsLoading] = useState(true)
+  const cachedBoot = typeof window !== 'undefined' ? readVenueCache() : null
+  const [restaurantId, setRestaurantId] = useState<string>(cachedBoot?.restaurantId ?? 'default')
+  const [name, setName] = useState<string | undefined>(cachedBoot?.name)
+  const [settings, setSettings] = useState<VenueSettings>(cachedBoot?.settings ?? defaultSettings)
+  const [isLoading, setIsLoading] = useState(!cachedBoot?.restaurantId)
   const [error, setError] = useState(false)
-  const lastValidRestaurantIdRef = useRef<string | null>(null)
+  const lastValidRestaurantIdRef = useRef<string | null>(cachedBoot?.restaurantId ?? null)
+  const ownerModeRef = useRef(false)
 
   const fetchContext = useCallback(async () => {
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
     const inOwnerContext = isOwnerPath(currentPath)
-    const cached = inOwnerContext ? null : readVenueCache()
+    const cached = readVenueCache()
     const hasStableVenue = Boolean(lastValidRestaurantIdRef.current || cached?.restaurantId)
-    if (cached && !lastValidRestaurantIdRef.current) {
-      lastValidRestaurantIdRef.current = cached.restaurantId
+    if (cached?.restaurantId) {
+      if (!lastValidRestaurantIdRef.current) lastValidRestaurantIdRef.current = cached.restaurantId
       setRestaurantId(cached.restaurantId)
       setName(cached.name)
       setSettings(cached.settings)
     }
-    setIsLoading(!hasStableVenue)
+    if (!hasStableVenue) setIsLoading(true)
     setError(false)
     try {
       let explicitRestaurantId = cached?.restaurantId || lastValidRestaurantIdRef.current || ''
@@ -143,9 +145,11 @@ export function VenueProvider({ children }: { children: ReactNode }) {
       }
       if (res.ok && data?.ok) {
         const rid = String(data.restaurantId ?? 'default')
-        // Respect explicit switch to demo/default and clear sticky venue cache.
         const useRid = rid || 'default'
-        if (useRid === 'default') {
+        // Не сбрасываем заведение на default при кратком сбое cookie (типично после /admin → /profile).
+        if (useRid === 'default' && lastValidRestaurantIdRef.current && !inOwnerContext) {
+          // keep sticky venue; skip downgrade
+        } else if (useRid === 'default') {
           lastValidRestaurantIdRef.current = null
           if (!inOwnerContext) clearVenueCache()
         } else {
@@ -156,16 +160,24 @@ export function VenueProvider({ children }: { children: ReactNode }) {
           storeEnabled: Boolean(data.settings?.storeEnabled ?? true),
           subscriptionEnabled: Boolean(data.settings?.subscriptionEnabled),
         }
-        setRestaurantId(useRid)
-        setName(typeof data.name === 'string' ? data.name : undefined)
-        setSettings(nextSettings)
-        if (useRid !== 'default' && !inOwnerContext) {
-          writeVenueCache({
-            restaurantId: useRid,
-            name: typeof data.name === 'string' ? data.name : undefined,
-            settings: nextSettings,
-            ts: Date.now(),
-          })
+        const stickyRid =
+          useRid === 'default' && lastValidRestaurantIdRef.current && !inOwnerContext
+            ? lastValidRestaurantIdRef.current
+            : useRid
+        const skipDowngrade =
+          useRid === 'default' && Boolean(lastValidRestaurantIdRef.current) && !inOwnerContext
+        if (!skipDowngrade) {
+          setRestaurantId(stickyRid)
+          setName(typeof data.name === 'string' ? data.name : undefined)
+          setSettings(nextSettings)
+          if (stickyRid !== 'default' && !inOwnerContext) {
+            writeVenueCache({
+              restaurantId: stickyRid,
+              name: typeof data.name === 'string' ? data.name : undefined,
+              settings: nextSettings,
+              ts: Date.now(),
+            })
+          }
         }
       } else {
         setError(true)
@@ -205,17 +217,14 @@ export function VenueProvider({ children }: { children: ReactNode }) {
     }
   }, [restaurantId, isLoading])
 
-  const pathname = usePathname()
+  const pathname = usePathname() || ''
+  const inOwnerContext = isOwnerPath(pathname)
   useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void fetchContext()
+    if (ownerModeRef.current !== inOwnerContext) {
+      ownerModeRef.current = inOwnerContext
+      void fetchContext()
     }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [fetchContext])
-  useEffect(() => {
-    if (pathname) void fetchContext()
-  }, [pathname, fetchContext])
+  }, [inOwnerContext, fetchContext])
 
   useEffect(() => {
     const onRebootstrap = () => {

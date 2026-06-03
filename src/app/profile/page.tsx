@@ -12,6 +12,7 @@ import { loadDeliveryProfile } from '@/lib/delivery-profile'
 import { useVenue } from '@/lib/venue-context'
 import { readTelegramInitData, telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { VENUE_REBOOTSTRAP_EVENT } from '@/lib/venue-bootstrap'
+import { readProfileSummaryCache, writeProfileSummaryCache } from '@/lib/profile-summary-cache'
 import { cn } from '@/lib/utils'
 
 const bizInquirySentStorageKey = (userId: string) => `ufo:biz-inquiry-sent:v1:${userId}`
@@ -23,18 +24,25 @@ type ProfileSummary = {
   addressLabel?: string | null
 }
 
-type ProfileSummaryCache = {
-  summary: ProfileSummary
-  ts: number
+function profileUserKey(sessionUserId: string, sessionTelegramId: string) {
+  return sessionUserId || sessionTelegramId || ''
 }
-
-const PROFILE_SUMMARY_CACHE_TTL_MS = 60_000
-const profileSummaryMemoryCache = new Map<string, ProfileSummaryCache>()
 
 export default function ProfilePage() {
   const { data: session, status: sessionStatus } = useSession()
-  const { restaurantId: venueRestaurantId } = useVenue()
-  const [summary, setSummary] = useState<ProfileSummary>({ ordersCount: 0, activeSubscriptionsCount: 0, favoritesCount: 0 })
+  const { restaurantId: venueRestaurantId, isLoading: venueLoading } = useVenue()
+  const [summary, setSummary] = useState<ProfileSummary>(() => {
+    if (typeof window === 'undefined') {
+      return { ordersCount: 0, activeSubscriptionsCount: 0, favoritesCount: 0 }
+    }
+    const cached = readProfileSummaryCache(
+      profileUserKey(
+        String((session?.user as any)?.id || '').trim(),
+        String((session?.user as any)?.telegramId || '').trim()
+      )
+    )
+    return cached?.summary ?? { ordersCount: 0, activeSubscriptionsCount: 0, favoritesCount: 0 }
+  })
   /** Адрес из localStorage (чекаут / «доставка») — не подменяется адресом ресторана из заказа на самовывоз. */
   const [localDeliveryLine, setLocalDeliveryLine] = useState<string | null>(null)
   const [tgUser, setTgUser] = useState<any>(null)
@@ -86,34 +94,23 @@ export default function ProfilePage() {
   useEffect(() => {
     const tgInit = isTelegramWebApp ? readTelegramInitData() : ''
     if (sessionStatus === 'loading' && !tgInit) return
-    if (!sessionUserId && !tgInit) return
-    let cancelled = false
-    const cacheKey = `ufo:profile:summary:v1:${sessionUserId || sessionTelegramId || 'guest'}:${String(venueRestaurantId || 'default')}`
-    const now = Date.now()
-    const cachedMemory = profileSummaryMemoryCache.get(cacheKey)
-    const cachedStorage = (() => {
-      if (typeof window === 'undefined') return null
-      try {
-        const raw = window.sessionStorage.getItem(cacheKey)
-        if (!raw) return null
-        const parsed = JSON.parse(raw) as ProfileSummaryCache
-        return parsed?.summary ? parsed : null
-      } catch {
-        return null
-      }
-    })()
-    const cached = cachedMemory ?? cachedStorage
-    if (cached && now - cached.ts < PROFILE_SUMMARY_CACHE_TTL_MS) {
+    const userKey = profileUserKey(sessionUserId, sessionTelegramId)
+    if (!userKey && !tgInit) return
+
+    const cached = userKey ? readProfileSummaryCache(userKey) : null
+    if (cached?.summary) {
       setSummary((prev) => ({
         ...cached.summary,
         addressLabel: cached.summary.addressLabel || prev.addressLabel || null,
       }))
-      return
     }
-    const restaurantHeader =
-      venueRestaurantId && venueRestaurantId !== 'default'
-        ? { 'x-ufo-restaurant': venueRestaurantId }
-        : {}
+
+    if (venueLoading) return
+    const rid = venueRestaurantId && venueRestaurantId !== 'default' ? venueRestaurantId : ''
+    if (!rid) return
+
+    let cancelled = false
+    const restaurantHeader = { 'x-ufo-restaurant': rid }
     fetch('/api/profile/summary', {
       cache: 'no-store',
       credentials: 'include',
@@ -121,23 +118,16 @@ export default function ProfilePage() {
     })
       .then((res) => res.json().catch(() => null))
       .then((data) => {
-        if (cancelled || !data?.ok) return
+        if (cancelled || !data?.ok || !userKey) return
         setSummary((prev) => {
           const nextAddress = String(data.summary?.addressLabel || '').trim()
           const nextSummary = {
             ordersCount: Number(data.summary?.ordersCount ?? 0),
             activeSubscriptionsCount: Number(data.summary?.activeSubscriptionsCount ?? 0),
             favoritesCount: Number(data.summary?.favoritesCount ?? 0),
-            // Do not erase a locally restored address with empty API value.
             addressLabel: nextAddress || prev.addressLabel || null,
           }
-          const payload: ProfileSummaryCache = { summary: nextSummary, ts: Date.now() }
-          profileSummaryMemoryCache.set(cacheKey, payload)
-          try {
-            window.sessionStorage.setItem(cacheKey, JSON.stringify(payload))
-          } catch {
-            // ignore webview storage limitations
-          }
+          writeProfileSummaryCache(userKey, nextSummary, rid)
           return nextSummary
         })
       })
@@ -145,13 +135,15 @@ export default function ProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [sessionStatus, isTelegramWebApp, venueRestaurantId, sessionUserId, sessionTelegramId])
+  }, [sessionStatus, isTelegramWebApp, venueLoading, venueRestaurantId, sessionUserId, sessionTelegramId])
 
   useEffect(() => {
     const onRebootstrap = () => {
-      profileSummaryMemoryCache.clear()
       const tgInit = isTelegramWebApp ? readTelegramInitData() : ''
-      if (!sessionUserId && !tgInit) return
+      const userKey = profileUserKey(sessionUserId, sessionTelegramId)
+      if (!userKey && !tgInit) return
+      const rid = venueRestaurantId && venueRestaurantId !== 'default' ? venueRestaurantId : ''
+      if (!rid) return
       void fetch('/api/profile/summary', {
         cache: 'no-store',
         credentials: 'include',
@@ -164,13 +156,17 @@ export default function ProfilePage() {
       })
         .then((res) => res.json())
         .then((data) => {
-          if (!data?.ok) return
-          setSummary((prev) => ({
-            ordersCount: Number(data.summary?.ordersCount ?? 0),
-            activeSubscriptionsCount: Number(data.summary?.activeSubscriptionsCount ?? 0),
-            favoritesCount: Number(data.summary?.favoritesCount ?? 0),
-            addressLabel: String(data.summary?.addressLabel || '').trim() || prev.addressLabel || null,
-          }))
+          if (!data?.ok || !userKey) return
+          setSummary((prev) => {
+            const next = {
+              ordersCount: Number(data.summary?.ordersCount ?? 0),
+              activeSubscriptionsCount: Number(data.summary?.activeSubscriptionsCount ?? 0),
+              favoritesCount: Number(data.summary?.favoritesCount ?? 0),
+              addressLabel: String(data.summary?.addressLabel || '').trim() || prev.addressLabel || null,
+            }
+            writeProfileSummaryCache(userKey, next, rid)
+            return next
+          })
         })
         .catch(() => {})
     }
@@ -196,18 +192,16 @@ export default function ProfilePage() {
   }, [])
 
   useEffect(() => {
-    if (!isTelegramWebApp) return
+    if (!isTelegramWebApp || sessionStatus === 'loading') return
+    if (sessionStatus === 'authenticated' && sessionUserId) return
     const w = window as any
     const initData = w?.Telegram?.WebApp?.initData
     if (!initData) return
     const telegramUserId = readTelegramUserId()
     if (!telegramUserId) return
-    const shouldReloginViaTelegram =
-      !sessionUserId ||
-      sessionTelegramId !== telegramUserId
-    if (!shouldReloginViaTelegram) return
+    if (sessionStatus === 'authenticated' && sessionTelegramId === telegramUserId) return
     signIn('telegram', { initData, redirect: false }).catch(() => {})
-  }, [sessionUserId, sessionTelegramId, isTelegramWebApp])
+  }, [sessionUserId, sessionTelegramId, sessionStatus, isTelegramWebApp])
 
   const displayName = useMemo(() => {
     const name = session?.user?.name
@@ -235,7 +229,12 @@ export default function ProfilePage() {
   const cardClass = 'ui-surface-card overflow-hidden p-0'
   const cardRadius = { borderRadius: 'var(--radius-large)' } as const
 
-  const notLoggedIn = !String((session?.user as any)?.id || '').trim()
+  const hasTelegramIdentity = Boolean(
+    isTelegramWebApp &&
+      (readTelegramInitData() || tgUser?.id || readTelegramUserId())
+  )
+  const notLoggedIn =
+    sessionStatus === 'unauthenticated' && !sessionUserId && !hasTelegramIdentity
   const avatarLetter = displayName.trim().slice(0, 1).toUpperCase() || 'U'
   const avatarUrl = String((session?.user as any)?.image || tgUser?.photo_url || '').trim()
   const deliveryPreviewLine =
