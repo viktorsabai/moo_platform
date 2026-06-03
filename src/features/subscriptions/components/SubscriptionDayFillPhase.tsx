@@ -129,7 +129,7 @@ export function SubscriptionDayFillPhase({
         />
       </div>
 
-      <SubscriptionFlowProgress step="fill" />
+      <SubscriptionFlowProgress step="build" />
 
       <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {selectedDays.map((d) => {

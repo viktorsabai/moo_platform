@@ -3,23 +3,16 @@
 import type { Dish } from '@/types'
 import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { InlineCounter } from '@/components/ui/InlineCounter'
-import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
-import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
 import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
-import type { SubscriptionFlowStep } from '@/features/subscriptions/components/SubscriptionFlowProgress'
 import { SubscriptionPeriodCards } from '@/features/subscriptions/components/SubscriptionPeriodCards'
+import { SubscriptionRationByDay } from '@/features/subscriptions/components/SubscriptionRationByDay'
 import {
   WEEKDAYS,
-  allowedOptionIdsForLine,
   type PeriodQuote,
   type SelectedLine,
   formatFirstDeliveryMessage,
   formatWeeklyRationHint,
-  jsDayToWizard,
-  lineKey,
-  mealSlotShort,
 } from '@/features/subscriptions/lib/subscription-checkout-utils'
 import { IconChevronLeft } from '@/components/ui/icons'
 
@@ -43,6 +36,7 @@ type Props = {
   /** Дни уже выбраны на шаге 1 — только просмотр */
   daysLocked?: boolean
   onBack: () => void
+  onGoBuild?: () => void
   onToggleDay: (day: number) => void
   onPeriodDays: (days: number) => void
   onPersonCount: (delta: number) => void
@@ -75,6 +69,7 @@ export function SubscriptionCheckoutConfigPhase({
   maxDays,
   daysLocked = false,
   onBack,
+  onGoBuild,
   onToggleDay,
   onPeriodDays,
   onPersonCount,
@@ -103,10 +98,10 @@ export function SubscriptionCheckoutConfigPhase({
         <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
         </button>
-        <PageHeader title="доставка и оплата" subtitle="шаг 3 · период и оплата" compact className="min-w-0 flex-1" />
+        <PageHeader title="оформление подписки" subtitle="период и оплата" compact className="min-w-0 flex-1" />
       </div>
 
-      <SubscriptionFlowProgress step={'pay' as SubscriptionFlowStep} />
+      <SubscriptionFlowProgress step="pay" onStep={(s) => s === 'build' && onGoBuild?.()} payEnabled />
 
       {scheduleHint ? (
         <p className="mb-4 rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[12px] leading-snug text-[color:var(--muted)]">
@@ -128,84 +123,25 @@ export function SubscriptionCheckoutConfigPhase({
         </span>
       </div>
 
-      <section className="mb-5">
-        <h3 className="mb-3 text-[14px] font-extrabold">ваш рацион</h3>
-        <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {lines.map((l) => {
-            const dish = dishes.find((d) => d.id === l.dishId)
-            if (!dish) return null
-            return (
-              <div
-                key={lineKey(l)}
-                className="relative w-[88px] shrink-0 overflow-hidden rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)]"
-              >
-                <div className="relative aspect-square w-full bg-black/[0.04]">
-                  {dish.image ? (
-                    <OptimizedImage src={dish.image} alt="" className="object-cover" sizes={IMAGE_SIZES.checkoutThumb} />
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => onRemoveLine(l)}
-                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-[11px] font-bold text-white"
-                    aria-label="убрать"
-                  >
-                    ×
-                  </button>
-                  {l.quantity > 1 ? (
-                    <span className="absolute bottom-1 right-1 rounded-full bg-[color:var(--text)] px-1.5 py-0.5 text-[10px] font-bold text-[color:var(--surface)]">
-                      ×{l.quantity}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="truncate px-1.5 py-1.5 text-[10px] font-semibold">{dish.name}</p>
-              </div>
-            )
-          })}
-          <button
-            type="button"
-            onClick={onAddMore}
-            className="flex w-[88px] shrink-0 flex-col items-center justify-center rounded-[var(--radius-medium)] border border-dashed border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--muted)]"
-          >
-            <span className="text-[24px] font-light leading-none">+</span>
-            <span className="mt-1 text-[10px] font-semibold">ещё</span>
-          </button>
-        </div>
-
-        <ul className="mt-3 space-y-0 divide-y divide-[color:var(--stroke)] rounded-[var(--radius-medium)] border border-[color:var(--stroke)]">
-          {lines.map((l) => {
-            const dish = dishes.find((d) => d.id === l.dishId)
-            if (!dish) return null
-            return (
-              <li key={lineKey(l)} className="px-3 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold">{dish.name}</p>
-                    <p className="text-[11px] text-[color:var(--muted)]">
-                      {WEEKDAYS[jsDayToWizard(l.dayOfWeek)]} · {mealSlotShort(l.mealSlot)}
-                    </p>
-                  </div>
-                  <InlineCounter value={l.quantity} onDec={() => onUpdateQty(l, -1)} onInc={() => onUpdateQty(l, 1)} />
-                </div>
-                <SubscriptionDishOptionsPanel
-                  dish={dish}
-                  modifierIds={l.modifierIds ?? []}
-                  allowedOptionIds={allowedOptionIdsForLine(subConfig, l.mealSlot)}
-                  onChange={(ids) => onLineModifiers(l, ids)}
-                />
-              </li>
-            )
-          })}
-        </ul>
-      </section>
+      <SubscriptionRationByDay
+        lines={lines}
+        dishes={dishes}
+        selectedDays={selectedDays}
+        subConfig={subConfig}
+        onRemoveLine={onRemoveLine}
+        onUpdateQty={onUpdateQty}
+        onLineModifiers={onLineModifiers}
+        onAddMore={onAddMore}
+      />
 
       <section className="mb-5">
         <h3 className="mb-3 text-[14px] font-extrabold">дни доставки</h3>
         {daysLocked ? (
           <p className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[14px] font-semibold">
             {deliveryDaysLabel}
-            <span className="mt-1 block text-[11px] font-medium text-[color:var(--muted)]">
-              изменить дни — вернитесь к шагу «меню»
-            </span>
+            <button type="button" onClick={onGoBuild} className="mt-1 block text-[11px] font-bold text-[color:var(--muted)] underline-offset-2 hover:underline">
+              изменить дни и блюда
+            </button>
           </p>
         ) : (
           <>

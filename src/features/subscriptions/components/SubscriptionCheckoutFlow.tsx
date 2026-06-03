@@ -15,8 +15,8 @@ import { buildPrefillItemsPerDay, suggestDeliveryDays } from '@/lib/subscription
 import { MEAL_SLOT_LABEL, parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import { loadDeliveryProfile } from '@/lib/delivery-profile'
-import { SubscriptionSchedulePhase } from '@/features/subscriptions/components/SubscriptionSchedulePhase'
-import { SubscriptionDayFillPhase } from '@/features/subscriptions/components/SubscriptionDayFillPhase'
+import { SubscriptionBuildPhase } from '@/features/subscriptions/components/SubscriptionBuildPhase'
+import { itemsPerDeliveryBySlot } from '@/lib/subscription-meal-slot-rules'
 import { SubscriptionCheckoutConfigPhase } from '@/features/subscriptions/components/SubscriptionCheckoutConfigPhase'
 import {
   jsDayToWizard,
@@ -30,7 +30,7 @@ import {
   wizardDayToJs,
 } from '@/features/subscriptions/lib/subscription-checkout-utils'
 
-type Phase = 'schedule' | 'fill' | 'checkout'
+type Phase = 'build' | 'checkout'
 
 export function SubscriptionCheckoutFlow() {
   const router = useRouter()
@@ -38,7 +38,7 @@ export function SubscriptionCheckoutFlow() {
   const resumeId = searchParams.get('resume') || ''
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
 
-  const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'schedule')
+  const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'build')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [subConfig, setSubConfig] = useState<SubscriptionConfig>(defaultSubscriptionConfig())
@@ -296,25 +296,28 @@ export function SubscriptionCheckoutFlow() {
     })
   }
 
-  function goToFill() {
-    if (selectedDays.length < minDays) {
-      toast.error(`выберите минимум ${minDays} дней`)
-      return
-    }
-    if (lines.length === 0) {
-      applyPrefillForDays(selectedDays, subConfig, dishes)
-    }
-    setPhase('fill')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  useEffect(() => {
+    if (phase !== 'build' || loading || lines.length > 0 || selectedDays.length < minDays) return
+    applyPrefillForDays(selectedDays, subConfig, dishes)
+  }, [phase, loading, lines.length, selectedDays, minDays, subConfig, dishes])
 
   function addDish(dishId: string) {
     const dayOfWeek = wizardDayToJs(activeWizardDay)
     const item: SelectedLine = { dishId, quantity: 1, mealSlot: activeSlot, modifierIds: [], dayOfWeek }
     setLines((prev) => {
       const k = lineKey(item)
-      if (prev.some((x) => lineKey(x) === k)) return prev
-      return [...prev.filter((x) => !(x.dayOfWeek === dayOfWeek && x.mealSlot === activeSlot)), item]
+      const existing = prev.find((x) => lineKey(x) === k)
+      if (existing) return prev.filter((x) => lineKey(x) !== k)
+
+      const dayItems = prev.filter((l) => l.dayOfWeek === dayOfWeek)
+      const bySlot = itemsPerDeliveryBySlot(dayItems)
+      const max = subConfig.mealSlots[activeSlot]?.maxItemsPerDelivery ?? 0
+      const maxForSlot = max <= 0 ? 999 : max
+      if ((bySlot[activeSlot] ?? 0) >= maxForSlot) {
+        toast.error(`в ${MEAL_SLOT_LABEL[activeSlot]} не более ${maxForSlot} блюд`)
+        return prev
+      }
+      return [...prev, item]
     })
   }
 
@@ -478,39 +481,29 @@ export function SubscriptionCheckoutFlow() {
     )
   }
 
-  if (phase === 'schedule') {
+  if (phase === 'build') {
     return (
-      <SubscriptionSchedulePhase
-        selectedDays={selectedDays}
-        minDays={minDays}
-        maxDays={maxDays}
-        onToggleDay={toggleDay}
-        onContinue={goToFill}
-      />
-    )
-  }
-
-  if (phase === 'fill') {
-    return (
-      <SubscriptionDayFillPhase
+      <SubscriptionBuildPhase
         selectedDays={selectedDays}
         activeWizardDay={activeWizardDay}
         activeSlot={activeSlot}
         enabledSlots={enabledSlots}
-        allDishes={catalogDishes}
         pickerDishes={dishesForSlot}
         lines={lines}
         recommendedDishIds={recommendedDishIds}
         subConfig={subConfig}
+        minDays={minDays}
+        maxDays={maxDays}
         quotesByPeriod={quotesByPeriod}
         periodDays={periodDays}
+        onToggleDay={toggleDay}
         onWizardDay={setActiveWizardDay}
         onActiveSlot={setActiveSlot}
-        onPeriodDays={setPeriodDays}
         onAddDish={addDish}
+        onRemoveLine={removeLine}
         onCopyDayFrom={copyDayFrom}
-        onBack={() => setPhase('schedule')}
         onContinue={goToCheckout}
+        onOpenPay={goToCheckout}
       />
     )
   }
@@ -534,7 +527,8 @@ export function SubscriptionCheckoutFlow() {
       minDays={minDays}
       maxDays={maxDays}
       daysLocked
-      onBack={() => setPhase('fill')}
+      onBack={() => setPhase('build')}
+      onGoBuild={() => setPhase('build')}
       onToggleDay={toggleDay}
       onPeriodDays={setPeriodDays}
       onPersonCount={(delta) =>
@@ -546,7 +540,7 @@ export function SubscriptionCheckoutFlow() {
       onRemoveLine={removeLine}
       onUpdateQty={updateQty}
       onLineModifiers={setLineModifierIds}
-      onAddMore={() => setPhase('fill')}
+      onAddMore={() => setPhase('build')}
       onSubmit={() => void submit()}
     />
   )

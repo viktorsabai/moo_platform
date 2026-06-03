@@ -21,7 +21,7 @@ export function SubscriptionSchedulePhase({ selectedDays, minDays, maxDays, onTo
     <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+96px)]">
       <PageHeader backHref="/subscriptions" title="новая подписка" subtitle="шаг 1 · дни доставки" />
 
-      <SubscriptionFlowProgress step="schedule" />
+      <SubscriptionFlowProgress step="build" />
 
       <p className="mb-4 rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-3 text-[13px] leading-snug text-[color:var(--text)]">
         Выберите <span className="font-bold">дни недели</span>, когда нужна доставка. На следующем шаге для{' '}
