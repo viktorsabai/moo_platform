@@ -30,7 +30,7 @@ export function previewOneDeliveryPrice(
   const marginPercent = profit != null && guest > 0 ? (profit / guest) * 100 : null
 
   let verdict: DeliveryPriceVerdict = 'unknown'
-  let verdictLabel = 'Заполните себестоимость в меню — тогда скажем, норм ли цена'
+  let verdictLabel = 'Укажите себестоимость в меню — покажем, не в убыток ли скидка (необязательно).'
 
   if (c > 0) {
     if (guest < c) {
@@ -41,7 +41,7 @@ export function previewOneDeliveryPrice(
       verdictLabel = 'Мало зарабатываете — поднимите цену или снизьте скидку'
     } else {
       verdict = 'good'
-      verdictLabel = 'Цена норм — подписка выгодна и вам, и гостю'
+      verdictLabel = 'С этой скидкой на этом блюде вы в плюсе'
     }
   }
 
