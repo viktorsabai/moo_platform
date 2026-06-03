@@ -99,7 +99,7 @@ export default function HomePage() {
       restaurantId && restaurantId !== 'default'
         ? ({ 'x-ufo-restaurant': restaurantId } as Record<string, string>)
         : undefined
-    fetch('/api/banners', {
+    fetch('/api/banners?placement=home', {
       credentials: 'include',
       ...(bannerHeaders ? { headers: bannerHeaders } : {}),
     })

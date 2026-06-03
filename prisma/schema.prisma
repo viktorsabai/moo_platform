@@ -163,6 +163,10 @@ model HomeBanner {
   targetId     String?
   order        Int      @default(0)
   isActive     Boolean  @default(true)
+  /** Показывать на главной mini app */
+  showOnHome   Boolean  @default(true)
+  /** Показывать в разделе «Подписка» (обзор) */
+  showOnSubscriptions Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -170,6 +174,7 @@ model HomeBanner {
 
   @@index([restaurantId])
   @@index([restaurantId, isActive, order])
+  @@index([restaurantId, isActive, showOnSubscriptions, order])
 }
 
 // Шаблоны планов подписки (продавец настраивает название, цену, тип плана)

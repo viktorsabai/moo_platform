@@ -25,6 +25,8 @@ export async function GET() {
         targetId: true,
         order: true,
         isActive: true,
+        showOnHome: true,
+        showOnSubscriptions: true,
       },
     })
 
@@ -51,6 +53,8 @@ export async function POST(request: Request) {
     const targetType = typeof body?.targetType === 'string' ? body.targetType.trim() : null
     const targetId = typeof body?.targetId === 'string' ? body.targetId.trim() : null
     let order = typeof body?.order === 'number' ? body.order : 0
+    let showOnHome = body?.showOnHome !== false
+    let showOnSubscriptions = body?.showOnSubscriptions === true
 
     if (fromPlanId) {
       const plan = await prisma.subscriptionPlanTemplate.findFirst({
@@ -67,6 +71,12 @@ export async function POST(request: Request) {
         _max: { order: true },
       })
       order = (maxOrder._max.order ?? -1) + 1
+      showOnSubscriptions = true
+      showOnHome = body?.showOnHome === true
+    }
+
+    if (!showOnHome && !showOnSubscriptions) {
+      return NextResponse.json({ ok: false, error: 'выберите хотя бы одно размещение' }, { status: 400 })
     }
 
     if (!title || !href) {
@@ -85,8 +95,19 @@ export async function POST(request: Request) {
         targetType: targetType || undefined,
         targetId: targetId || undefined,
         order,
+        showOnHome,
+        showOnSubscriptions,
       },
-      select: { id: true, title: true, href: true, type: true, order: true, isActive: true },
+      select: {
+        id: true,
+        title: true,
+        href: true,
+        type: true,
+        order: true,
+        isActive: true,
+        showOnHome: true,
+        showOnSubscriptions: true,
+      },
     })
 
     return NextResponse.json({ ok: true, banner: created })
@@ -122,6 +143,21 @@ export async function PATCH(request: Request) {
     if (typeof body?.targetId === 'string') data.targetId = body.targetId.trim() || null
     if (typeof body?.order === 'number') data.order = body.order
     if (typeof body?.isActive === 'boolean') data.isActive = body.isActive
+    if (typeof body?.showOnHome === 'boolean') data.showOnHome = body.showOnHome
+    if (typeof body?.showOnSubscriptions === 'boolean') data.showOnSubscriptions = body.showOnSubscriptions
+
+    if (typeof data.showOnHome === 'boolean' || typeof data.showOnSubscriptions === 'boolean') {
+      const current = await prisma.homeBanner.findFirst({
+        where: { id, restaurantId: ctx.restaurantId },
+        select: { showOnHome: true, showOnSubscriptions: true },
+      })
+      const nextHome = typeof data.showOnHome === 'boolean' ? data.showOnHome : current?.showOnHome ?? true
+      const nextSub =
+        typeof data.showOnSubscriptions === 'boolean' ? data.showOnSubscriptions : current?.showOnSubscriptions ?? false
+      if (!nextHome && !nextSub) {
+        return NextResponse.json({ ok: false, error: 'нужно хотя бы одно размещение' }, { status: 400 })
+      }
+    }
 
     await prisma.homeBanner.update({
       where: { id },

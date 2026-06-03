@@ -8,6 +8,7 @@ import { SUBSCRIPTION_STATUS_FILTERS, SUBSCRIPTION_STATUS_TO_FILTER } from '@/li
 import type { SubscriptionConfig } from '@/lib/subscription-config'
 import { periodLabel, defaultSubscriptionConfig } from '@/lib/subscription-config'
 import { formatGuestPeriodBadge } from '@/lib/subscription-offer-labels'
+import { SubscriptionHubBanners } from '@/features/subscriptions/components/SubscriptionHubBanners'
 
 const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'] as const
 
@@ -41,6 +42,7 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
   if (loading && subscriptions.length === 0) {
     return (
       <div className="space-y-3">
+        <SubscriptionHubBanners />
         <div className="h-36 animate-pulse rounded-[var(--radius-large)] bg-[color:var(--stroke)]/40" />
         <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3].map((i) => (
@@ -54,6 +56,7 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
   if (!primary) {
     return (
       <div className="space-y-4">
+        <SubscriptionHubBanners />
         <section className="rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-4">
           <p className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">статус</p>
           <p className="mt-1 text-[17px] font-extrabold leading-tight">нет подписки</p>
@@ -90,6 +93,7 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
 
   return (
     <div className="space-y-4">
+      <SubscriptionHubBanners />
       <section className="rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-4 shadow-[var(--shadow-soft)]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

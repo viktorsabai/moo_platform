@@ -23,6 +23,8 @@ type Banner = {
   targetId?: string | null
   order: number
   isActive: boolean
+  showOnHome?: boolean
+  showOnSubscriptions?: boolean
 }
 
 type BannerDraft = {
@@ -34,6 +36,8 @@ type BannerDraft = {
   type: BannerType
   targetType: BannerTargetType
   targetId: string
+  showOnHome: boolean
+  showOnSubscriptions: boolean
 }
 
 const targetPresets: Array<{ type: BannerTargetType; label: string; href: string; cta: string }> = [
@@ -54,6 +58,8 @@ const emptyDraft: BannerDraft = {
   type: 'chip',
   targetType: 'menu',
   targetId: '',
+  showOnHome: true,
+  showOnSubscriptions: false,
 }
 
 export default function AdminBannersPage() {
@@ -73,7 +79,8 @@ export default function AdminBannersPage() {
   const canSave = Boolean(
     draft.title.trim() &&
       draft.href.trim() &&
-      (draft.targetType !== 'menu_category' || draft.targetId.trim())
+      (draft.targetType !== 'menu_category' || draft.targetId.trim()) &&
+      (draft.showOnHome || draft.showOnSubscriptions)
   )
 
   async function load() {
@@ -118,6 +125,7 @@ export default function AdminBannersPage() {
       href: targetType === 'custom' ? s.href : targetType === 'menu_category' ? '/menu' : preset.href,
       cta: targetType === 'custom' ? (s.cta.trim() || preset.cta) : preset.cta,
       targetId: targetType === 'menu_category' ? s.targetId : '',
+      showOnSubscriptions: targetType === 'subscriptions' ? true : s.showOnSubscriptions,
     }))
   }
 
@@ -165,6 +173,8 @@ export default function AdminBannersPage() {
       type: b.type === 'reel' ? 'reel' : 'chip',
       targetType,
       targetId: inferredTargetId,
+      showOnHome: b.showOnHome !== false,
+      showOnSubscriptions: Boolean(b.showOnSubscriptions),
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -215,6 +225,8 @@ export default function AdminBannersPage() {
         type: draft.type,
         targetType: draft.targetType,
         targetId: draft.targetId.trim() || '',
+        showOnHome: draft.showOnHome,
+        showOnSubscriptions: draft.showOnSubscriptions,
         ...(editingId ? { id: editingId } : { order: banners.length }),
       }
       const res = await fetch('/api/admin/banners', {
@@ -350,6 +362,41 @@ export default function AdminBannersPage() {
               новый
             </button>
           ) : null}
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-2 block text-[12px] font-semibold text-black/70">где показывать</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setDraft((s) => ({ ...s, showOnHome: !s.showOnHome }))}
+              className={cn(
+                'rounded-full px-4 py-2.5 text-[13px] font-semibold transition',
+                draft.showOnHome
+                  ? 'bg-[color:var(--accent)] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
+                  : 'bg-black/[0.06] text-black/65'
+              )}
+              style={{ borderRadius: 'var(--radius-pill)' }}
+            >
+              главная
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraft((s) => ({ ...s, showOnSubscriptions: !s.showOnSubscriptions }))}
+              className={cn(
+                'rounded-full px-4 py-2.5 text-[13px] font-semibold transition',
+                draft.showOnSubscriptions
+                  ? 'bg-[color:var(--accent)] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
+                  : 'bg-black/[0.06] text-black/65'
+              )}
+              style={{ borderRadius: 'var(--radius-pill)' }}
+            >
+              подписка
+            </button>
+          </div>
+          <p className="mt-1.5 text-[11px] font-medium text-black/45">
+            Те же баннеры из БД: на главной и/или в разделе «Подписка» → обзор.
+          </p>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -531,7 +578,7 @@ export default function AdminBannersPage() {
       {/* Как на главной — превью и порядок */}
       {!loading && banners.length > 0 && (
         <div className="mt-5">
-          <div className="mb-2 text-[13px] font-extrabold tracking-tight text-black/70">как на главной</div>
+          <div className="mb-2 text-[13px] font-extrabold tracking-tight text-black/70">опубликованные</div>
           <p className="ui-muted mb-3 text-[12px]">Порядок: ↑↓</p>
           <div className={cn('overflow-x-auto pb-2', cardClass)} style={cardRadius}>
             <div className="flex min-w-0 flex-col gap-4">
@@ -563,15 +610,29 @@ export default function AdminBannersPage() {
                               ↓
                             </button>
                           </div>
-                          <BannerPreviewCard
-                            type="chip"
-                            title={b.title}
-                            description={b.description}
-                            image={b.image}
-                            cta={b.cta}
-                            isActive={b.isActive}
-                            onToggle={() => toggleActive(b)}
-                          />
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-wrap gap-1">
+                              {b.showOnHome !== false ? (
+                                <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[10px] font-bold text-black/55">
+                                  главная
+                                </span>
+                              ) : null}
+                              {b.showOnSubscriptions ? (
+                                <span className="rounded-full bg-[color:var(--accent)]/15 px-2 py-0.5 text-[10px] font-bold text-black/70">
+                                  подписка
+                                </span>
+                              ) : null}
+                            </div>
+                            <BannerPreviewCard
+                              type="chip"
+                              title={b.title}
+                              description={b.description}
+                              image={b.image}
+                              cta={b.cta}
+                              isActive={b.isActive}
+                              onToggle={() => toggleActive(b)}
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => editBanner(b)}
