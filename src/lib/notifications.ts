@@ -462,7 +462,7 @@ export async function notifySubscriptionCreatedToOwner(params: {
   const metricsLine = `${escapeHtml(userName)} · «${escapeHtml(name)}» · ${escapeHtml(formatPrice(price))}/мес`
   const bulletLines = itemsSummary
     ? itemsSummary
-        .split(/[,\n·]/)
+        .split('\n')
         .map((s) => s.trim())
         .filter(Boolean)
         .slice(0, 8)
@@ -495,11 +495,12 @@ export async function notifySubscriptionCreatedToOwner(params: {
     ])
   }
   inline_keyboard.push([
-    { text: 'Клиенты в ЛК', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } },
+    { text: 'Подписка в ЛК', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } },
+    { text: 'Панель владельца', web_app: { url: buildWebAppUrl('/admin') } },
   ])
 
   for (const chatId of ownerIds) {
-    await sendTelegramMessage(
+    const sent = await sendTelegramMessage(
       chatId,
       {
         text,
@@ -508,6 +509,9 @@ export async function notifySubscriptionCreatedToOwner(params: {
       },
       botToken
     )
+    if (!sent) {
+      console.error('[notifySubscriptionCreatedToOwner] Telegram send failed', { restaurantId, subscriptionId, chatId })
+    }
   }
 }
 

@@ -457,7 +457,7 @@ export async function POST(request: Request) {
       dayOfWeek: it.dayOfWeek,
     }))
   )
-  notifySubscriptionCreatedToOwner({
+  void notifySubscriptionCreatedToOwner({
     restaurantId,
     subscriptionId: subscription.id,
     userName,
@@ -466,7 +466,13 @@ export async function POST(request: Request) {
     itemsSummary,
     nextDeliveryLabel: nextDeliveryLabel ?? undefined,
     pendingApproval: true,
-  }).catch(() => {})
+  }).catch((err) => {
+    console.error('[subscriptions/create] notifySubscriptionCreatedToOwner failed', {
+      restaurantId,
+      subscriptionId: subscription.id,
+      err,
+    })
+  })
 
     return NextResponse.json({
       ok: true,

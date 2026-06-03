@@ -65,6 +65,7 @@ export function HeaderCompact() {
   const [openState, setOpenState] = useState<{ isOpen: boolean; label: string }>({ isOpen: true, label: 'открыто' })
   const [restaurantName, setRestaurantName] = useState<string>('—')
   const [theme, setTheme] = useState<UiTheme>('system')
+  const [ownerInboxTotal, setOwnerInboxTotal] = useState(0)
 
   const platformRole = (session?.user as any)?.platformRole as string | undefined
   const memberRole = (session?.user as any)?.memberRole as string | undefined
@@ -160,13 +161,32 @@ export function HeaderCompact() {
     }
     loadRestaurant()
 
+    const loadOwnerInbox = async () => {
+      if (!isAdmin) {
+        setOwnerInboxTotal(0)
+        return
+      }
+      try {
+        const res = await fetch('/api/owner/inbox', { cache: 'no-store', credentials: 'include' })
+        const data = await res.json().catch(() => null)
+        if (res.ok && data?.ok && typeof data.total === 'number') {
+          setOwnerInboxTotal(Math.max(0, data.total))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void loadOwnerInbox()
+    const inboxTimer = window.setInterval(() => void loadOwnerInbox(), 45_000)
+
     return () => {
+      window.clearInterval(inboxTimer)
       window.removeEventListener('storage', onStorage)
       window.removeEventListener('tg_user_updated' as any, onCustom)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('scroll', onScroll)
     }
-  }, [])
+  }, [isAdmin])
 
   const initials = useMemo(() => {
     const name = String(tgUser?.first_name || tgUser?.username || '').trim()
@@ -237,11 +257,20 @@ export function HeaderCompact() {
             </button>
             {isAdmin ? (
               <Link
-                href="/profile/owner"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition active:scale-[0.95]"
-                aria-label="Режим владельца"
+                href="/admin"
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition active:scale-[0.95]"
+                aria-label={
+                  ownerInboxTotal > 0
+                    ? `Панель владельца: ${ownerInboxTotal} входящих`
+                    : 'Панель владельца'
+                }
               >
                 <IconCrown className="h-5 w-5" />
+                {isMounted && ownerInboxTotal > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-extrabold text-white">
+                    {ownerInboxTotal > 99 ? '99+' : ownerInboxTotal}
+                  </span>
+                ) : null}
               </Link>
             ) : null}
             <Link
