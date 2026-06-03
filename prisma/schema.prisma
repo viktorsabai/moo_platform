@@ -163,9 +163,9 @@ model HomeBanner {
   targetId     String?
   order        Int      @default(0)
   isActive     Boolean  @default(true)
-  /** Показывать на главной mini app */
+  /// Показывать на главной mini app
   showOnHome   Boolean  @default(true)
-  /** Показывать в разделе «Подписка» (обзор) */
+  /// Показывать в разделе «Подписка» (обзор)
   showOnSubscriptions Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
