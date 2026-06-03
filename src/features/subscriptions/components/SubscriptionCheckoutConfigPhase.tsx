@@ -37,6 +37,7 @@ type Props = {
   quotesByPeriod: Record<number, PeriodQuote | undefined>
   activeQuote: PeriodQuote | null
   submitting: boolean
+  submitError?: string | null
   minDays: number
   daysLocked?: boolean
   onBack: () => void
@@ -67,6 +68,7 @@ export function SubscriptionCheckoutConfigPhase({
   quotesByPeriod,
   activeQuote,
   submitting,
+  submitError,
   minDays,
   onBack,
   onGoBuild,
@@ -200,6 +202,14 @@ export function SubscriptionCheckoutConfigPhase({
       >
         <div className="px-3 pb-3 pt-2">
           <SubscriptionCheckoutSavingsBar quote={activeQuote} totalPrice={totalPrice} />
+          {submitError ? (
+            <p className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-[13px] font-semibold leading-snug text-red-700">
+              {submitError}
+            </p>
+          ) : null}
+          {submitting ? (
+            <p className="mb-2 text-center text-[12px] font-semibold text-[color:var(--muted)]">отправляем заявку…</p>
+          ) : null}
           <button
             type="button"
             disabled={!canSubmit || submitting}

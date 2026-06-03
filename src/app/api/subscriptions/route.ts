@@ -13,12 +13,16 @@ import { resolveApiUser } from '@/lib/tg-auth-resolver'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
 import { parseRequiredMealSlotsByDay, validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
 import { computeSubscriptionQuoteForRestaurant } from '@/lib/subscription-quote-server'
+import { formatSubscriptionItemsNotifySummary } from '@/features/subscriptions/lib/subscription-notification-summary'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function normalizeWizardDayToJs(day: number): number {
-  return day === 6 ? 0 : day + 1
+/** Дни доставки в теле запроса: JS weekday 0=Вс … 6=Сб (как в checkout). */
+function normalizeDeliveryDaysJs(raw: number[]): number[] {
+  return [...new Set(raw.filter((n) => Number.isFinite(n) && n >= 0 && n <= 6).map((n) => Math.round(n)))].sort(
+    (a, b) => a - b
+  )
 }
 
 export async function GET() {
@@ -75,12 +79,31 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const authUser = await resolveApiUser(headers())
-    const userId = authUser.userId
-    const telegramId = authUser.telegramId
     const restaurantId = await getConsumerRestaurantId()
-    if (!userId || !telegramId) {
+    let userId = authUser.userId
+    let telegramId = authUser.telegramId
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Войдите через Telegram: откройте приложение из бота (меню бота → приложение), затем повторите оформление подписки.' },
+        {
+          ok: false,
+          error: 'Войдите через Telegram: откройте приложение из бота (меню бота → приложение), затем повторите оформление подписки.',
+        },
+        { status: 401 }
+      )
+    }
+    if (!telegramId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { telegramId: true },
+      })
+      telegramId = dbUser?.telegramId ? String(dbUser.telegramId) : undefined
+    }
+    if (!telegramId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Нужен Telegram: закройте mini app и откройте снова из бота, затем нажмите «оформить» ещё раз.',
+        },
         { status: 401 }
       )
     }
@@ -103,7 +126,7 @@ export async function POST(request: Request) {
   const deliveryDaysRaw: number[] = Array.isArray(body?.deliveryDays)
     ? body.deliveryDays.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 0 && n <= 6)
     : []
-  const deliveryDays: number[] = [...new Set(deliveryDaysRaw.map((n) => normalizeWizardDayToJs(n)))].sort((a, b) => a - b)
+  const deliveryDays: number[] = normalizeDeliveryDaysJs(deliveryDaysRaw)
   const deliveryTime = body?.deliveryTime ? String(body.deliveryTime) : undefined
   const personCountRaw = Number(body?.personCount ?? 1)
   const periodDaysRaw = Number(body?.periodDays ?? 28)
@@ -380,7 +403,19 @@ export async function POST(request: Request) {
   }
 
 
-  const bulletLines = rawItems.slice(0, 5).map((it: any) => `• ${escapeHtml(it.name || 'блюдо')} ×${escapeHtml(String(it.quantity ?? 1))}`)
+  const notifySummary = formatSubscriptionItemsNotifySummary(
+    rawItems.map((it: any) => ({
+      name: it.name,
+      quantity: it.quantity,
+      mealSlot: it.mealSlot,
+      dayOfWeek: it.dayOfWeek,
+    }))
+  )
+  const bulletLines = notifySummary
+    .split('\n')
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((line) => `• ${escapeHtml(line)}`)
   const nextDeliveryLabel = nextDelivery && !Number.isNaN(nextDelivery.getTime())
     ? getNearestEventLabel(nextDelivery, deliveryTime)
     : undefined
@@ -414,10 +449,14 @@ export async function POST(request: Request) {
   ).catch(() => {})
 
   const userName = authUser.name ?? 'Клиент'
-  const itemsSummary = rawItems
-    .slice(0, 5)
-    .map((it: any) => `${it.quantity}× ${it.name || '—'}`)
-    .join(', ')
+  const itemsSummary = formatSubscriptionItemsNotifySummary(
+    rawItems.map((it: any) => ({
+      name: it.name,
+      quantity: it.quantity,
+      mealSlot: it.mealSlot,
+      dayOfWeek: it.dayOfWeek,
+    }))
+  )
   notifySubscriptionCreatedToOwner({
     restaurantId,
     subscriptionId: subscription.id,

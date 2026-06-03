@@ -54,6 +54,7 @@ export function SubscriptionCheckoutFlow() {
   const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'build')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [subConfig, setSubConfig] = useState<SubscriptionConfig>(defaultSubscriptionConfig())
   const [dishes, setDishes] = useState<ReturnType<typeof mapSubscriptionDish>[]>([])
   const [selectedDays, setSelectedDays] = useState<number[]>([])
@@ -616,17 +617,34 @@ export function SubscriptionCheckoutFlow() {
   }
 
   async function submit() {
+    setSubmitError(null)
     if (!name.trim()) {
-      toast.error('введите имя')
+      const msg = 'введите имя'
+      setSubmitError(msg)
+      toast.error(msg)
       return
     }
     if (!lines.length) {
-      toast.error('выберите блюда')
+      const msg = 'выберите блюда в рационе'
+      setSubmitError(msg)
+      toast.error(msg)
       return
     }
     if (selectedDays.length < minDays) {
-      toast.error(`минимум ${minDays} дней доставки`)
+      const msg = `минимум ${minDays} дней доставки`
+      setSubmitError(msg)
+      toast.error(msg)
       return
+    }
+    for (const d of selectedDays) {
+      if (!daySlotsComplete(d)) {
+        const msg = `заполните все приёмы на ${WEEKDAYS[d]}`
+        setSubmitError(msg)
+        toast.error(msg)
+        setPhase('build')
+        setActiveWizardDay(d)
+        return
+      }
     }
     setSubmitting(true)
     try {
@@ -663,7 +681,9 @@ export function SubscriptionCheckoutFlow() {
         })
         const data = await res.json().catch(() => null)
         if (!res.ok || !data?.ok) {
-          toast.error(data?.error || 'не удалось обновить')
+          const msg = data?.error || 'не удалось обновить'
+          setSubmitError(msg)
+          toast.error(msg)
           return
         }
         toast.success('заявка обновлена')
@@ -683,7 +703,9 @@ export function SubscriptionCheckoutFlow() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data?.ok) {
-        toast.error(data?.error || 'не удалось отправить заявку')
+        const msg = data?.error || 'не удалось отправить заявку'
+        setSubmitError(msg)
+        toast.error(msg)
         return
       }
       addSubscription({
@@ -700,6 +722,10 @@ export function SubscriptionCheckoutFlow() {
       clearSubscriptionBuilderDraft(restaurantId)
       toast.success('отправлено на подтверждение')
       router.push(data.subscriptionId ? `/subscriptions/${data.subscriptionId}` : '/subscriptions')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'ошибка сети — попробуйте ещё раз'
+      setSubmitError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -787,6 +813,7 @@ export function SubscriptionCheckoutFlow() {
       quotesByPeriod={quotesByPeriod}
       activeQuote={activeQuote}
       submitting={submitting}
+      submitError={submitError}
       minDays={minDays}
       daysLocked
       onBack={() => setPhase('build')}
