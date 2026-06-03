@@ -49,6 +49,14 @@ export function periodLabel(days: number): string {
   return `${days} дн.`
 }
 
+/** После «за» в подписи: «5 доставок за 1 неделю». */
+export function periodLabelAccusative(days: number): string {
+  if (days === 7) return '1 неделю'
+  if (days === 14) return '2 недели'
+  if (days === 28) return '1 месяц'
+  return `${days} дней`
+}
+
 export function getPeriodDiscountPercent(
   periodDiscounts: Record<number, number> | undefined,
   periodDays: number

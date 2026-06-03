@@ -24,6 +24,16 @@ export function formatGuestPeriodBadge(
   return `−${Math.round(total)}%`
 }
 
+/** Бейдж на карточке периода — из того же quote, что цена и зачёркнутая сумма. */
+export function formatQuoteSavingsBadge(quote: {
+  periodRetail: number
+  guestPrice: number
+  guestSavingsPercent: number
+}): string | null {
+  if (quote.periodRetail <= quote.guestPrice || quote.guestSavingsPercent < 0.5) return null
+  return `−${Math.round(quote.guestSavingsPercent)}%`
+}
+
 /** Подпись под бейджем / у слайдера в админке — та же логика, что у гостя. */
 export function formatPeriodDiscountBreakdown(
   commerce: SubscriptionCommerceConfig,

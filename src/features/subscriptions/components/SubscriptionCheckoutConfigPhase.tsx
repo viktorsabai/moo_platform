@@ -3,7 +3,8 @@
 import type { Dish } from '@/types'
 import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
+import { periodLabel, periodLabelAccusative, type SubscriptionConfig } from '@/lib/subscription-config'
+import { formatQuoteSavingsBadge } from '@/lib/subscription-offer-labels'
 import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
 import { SubscriptionPeriodCards } from '@/features/subscriptions/components/SubscriptionPeriodCards'
 import { SubscriptionRationByDay } from '@/features/subscriptions/components/SubscriptionRationByDay'
@@ -84,8 +85,8 @@ export function SubscriptionCheckoutConfigPhase({
 }: Props) {
   const totalPrice = activeQuote?.guestPrice ?? 0
   const retailPrice = activeQuote?.periodRetail ?? 0
-  const savingsPct = activeQuote?.guestSavingsPercent ?? 0
   const deliveryCount = activeQuote?.deliveriesInPeriod ?? 0
+  const savingsBadge = activeQuote ? formatQuoteSavingsBadge(activeQuote) : null
   const canSubmit = Boolean(name.trim()) && lines.length > 0 && selectedDays.length >= minDays
 
   const deliveryDaysLabel = selectedDays.map((d) => WEEKDAYS[d]).join(', ')
@@ -93,7 +94,7 @@ export function SubscriptionCheckoutConfigPhase({
   const scheduleHint = formatWeeklyRationHint(lines, selectedDays)
 
   return (
-    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+120px)]">
+    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+200px)]">
       <div className="flex items-start gap-2">
         <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
@@ -201,7 +202,7 @@ export function SubscriptionCheckoutConfigPhase({
         </div>
       </section>
 
-      <section className="mb-5">
+      <section className="mb-5 overflow-visible">
         <h3 className="mb-3 text-[14px] font-extrabold">период подписки</h3>
         <SubscriptionPeriodCards
           config={subConfig}
@@ -211,8 +212,9 @@ export function SubscriptionCheckoutConfigPhase({
           onSelect={onPeriodDays}
         />
         {deliveryCount > 0 ? (
-          <p className="mt-2 text-[11px] text-[color:var(--muted)]">
-            {deliveryCount} доставок за {periodLabel(periodDays).toLowerCase()} — в каждую тот же рацион
+          <p className="mt-2 text-[11px] leading-snug text-[color:var(--muted)]">
+            {deliveryCount} {deliveryCount === 1 ? 'доставка' : deliveryCount < 5 ? 'доставки' : 'доставок'} за{' '}
+            {periodLabelAccusative(periodDays)} — в каждую тот же рацион
           </p>
         ) : null}
       </section>
@@ -282,9 +284,9 @@ export function SubscriptionCheckoutConfigPhase({
             {retailPrice > totalPrice ? (
               <span className="text-[14px] line-through text-[color:var(--muted)] tabular-nums">{formatPrice(retailPrice)}</span>
             ) : null}
-            {savingsPct > 0 ? (
+            {savingsBadge ? (
               <span className="rounded-full bg-[color:var(--accent)]/15 px-2 py-0.5 text-[11px] font-bold text-[color:var(--text)]">
-                −{Math.round(savingsPct)}%
+                {savingsBadge}
               </span>
             ) : null}
           </div>
@@ -295,8 +297,10 @@ export function SubscriptionCheckoutConfigPhase({
         Заведение проверит рацион и подтвердит подписку в Telegram.
       </p>
 
+      <div aria-hidden className="h-4 shrink-0" />
+
       <div
-        className="fixed left-0 right-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/95 px-4 py-3 backdrop-blur-md"
+        className="fixed left-0 right-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98 px-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-md"
         style={{
           bottom: 'calc(var(--ufo-bottomnav-h, 72px) + env(safe-area-inset-bottom))',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
