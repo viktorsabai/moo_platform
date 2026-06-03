@@ -460,7 +460,7 @@ export function SubscriptionCheckoutFlow() {
       const k = lineKey(item)
       const existing = prev.find((x) => lineKey(x) === k)
       if (existing) {
-        if (dish && dishHasConfigurableOptions(dish)) {
+        if (dish && dishHasConfigurableOptions(dish, subConfig, activeSlot)) {
           setEditingLine(existing)
           return prev
         }
@@ -476,7 +476,7 @@ export function SubscriptionCheckoutFlow() {
         return prev
       }
       const next = [...prev, item]
-      if (dish && dishHasConfigurableOptions(dish)) setEditingLine(item)
+      if (dish && dishHasConfigurableOptions(dish, subConfig, activeSlot)) setEditingLine(item)
       return next
     })
   }

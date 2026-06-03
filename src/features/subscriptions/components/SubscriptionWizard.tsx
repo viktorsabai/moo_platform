@@ -22,6 +22,7 @@ import {
 import { MEAL_SLOT_IDS, MEAL_SLOT_LABEL, type MealSlot, parseMealSlot } from '@/lib/subscription-meal-slots'
 import { SubscriptionConstructorSummaryBar } from '@/features/subscriptions/components/SubscriptionConstructorSummaryBar'
 import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
+import { resolveAllowedOptionIdsForDish } from '@/features/subscriptions/lib/subscription-checkout-utils'
 import { SubscriptionRationStrip } from '@/features/subscriptions/components/SubscriptionRationStrip'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { subscriptionPlanPresetGradient } from '@/lib/subscription-plan-visual'
@@ -1733,7 +1734,12 @@ export function SubscriptionWizard() {
                                   <SubscriptionDishOptionsPanel
                                     dish={dish}
                                     modifierIds={item.modifierIds ?? []}
-                                    allowedOptionIds={hardOptionIds}
+                                    allowedOptionIds={resolveAllowedOptionIdsForDish(
+                                      subConfig,
+                                      item.mealSlot,
+                                      dish,
+                                      hardOptionIds
+                                    )}
                                     onChange={(ids) => setLineModifierIds(item, ids)}
                                   />
                                 </div>

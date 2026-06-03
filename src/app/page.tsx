@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useVenue } from '@/lib/venue-context'
 import { getDemoBotLink } from '@/lib/telegram'
+import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { PromoCard } from '@/components/ui/PromoCard'
 import { EmptyStatePlaceholder } from '@/components/ui/EmptyStatePlaceholder'
 import { VerticalReelCard } from '@/components/ui/VerticalReelCard'
@@ -27,7 +28,7 @@ type BannerCache = {
 }
 
 const BANNERS_CACHE_TTL_MS = 90_000
-const HOME_BANNERS_CACHE_PREFIX = 'ufo:home:banners:v1:'
+const HOME_BANNERS_CACHE_PREFIX = 'ufo:home:banners:v2:'
 const memoryBannersCache = new Map<string, BannerCache>()
 
 function filterBannersBySettings(
@@ -97,11 +98,11 @@ export default function HomePage() {
     let cancelled = false
     const bannerHeaders =
       restaurantId && restaurantId !== 'default'
-        ? ({ 'x-ufo-restaurant': restaurantId } as Record<string, string>)
-        : undefined
+        ? ({ 'x-ufo-restaurant': restaurantId, ...telegramInitHeaderRecord() } as Record<string, string>)
+        : { ...telegramInitHeaderRecord() }
     fetch('/api/banners?placement=home', {
       credentials: 'include',
-      ...(bannerHeaders ? { headers: bannerHeaders } : {}),
+      headers: bannerHeaders,
     })
       .then((r) => r.json())
       .then((data) => {

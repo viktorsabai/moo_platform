@@ -2,7 +2,7 @@
 
 import type { Dish } from '@/types'
 import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
-import { allowedOptionIdsForLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
+import { resolveAllowedOptionIdsForDish } from '@/features/subscriptions/lib/subscription-checkout-utils'
 import type { SubscriptionConfig } from '@/lib/subscription-config'
 import type { SelectedLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
 import { MEAL_SLOT_LABEL } from '@/lib/subscription-meal-slots'
@@ -18,9 +18,9 @@ type Props = {
 
 export function SubscriptionDishOptionsSheet({ line, dish, subConfig, onChange, onClose }: Props) {
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col justify-end bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[130] flex flex-col justify-end bg-black/50" onClick={onClose}>
       <div
-        className="max-h-[78vh] overflow-y-auto rounded-t-[var(--radius-large)] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-4"
+        className="max-h-[85vh] min-h-[40vh] overflow-y-auto rounded-t-[var(--radius-large)] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 pb-[calc(env(safe-area-inset-bottom)+80px)] pt-4 shadow-[0_-8px_40px_rgba(0,0,0,0.12)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -37,10 +37,11 @@ export function SubscriptionDishOptionsSheet({ line, dish, subConfig, onChange, 
         <SubscriptionDishOptionsPanel
           dish={dish}
           modifierIds={line.modifierIds ?? []}
-          allowedOptionIds={allowedOptionIdsForLine(subConfig, line.mealSlot)}
+          allowedOptionIds={resolveAllowedOptionIdsForDish(subConfig, line.mealSlot, dish)}
           onChange={onChange}
-          compact
+          compact={false}
           defaultCollapsed={false}
+          emptyHint="У этого блюда нет опций в меню — можно нажать «готово»."
         />
       </div>
     </div>

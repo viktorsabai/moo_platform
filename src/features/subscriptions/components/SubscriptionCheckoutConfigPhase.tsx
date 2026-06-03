@@ -4,6 +4,7 @@ import type { Dish } from '@/types'
 import { formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
+import { SubscriptionCheckoutSavingsBar } from '@/features/subscriptions/components/SubscriptionCheckoutSavingsBar'
 import { SubscriptionSavingsStrip } from '@/features/subscriptions/components/SubscriptionSavingsStrip'
 import type { MealSlot } from '@/lib/subscription-meal-slots'
 import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
@@ -87,7 +88,7 @@ export function SubscriptionCheckoutConfigPhase({
   const rationSummary = formatRationCheckoutSummary(lines, selectedDays)
 
   return (
-    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+88px)]">
+    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+148px)]">
       <div className="flex items-start gap-2">
         <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
@@ -194,25 +195,21 @@ export function SubscriptionCheckoutConfigPhase({
       </section>
 
       <div
-        className="fixed inset-x-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98 backdrop-blur-md"
+        className="fixed inset-x-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)] shadow-[0_-12px_32px_rgba(0,0,0,0.08)]"
         style={{ bottom: 'calc(var(--ufo-bottomnav-h, 72px) + env(safe-area-inset-bottom))' }}
       >
-        <div className="px-3 py-2.5">
-          {retailPrice > totalPrice ? (
-            <p className="mb-1.5 text-center text-[11px] tabular-nums text-[color:var(--muted)]">
-              <span className="line-through">{formatPrice(retailPrice)}</span>
-              <span className="mx-1.5 font-bold text-[color:var(--text)]">→ {formatPrice(totalPrice)}</span>
-            </p>
-          ) : null}
+        <div className="px-3 pb-3 pt-2">
+          <SubscriptionCheckoutSavingsBar quote={activeQuote} totalPrice={totalPrice} />
           <button
             type="button"
             disabled={!canSubmit || submitting}
             onClick={onSubmit}
-            className="btn btn-primary h-11 w-full text-[15px] font-bold disabled:opacity-50"
+            className="btn btn-primary h-12 w-full text-[16px] font-extrabold disabled:opacity-50"
             style={{ borderRadius: 'var(--radius-pill)' }}
           >
-            {submitting ? '…' : resumeId ? `сохранить · ${formatPrice(totalPrice)}` : `оформить · ${formatPrice(totalPrice)}`}
+            {submitting ? '…' : resumeId ? `сохранить за ${formatPrice(totalPrice)}` : `оформить за ${formatPrice(totalPrice)}`}
           </button>
+          <p className="mt-1.5 text-center text-[10px] text-[color:var(--muted)]">без скрытых платежей · подтверждение в Telegram</p>
         </div>
       </div>
     </main>

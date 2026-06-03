@@ -119,10 +119,50 @@ export function buildRequiredSlotsByJsDay(
   return out
 }
 
-export function dishHasConfigurableOptions(dish: Dish): boolean {
-  const mods = dish.modifiers ?? []
-  const groups = dish.optionGroups ?? []
-  return mods.length > 0 || groups.some((g) => (g.values?.length ?? 0) > 0)
+/** Все id опций, привязанных к блюду (модификаторы + значения групп). */
+export function dishConfigurableOptionIds(dish: Dish): string[] {
+  const ids: string[] = []
+  for (const m of dish.modifiers ?? []) {
+    if (m.id) ids.push(m.id)
+  }
+  for (const g of dish.optionGroups ?? []) {
+    for (const v of g.values ?? []) {
+      if (v.id) ids.push(v.id)
+    }
+  }
+  return ids
+}
+
+/**
+ * Ограничение опций слота (optionIds в ЛК) пересекаем с опциями конкретного блюда.
+ * Если пересечение пустое — показываем все опции блюда (иначе шит открывается пустым).
+ */
+export function resolveAllowedOptionIdsForDish(
+  config: SubscriptionConfig,
+  mealSlot: MealSlot | null,
+  dish: Dish,
+  extraAllowIds?: string[] | null
+): string[] | null {
+  const onDish = new Set(dishConfigurableOptionIds(dish))
+  if (!onDish.size) return null
+  const slotIds = mealSlot ? (config.mealSlots[mealSlot]?.optionIds ?? []) : []
+  const combined = [...new Set([...slotIds, ...(extraAllowIds ?? [])])]
+  if (!combined.length) return null
+  const intersect = combined.filter((id) => onDish.has(id))
+  return intersect.length > 0 ? intersect : null
+}
+
+export function dishHasConfigurableOptions(
+  dish: Dish,
+  config?: SubscriptionConfig | null,
+  mealSlot?: MealSlot | null
+): boolean {
+  const onDish = dishConfigurableOptionIds(dish)
+  if (!onDish.length) return false
+  if (!config || !mealSlot) return true
+  const allowed = resolveAllowedOptionIdsForDish(config, mealSlot, dish)
+  if (!allowed) return true
+  return allowed.length > 0
 }
 
 /** Краткая подпись выбранных опций для карточки блюда. */
@@ -281,7 +321,13 @@ export function guestCatalogDishIds(config: SubscriptionConfig): Set<string> | n
   return restricted ? ids : null
 }
 
-export function allowedOptionIdsForLine(config: SubscriptionConfig, mealSlot: MealSlot | null): string[] | null {
+/** @deprecated Используйте resolveAllowedOptionIdsForDish — slot optionIds не совпадают с id на блюде без пересечения. */
+export function allowedOptionIdsForLine(
+  config: SubscriptionConfig,
+  mealSlot: MealSlot | null,
+  dish?: Dish | null
+): string[] | null {
+  if (dish) return resolveAllowedOptionIdsForDish(config, mealSlot, dish)
   if (!mealSlot) return null
   const ids = config.mealSlots[mealSlot]?.optionIds ?? []
   return ids.length > 0 ? ids : null

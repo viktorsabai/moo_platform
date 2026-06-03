@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { allowAutoDefaultOwner } from '@/lib/platform-tenant'
 
 const DEFAULT_SINGLE_TENANT_RESTAURANT_ID = 'cmoibd1en000cx2i9pt9gp2hr'
+/** Демо-заглушка в БД; не использовать для меню/баннеров гостя. */
+const CONSUMER_PLACEHOLDER_RESTAURANT_ID = 'default'
+
+function isConsumerPlaceholderRestaurantId(id: string): boolean {
+  return String(id || '').trim() === CONSUMER_PLACEHOLDER_RESTAURANT_ID
+}
 const HAS_EXPLICIT_SINGLE_TENANT_ENV = Boolean(String(process.env.UFO_SINGLE_RESTAURANT_ID || '').trim())
 const SINGLE_TENANT_RESTAURANT_ID =
   String(process.env.UFO_SINGLE_RESTAURANT_ID || DEFAULT_SINGLE_TENANT_RESTAURANT_ID).trim()
@@ -248,7 +254,7 @@ export async function getConsumerRestaurantResolution(): Promise<{
   // Single-tenant pin: дефолт остаётся forced, но реальный id из WebApp (шапка / cookie) важен для акций и данных,
   // если в БД заведение не совпадает с UFO_SINGLE_RESTAURANT_ID.
   if (forcedRestaurantId) {
-    if (headerRestaurantId) {
+    if (headerRestaurantId && !isConsumerPlaceholderRestaurantId(headerRestaurantId)) {
       const hid = await resolveExistingRestaurantId(headerRestaurantId)
       if (hid) {
         return {
@@ -260,7 +266,7 @@ export async function getConsumerRestaurantResolution(): Promise<{
         }
       }
     }
-    if (overridden) {
+    if (overridden && !isConsumerPlaceholderRestaurantId(overridden)) {
       const cid = await resolveExistingRestaurantId(overridden)
       if (cid) {
         return {
@@ -289,7 +295,7 @@ export async function getConsumerRestaurantResolution(): Promise<{
   // mini-app venue context and can be stale vs NextAuth membership (ЛК/профиль).
   let result = 'default'
   let source: 'header' | 'cookie' | 'session' | 'default' = 'default'
-  if (headerRestaurantId) {
+  if (headerRestaurantId && !isConsumerPlaceholderRestaurantId(headerRestaurantId)) {
     const headerRow = await prisma.restaurant.findUnique({
       where: { id: headerRestaurantId },
       select: { id: true },
@@ -312,7 +318,7 @@ export async function getConsumerRestaurantResolution(): Promise<{
       }
     }
   }
-  if (source !== 'header' && source !== 'session' && overridden) {
+  if (source !== 'header' && source !== 'session' && overridden && !isConsumerPlaceholderRestaurantId(overridden)) {
     const cookieRow = await prisma.restaurant.findUnique({
       where: { id: overridden },
       select: { id: true },

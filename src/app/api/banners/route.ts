@@ -25,7 +25,16 @@ export async function GET(request: Request) {
         },
       }
     )
-  } catch {
-    return NextResponse.json({ ok: false, banners: [] }, { status: 500 })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    const missingPlacementColumns =
+      /showOnHome|showOnSubscriptions|Unknown field/i.test(msg) ||
+      /column.*does not exist/i.test(msg)
+    if (missingPlacementColumns) {
+      console.error('[banners] run: npm run db:migrate:prod — placement columns missing')
+    } else {
+      console.error('[banners]', msg)
+    }
+    return NextResponse.json({ ok: false, banners: [], error: 'banners_unavailable' }, { status: 500 })
   }
 }

@@ -6,6 +6,7 @@ import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IconChevronLeft, IconChevronUp } from '@/components/ui/icons'
 import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
+import type { SubscriptionConfig } from '@/lib/subscription-config'
 import type { MenuCategory, PeriodQuote, SelectedLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
 import {
   dishHasConfigurableOptions,
@@ -29,6 +30,7 @@ type Props = {
   pickerDishes: Dish[]
   lines: SelectedLine[]
   menuCategories: MenuCategory[]
+  subConfig: SubscriptionConfig
   minDays: number
   maxDays: number
   quotesByPeriod: Record<number, PeriodQuote | undefined>
@@ -60,6 +62,7 @@ export function SubscriptionBuildPhase({
   enabledSlots,
   pickerDishes,
   menuCategories,
+  subConfig,
   minDays,
   maxDays,
   lines,
@@ -269,7 +272,7 @@ export function SubscriptionBuildPhase({
                   >
                     {dishes.map((d) => {
                       const line = lineForDish(d.id)
-                      const hasOpts = dishHasConfigurableOptions(d)
+                      const hasOpts = dishHasConfigurableOptions(d, subConfig, activeSlot)
                       const summary = line ? summarizeLineModifiers(d, line.modifierIds) : null
                       return (
                         <SubscriptionDishCarouselCard

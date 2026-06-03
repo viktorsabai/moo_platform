@@ -14,6 +14,7 @@ type Props = {
   compact?: boolean
   /** Свернуть состав до тапа */
   defaultCollapsed?: boolean
+  emptyHint?: string
 }
 
 /** Панель опций блюда в конструкторе подписки (как в корзине: OPTION + чекбоксы + группы optionGroups). */
@@ -24,6 +25,7 @@ export function SubscriptionDishOptionsPanel({
   allowedOptionIds,
   compact = false,
   defaultCollapsed = false,
+  emptyHint,
 }: Props) {
   const [open, setOpen] = useState(!defaultCollapsed)
   const allowedSet = new Set((allowedOptionIds ?? []).filter(Boolean))
@@ -67,7 +69,16 @@ export function SubscriptionDishOptionsPanel({
     onChange(hasAllowList ? next.filter((x) => allowedSet.has(x)) : next)
   }
 
-  if (optionModifiersFiltered.length === 0 && extraModifiersFiltered.length === 0 && groupsFiltered.length === 0) return null
+  const hasAnyOptions =
+    optionModifiersFiltered.length > 0 || extraModifiersFiltered.length > 0 || groupsFiltered.length > 0
+
+  if (!hasAnyOptions) {
+    return (
+      <p className="py-4 text-center text-[14px] leading-snug text-[color:var(--muted)]">
+        {emptyHint ?? 'Нет доступных опций для этого блюда.'}
+      </p>
+    )
+  }
 
   const optionCount = modifierIds.filter((id) => {
     const all = [...optionModifiersFiltered, ...extraModifiersFiltered, ...groupsFiltered.flatMap((g) => g.values || [])]
@@ -87,8 +98,8 @@ export function SubscriptionDishOptionsPanel({
   }
 
   const chipClass = compact
-    ? 'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px]'
-    : 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[12px]'
+    ? 'inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[12px] font-semibold'
+    : 'inline-flex min-h-[40px] items-center gap-2 rounded-[var(--radius-large)] border px-3 py-2 text-[14px] font-semibold'
   const imgSize = compact ? 'h-5 w-5' : 'h-7 w-7'
 
   return (
@@ -104,7 +115,7 @@ export function SubscriptionDishOptionsPanel({
       ) : null}
       {optionModifiersFiltered.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">вариант</div>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">вариант</div>
           <div className="flex flex-wrap gap-1.5">
             {optionModifiersFiltered.map((mod) => {
               const checked = selectedOptionId === mod.id
@@ -146,7 +157,7 @@ export function SubscriptionDishOptionsPanel({
 
       {groupsFiltered.map((g) => (
         <div key={g.id} className="space-y-1">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">{g.name}</div>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--text)]">{g.name}</div>
           <div className="flex flex-wrap gap-1.5">
             {(g.values || []).map((v) => {
               const checked = selected.has(v.id)
@@ -188,7 +199,7 @@ export function SubscriptionDishOptionsPanel({
 
       {extraModifiersFiltered.length > 0 && (
         <div className="space-y-1">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">добавить</div>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">добавить</div>
           <div className="flex flex-wrap gap-1.5">
             {extraModifiersFiltered.map((mod) => {
               const checked = selected.has(mod.id)
