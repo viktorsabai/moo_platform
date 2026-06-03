@@ -10,10 +10,11 @@ import { SubscriptionListCard } from '@/components/ui/SubscriptionListCard'
 import { FilterBar } from '@/components/ui/FilterBar'
 import { Chip } from '@/components/ui/Chip'
 import { SubscriptionUnavailableCard } from '@/components/subscriptions/SubscriptionUnavailableCard'
-import { SubscriptionGuestHub } from '@/features/subscriptions/components/SubscriptionGuestHub'
+import { SubscriptionHubTabs, type SubscriptionHubTab } from '@/features/subscriptions/components/SubscriptionHubTabs'
+import { SubscriptionHubOverview } from '@/features/subscriptions/components/SubscriptionHubOverview'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
-import { defaultSubscriptionConfig, type SubscriptionConfig } from '@/lib/subscription-config'
+import { type SubscriptionConfig } from '@/lib/subscription-config'
 
 export type StatusFilterKey = 'all' | 'active' | 'pending' | 'ended' | 'draft'
 
@@ -30,6 +31,7 @@ export default function SubscriptionsPage() {
   const { settings, error: venueError, isLoading: venueLoading, refetch: refetchVenue } = useVenue()
   const storeSubscriptions = useSubscriptionStore((state) => state.subscriptions)
   const setSubscriptions = useSubscriptionStore((state) => state.setSubscriptions)
+  const [hubTab, setHubTab] = useState<SubscriptionHubTab>('overview')
   const [statusFilter, setStatusFilter] = useState<StatusFilterKey>('all')
   const [focusSubscriptionId, setFocusSubscriptionId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -108,12 +110,10 @@ export default function SubscriptionsPage() {
     return subscriptions.filter((s) => SUBSCRIPTION_STATUS_TO_FILTER[String(s.status)] === statusFilter)
   }, [subscriptions, statusFilter])
 
-  const hasAny = subscriptions.length > 0
-
   if (venueError && venueLoading) {
     return (
       <main className="ui-container ui-screen">
-        <PageHeader title="подписки" compact className="mb-3" />
+        <PageHeader title="подписка" compact className="mb-3" />
         <div className="ui-surface-card p-4 text-center" style={{ borderRadius: 'var(--radius-large)' }}>
           <p className="text-[13px] font-semibold text-red-600">Не удалось загрузить настройки.</p>
           <button type="button" onClick={() => refetchVenue()} className="btn btn-soft mt-4 rounded-full px-4 py-2.5 text-[13px] font-semibold">
@@ -127,7 +127,7 @@ export default function SubscriptionsPage() {
   if (!settings.subscriptionEnabled) {
     return (
       <main className="ui-container ui-screen">
-        <PageHeader title="подписки" compact className="mb-3" />
+        <PageHeader title="подписка" compact className="mb-3" />
         <SubscriptionUnavailableCard />
       </main>
     )
@@ -135,9 +135,31 @@ export default function SubscriptionsPage() {
 
   return (
     <main className="ui-container ui-screen">
-      <PageHeader title="подписки" subtitle="ваши доставки по расписанию" compact className="mb-4" />
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <PageHeader title="подписка" compact className="min-w-0 flex-1" />
+        <div className="flex shrink-0 items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => loadSubscriptions()}
+            disabled={refreshing}
+            className="btn btn-soft rounded-full px-3 py-2 text-[12px] font-semibold disabled:opacity-50"
+            aria-label="обновить"
+          >
+            {refreshing ? '…' : '↻'}
+          </button>
+          <Link
+            href="/subscriptions/new"
+            prefetch={false}
+            className="btn btn-primary rounded-full px-3.5 py-2 text-[12px] font-bold"
+          >
+            + новая
+          </Link>
+        </div>
+      </div>
 
-      {loadError && !hasAny && !refreshing ? (
+      <SubscriptionHubTabs tab={hubTab} onTab={setHubTab} listCount={subscriptions.length} />
+
+      {loadError && subscriptions.length === 0 && !refreshing ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-center">
           <p className="text-[13px] font-medium text-red-700">{loadError}</p>
           <button type="button" onClick={() => loadSubscriptions()} className="mt-2 text-[12px] font-semibold text-red-600 underline">
@@ -146,55 +168,54 @@ export default function SubscriptionsPage() {
         </div>
       ) : null}
 
-      {hasAny ? (
+      {hubTab === 'overview' ? (
+        <SubscriptionHubOverview subscriptions={subscriptions} config={guestConfig} loading={refreshing} />
+      ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[13px] font-semibold text-[color:var(--muted)]">
-              {subscriptions.length} {subscriptions.length === 1 ? 'подписка' : 'подписок'}
-            </p>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => loadSubscriptions()}
-                disabled={refreshing}
-                className="btn btn-soft rounded-full px-3 py-2 text-[12px] font-semibold disabled:opacity-50"
-              >
-                {refreshing ? '…' : 'обновить'}
-              </button>
-              <Link
-                href="/subscriptions/new"
-                prefetch={false}
-                className="btn btn-primary rounded-full px-4 py-2 text-[13px] font-semibold"
-              >
-                + новая
-              </Link>
-            </div>
-          </div>
-
-          <FilterBar
-            chips={
-              <>
-                {STATUS_OPTIONS.map((opt) => (
-                  <Chip
-                    key={opt.value}
-                    accent={statusFilter === opt.value}
-                    onClick={() => setStatusFilter(opt.value)}
-                    className="whitespace-nowrap"
-                  >
-                    {opt.label}
-                  </Chip>
-                ))}
-              </>
-            }
-          />
+          {subscriptions.length > 0 ? (
+            <FilterBar
+              chips={
+                <>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.value}
+                      accent={statusFilter === opt.value}
+                      onClick={() => setStatusFilter(opt.value)}
+                      className="whitespace-nowrap"
+                    >
+                      {opt.label}
+                    </Chip>
+                  ))}
+                </>
+              }
+            />
+          ) : null}
 
           <div className="mt-4 space-y-3">
-            {filtered.length === 0 ? (
+            {refreshing && subscriptions.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-[color:var(--muted)]">загрузка…</p>
+            ) : filtered.length === 0 ? (
               <div className="ui-surface-card p-5 text-center">
-                <p className="ui-muted text-[13px]">Нет подписок с этим статусом</p>
-                <button type="button" onClick={() => setStatusFilter('all')} className="btn btn-soft mt-3 rounded-full px-4 py-2 text-[13px] font-semibold">
-                  показать все
-                </button>
+                <p className="ui-muted text-[13px]">
+                  {subscriptions.length === 0 ? 'Подписок пока нет' : 'Нет подписок с этим статусом'}
+                </p>
+                {subscriptions.length === 0 ? (
+                  <Link
+                    href="/subscriptions/new"
+                    prefetch={false}
+                    className="btn btn-primary mt-4 inline-flex rounded-full px-5 py-2.5 text-[13px] font-bold"
+                  >
+                    собрать подписку
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className="btn btn-soft mt-3 rounded-full px-4 py-2 text-[13px] font-semibold"
+                  >
+                    показать все
+                  </button>
+                )}
               </div>
             ) : (
               filtered.map((s) => (
@@ -208,10 +229,6 @@ export default function SubscriptionsPage() {
             )}
           </div>
         </>
-      ) : refreshing ? (
-        <p className="py-8 text-center text-[13px] text-[color:var(--muted)]">загрузка…</p>
-      ) : (
-        <SubscriptionGuestHub config={guestConfig} />
       )}
     </main>
   )
