@@ -19,7 +19,7 @@ export function SubscriptionSchedulePhase({ selectedDays, minDays, maxDays, onTo
 
   return (
     <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+96px)]">
-      <PageHeader backHref="/" title="подписка на доставку" subtitle="сначала — когда привозить" />
+      <PageHeader backHref="/subscriptions" title="новая подписка" subtitle="шаг 1 · дни доставки" />
 
       <SubscriptionFlowProgress step="schedule" />
 

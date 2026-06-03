@@ -103,7 +103,7 @@ export function SubscriptionCheckoutConfigPhase({
         <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
           <IconChevronLeft className="h-5 w-5" />
         </button>
-        <PageHeader title="доставка и оплата" subtitle="дни, период и итог" compact className="min-w-0 flex-1" />
+        <PageHeader title="доставка и оплата" subtitle="шаг 3 · период и оплата" compact className="min-w-0 flex-1" />
       </div>
 
       <SubscriptionFlowProgress step={'pay' as SubscriptionFlowStep} />

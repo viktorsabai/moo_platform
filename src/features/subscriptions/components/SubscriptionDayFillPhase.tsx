@@ -118,12 +118,12 @@ export function SubscriptionDayFillPhase({
   return (
     <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+96px)]">
       <div className="mb-2 flex items-start gap-2">
-        <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
+        <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад к подпискам">
           <IconChevronLeft className="h-5 w-5" />
         </button>
         <PageHeader
           title={`меню · ${WEEKDAYS[activeWizardDay]}`}
-          subtitle="блюда на этот день недели"
+          subtitle="шаг 2 · блюда на этот день"
           compact
           className="min-w-0 flex-1"
         />

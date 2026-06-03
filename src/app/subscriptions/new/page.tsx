@@ -24,7 +24,7 @@ export default function NewSubscriptionPage() {
   if (!settings.subscriptionEnabled) {
     return (
       <main className="ui-container ui-screen">
-        <PageHeader title="новая подписка" backHref="/subscriptions" compact className="mb-3" />
+        <PageHeader title="оформление" backHref="/subscriptions" subtitle="новая подписка" compact className="mb-3" />
         <SubscriptionUnavailableCard />
       </main>
     )

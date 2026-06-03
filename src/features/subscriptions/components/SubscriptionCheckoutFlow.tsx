@@ -472,7 +472,7 @@ export function SubscriptionCheckoutFlow() {
   if (loading) {
     return (
       <main className="ui-container ui-screen">
-        <PageHeader backHref="/" title="подписка" subtitle="загрузка" />
+        <PageHeader backHref="/subscriptions" title="новая подписка" subtitle="загрузка" />
         <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
       </main>
     )
