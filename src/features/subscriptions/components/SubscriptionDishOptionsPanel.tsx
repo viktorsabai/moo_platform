@@ -10,39 +10,44 @@ type Props = {
   modifierIds: string[]
   onChange: (nextModifierIds: string[]) => void
   allowedOptionIds?: string[] | null
-  /** Меньшие чипы, без крупных превью */
+  /** В шите подписки — всегда все опции блюда, крупные кнопки */
+  variant?: 'inline' | 'sheet'
   compact?: boolean
-  /** Свернуть состав до тапа */
   defaultCollapsed?: boolean
   emptyHint?: string
 }
 
-/** Панель опций блюда в конструкторе подписки (как в корзине: OPTION + чекбоксы + группы optionGroups). */
+/** Панель опций блюда в конструкторе подписки. */
 export function SubscriptionDishOptionsPanel({
   dish,
   modifierIds,
   onChange,
   allowedOptionIds,
+  variant = 'inline',
   compact = false,
   defaultCollapsed = false,
   emptyHint,
 }: Props) {
   const [open, setOpen] = useState(!defaultCollapsed)
-  const allowedSet = new Set((allowedOptionIds ?? []).filter(Boolean))
-  const hasAllowList = allowedSet.size > 0
-  const selected = new Set(
-    hasAllowList ? modifierIds.filter((id) => allowedSet.has(id)) : modifierIds
-  )
+  const isSheet = variant === 'sheet'
+
   const optionModifiers = (dish.modifiers || []).filter((m) => String(m.type || '').toUpperCase() === 'OPTION')
   const extraModifiers = (dish.modifiers || []).filter((m) => String(m.type || '').toUpperCase() !== 'OPTION')
   const groups = dish.optionGroups || []
-  const optionModifiersFiltered = hasAllowList ? optionModifiers.filter((m) => allowedSet.has(m.id)) : optionModifiers
-  const extraModifiersFiltered = hasAllowList ? extraModifiers.filter((m) => allowedSet.has(m.id)) : extraModifiers
+
+  const allowedSet = isSheet ? null : new Set((allowedOptionIds ?? []).filter(Boolean))
+  const hasAllowList = Boolean(allowedSet && allowedSet.size > 0)
+  const selected = new Set(
+    hasAllowList ? modifierIds.filter((id) => allowedSet!.has(id)) : modifierIds
+  )
+
+  const optionModifiersFiltered = hasAllowList ? optionModifiers.filter((m) => allowedSet!.has(m.id)) : optionModifiers
+  const extraModifiersFiltered = hasAllowList ? extraModifiers.filter((m) => allowedSet!.has(m.id)) : extraModifiers
   const groupsFiltered = hasAllowList
     ? groups
-        .map((g) => ({ ...g, values: (g.values || []).filter((v) => allowedSet.has(v.id)) }))
+        .map((g) => ({ ...g, values: (g.values || []).filter((v) => allowedSet!.has(v.id)) }))
         .filter((g) => g.values.length > 0)
-    : groups
+    : groups.filter((g) => (g.values?.length ?? 0) > 0)
 
   const selectedOptionId = optionModifiersFiltered.find((m) => selected.has(m.id))?.id ?? null
 
@@ -50,7 +55,7 @@ export function SubscriptionDishOptionsPanel({
     const next = new Set(modifierIds.filter((x) => !optionModifiersFiltered.some((m) => m.id === x)))
     if (id) next.add(id)
     const out = [...next]
-    onChange(hasAllowList ? out.filter((x) => allowedSet.has(x)) : out)
+    onChange(hasAllowList ? out.filter((x) => allowedSet!.has(x)) : out)
   }
 
   const toggleExtra = (id: string) => {
@@ -58,7 +63,7 @@ export function SubscriptionDishOptionsPanel({
     if (next.has(id)) next.delete(id)
     else next.add(id)
     const out = [...next]
-    onChange(hasAllowList ? out.filter((x) => allowedSet.has(x)) : out)
+    onChange(hasAllowList ? out.filter((x) => allowedSet!.has(x)) : out)
   }
 
   const pickGroupValue = (groupId: string, valueId: string | null) => {
@@ -66,7 +71,7 @@ export function SubscriptionDishOptionsPanel({
     const valueIds = new Set((group?.values || []).map((v) => v.id))
     const next = modifierIds.filter((x) => !valueIds.has(x))
     if (valueId) next.push(valueId)
-    onChange(hasAllowList ? next.filter((x) => allowedSet.has(x)) : next)
+    onChange(hasAllowList ? next.filter((x) => allowedSet!.has(x)) : next)
   }
 
   const hasAnyOptions =
@@ -74,9 +79,105 @@ export function SubscriptionDishOptionsPanel({
 
   if (!hasAnyOptions) {
     return (
-      <p className="py-4 text-center text-[14px] leading-snug text-[color:var(--muted)]">
+      <p
+        className={cn(
+          'py-4 text-center leading-snug',
+          isSheet ? 'text-[15px] font-medium text-neutral-700' : 'text-[14px] text-[color:var(--muted)]'
+        )}
+      >
         {emptyHint ?? 'Нет доступных опций для этого блюда.'}
       </p>
+    )
+  }
+
+  if (isSheet) {
+    return (
+      <div className="space-y-5 pb-2">
+        {groupsFiltered.map((g) => (
+          <div key={g.id}>
+            <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-neutral-800">{g.name}</p>
+            <div className="flex flex-col gap-2">
+              {(g.values || []).map((v) => {
+                const checked = selected.has(v.id)
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => pickGroupValue(g.id, checked ? null : v.id)}
+                    className={cn(
+                      'flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition active:scale-[0.99]',
+                      checked
+                        ? 'border-neutral-900 bg-neutral-900 text-white'
+                        : 'border-neutral-200 bg-white text-neutral-900'
+                    )}
+                  >
+                    <span className="text-[16px] font-bold leading-tight">{v.name}</span>
+                    {v.priceAdjust > 0 ? (
+                      <span className={cn('shrink-0 text-[14px] font-bold tabular-nums', checked ? 'text-white/90' : 'text-neutral-600')}>
+                        +{formatPrice(v.priceAdjust)}
+                      </span>
+                    ) : (
+                      <span className={cn('shrink-0 text-[12px] font-semibold', checked ? 'text-white/80' : 'text-neutral-500')}>
+                        {checked ? 'выбрано' : 'выбрать'}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {optionModifiersFiltered.length > 0 && (
+          <div>
+            <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-neutral-800">вариант</p>
+            <div className="flex flex-col gap-2">
+              {optionModifiersFiltered.map((mod) => {
+                const checked = selectedOptionId === mod.id
+                return (
+                  <button
+                    key={mod.id}
+                    type="button"
+                    onClick={() => setSelectedOption(checked ? null : mod.id)}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3.5 text-[16px] font-bold',
+                      checked ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-900'
+                    )}
+                  >
+                    <span>{mod.name}</span>
+                    {mod.priceAdjust > 0 ? <span>+{formatPrice(mod.priceAdjust)}</span> : null}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {extraModifiersFiltered.length > 0 && (
+          <div>
+            <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-neutral-800">добавить</p>
+            <div className="flex flex-col gap-2">
+              {extraModifiersFiltered.map((mod) => {
+                const checked = selected.has(mod.id)
+                return (
+                  <button
+                    key={mod.id}
+                    type="button"
+                    onClick={() => toggleExtra(mod.id)}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3.5 text-[16px] font-bold',
+                      checked ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-900'
+                    )}
+                  >
+                    <span>{mod.name}</span>
+                    {mod.priceAdjust > 0 ? <span>+{formatPrice(mod.priceAdjust)}</span> : null}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -135,19 +236,11 @@ export function SubscriptionDishOptionsPanel({
                 >
                   {!compact && mod.subscriptionImageUrl ? (
                     <span className={cn('relative shrink-0 overflow-hidden rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]', imgSize)}>
-                      <OptimizedImage
-                        src={mod.subscriptionImageUrl}
-                        alt={mod.name}
-                        sizes="28px"
-                        className="object-cover"
-                        quality={72}
-                      />
+                      <OptimizedImage src={mod.subscriptionImageUrl} alt={mod.name} sizes="28px" className="object-cover" quality={72} />
                     </span>
                   ) : null}
                   <span>{mod.name}</span>
-                  {mod.priceAdjust > 0 && (
-                    <span className="tabular-nums text-[10px] opacity-80">+{formatPrice(mod.priceAdjust)}</span>
-                  )}
+                  {mod.priceAdjust > 0 && <span className="tabular-nums text-[10px] opacity-80">+{formatPrice(mod.priceAdjust)}</span>}
                 </button>
               )
             })}
@@ -177,19 +270,11 @@ export function SubscriptionDishOptionsPanel({
                 >
                   {!compact && v.subscriptionImageUrl ? (
                     <span className={cn('relative shrink-0 overflow-hidden rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]', imgSize)}>
-                      <OptimizedImage
-                        src={v.subscriptionImageUrl}
-                        alt={v.name}
-                        sizes="28px"
-                        className="object-cover"
-                        quality={72}
-                      />
+                      <OptimizedImage src={v.subscriptionImageUrl} alt={v.name} sizes="28px" className="object-cover" quality={72} />
                     </span>
                   ) : null}
                   <span>{v.name}</span>
-                  {v.priceAdjust > 0 && (
-                    <span className="tabular-nums text-[10px] opacity-80">+{formatPrice(v.priceAdjust)}</span>
-                  )}
+                  {v.priceAdjust > 0 && <span className="tabular-nums text-[10px] opacity-80">+{formatPrice(v.priceAdjust)}</span>}
                 </button>
               )
             })}
@@ -215,27 +300,9 @@ export function SubscriptionDishOptionsPanel({
                   )}
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleExtra(mod.id)}
-                    className="sr-only"
-                  />
-                  {!compact && mod.subscriptionImageUrl ? (
-                    <span className={cn('relative shrink-0 overflow-hidden rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]', imgSize)}>
-                      <OptimizedImage
-                        src={mod.subscriptionImageUrl}
-                        alt={mod.name}
-                        sizes="20px"
-                        className="object-cover"
-                        quality={72}
-                      />
-                    </span>
-                  ) : null}
+                  <input type="checkbox" checked={checked} onChange={() => toggleExtra(mod.id)} className="sr-only" />
                   <span>{mod.name}</span>
-                  {mod.priceAdjust > 0 && (
-                    <span className="tabular-nums text-[10px] opacity-80">+{formatPrice(mod.priceAdjust)}</span>
-                  )}
+                  {mod.priceAdjust > 0 && <span className="tabular-nums text-[10px] opacity-80">+{formatPrice(mod.priceAdjust)}</span>}
                 </label>
               )
             })}

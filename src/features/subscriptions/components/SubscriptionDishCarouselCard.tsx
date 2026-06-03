@@ -10,8 +10,9 @@ type Props = {
   hasOptions: boolean
   optionsSummary?: string | null
   needsOptions?: boolean
-  onPress: () => void
-  onOptionsPress?: () => void
+  onAdd: () => void
+  onRemove?: () => void
+  onOpenOptions?: () => void
 }
 
 export function SubscriptionDishCarouselCard({
@@ -20,8 +21,9 @@ export function SubscriptionDishCarouselCard({
   hasOptions,
   optionsSummary,
   needsOptions,
-  onPress,
-  onOptionsPress,
+  onAdd,
+  onRemove,
+  onOpenOptions,
 }: Props) {
   return (
     <div
@@ -30,7 +32,7 @@ export function SubscriptionDishCarouselCard({
         selected ? 'border-[color:var(--text)] ring-1 ring-[color:var(--text)]' : 'border-[color:var(--stroke)]'
       )}
     >
-      <button type="button" onClick={onPress} className="flex flex-col text-left active:opacity-95">
+      <button type="button" onClick={() => (!selected ? onAdd() : undefined)} className="flex flex-col text-left active:opacity-95">
         <div className="relative h-[108px] w-full bg-black/[0.04]">
           {dish.image ? (
             <OptimizedImage src={dish.image} alt="" className="h-full w-full object-cover" sizes={IMAGE_SIZES.cartRow} />
@@ -42,14 +44,21 @@ export function SubscriptionDishCarouselCard({
               опции
             </span>
           ) : null}
-          <span
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (selected) onRemove?.()
+              else onAdd()
+            }}
             className={cn(
               'absolute bottom-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-full text-[16px] font-light shadow-md',
               selected ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'bg-[color:var(--surface)] text-[color:var(--text)]'
             )}
+            aria-label={selected ? 'убрать блюдо' : 'добавить блюдо'}
           >
-            {selected ? '✓' : '+'}
-          </span>
+            {selected ? '✕' : '+'}
+          </button>
         </div>
         <div className="px-2 pb-2 pt-1.5">
           <p className="line-clamp-2 text-[12px] font-bold leading-tight">{dish.name}</p>
@@ -62,14 +71,23 @@ export function SubscriptionDishCarouselCard({
           ) : null}
         </div>
       </button>
-      {hasOptions && onOptionsPress ? (
-        <button
-          type="button"
-          onClick={onOptionsPress}
-          className="mx-2 mb-2 rounded-full border border-[color:var(--text)] bg-[color:var(--text)] py-1.5 text-[10px] font-bold text-[color:var(--surface)]"
-        >
-          {optionsSummary ? 'изменить опции' : 'выбрать опции'}
-        </button>
+      {selected ? (
+        <div className="mx-2 mb-2 flex flex-col gap-1">
+          {hasOptions && onOpenOptions ? (
+            <button
+              type="button"
+              onClick={onOpenOptions}
+              className="rounded-full border border-[color:var(--text)] bg-[color:var(--text)] py-1.5 text-[10px] font-bold text-[color:var(--surface)]"
+            >
+              {optionsSummary ? 'изменить опции' : 'выбрать опции'}
+            </button>
+          ) : null}
+          {onRemove ? (
+            <button type="button" onClick={onRemove} className="py-1 text-[10px] font-bold text-red-600">
+              убрать
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

@@ -40,6 +40,7 @@ type Props = {
   onActiveSlot: (s: MealSlot) => void
   onAddDish: (dishId: string) => void
   onEditLine: (line: SelectedLine) => void
+  onRemoveLine: (line: SelectedLine) => void
   onCopyToAllWeek: () => void
   onCopyFromPrevDay: () => void
   onClearDay: () => void
@@ -73,6 +74,7 @@ export function SubscriptionBuildPhase({
   onActiveSlot,
   onAddDish,
   onEditLine,
+  onRemoveLine,
   onCopyToAllWeek,
   onCopyFromPrevDay,
   onClearDay,
@@ -282,8 +284,11 @@ export function SubscriptionBuildPhase({
                           hasOptions={hasOpts}
                           optionsSummary={summary}
                           needsOptions={Boolean(line && hasOpts && !summary)}
-                          onPress={() => (line ? onEditLine(line) : onAddDish(d.id))}
-                          onOptionsPress={hasOpts ? () => (line ? onEditLine(line) : onAddDish(d.id)) : undefined}
+                          onAdd={() => onAddDish(d.id)}
+                          onRemove={line ? () => onRemoveLine(line) : undefined}
+                          onOpenOptions={
+                            hasOpts ? () => (line ? onEditLine(line) : onAddDish(d.id)) : undefined
+                          }
                         />
                       )
                     })}

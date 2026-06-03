@@ -452,6 +452,12 @@ export function SubscriptionCheckoutFlow() {
     applyPrefillForDays(selectedDays, subConfig, dishes)
   }, [phase, loading, lines.length, selectedDays, minDays, subConfig, dishes])
 
+  function removeLine(line: SelectedLine) {
+    const k = lineKey(line)
+    setLines((prev) => prev.filter((x) => lineKey(x) !== k))
+    setEditingLine((prev) => (prev && lineKey(prev) === k ? null : prev))
+  }
+
   function addDish(dishId: string) {
     const dayOfWeek = wizardDayToJs(activeWizardDay)
     const dish = dishes.find((d) => d.id === dishId)
@@ -460,11 +466,7 @@ export function SubscriptionCheckoutFlow() {
       const k = lineKey(item)
       const existing = prev.find((x) => lineKey(x) === k)
       if (existing) {
-        if (dish && dishHasConfigurableOptions(dish, subConfig, activeSlot)) {
-          setEditingLine(existing)
-          return prev
-        }
-        return prev.filter((x) => lineKey(x) !== k)
+        return prev
       }
 
       const dayItems = prev.filter((l) => l.dayOfWeek === dayOfWeek)
@@ -727,6 +729,7 @@ export function SubscriptionCheckoutFlow() {
         onActiveSlot={setActiveSlot}
         onAddDish={addDish}
         onEditLine={(line) => setEditingLine(line)}
+        onRemoveLine={removeLine}
         onCopyToAllWeek={copyActiveDayToAllWeek}
         onCopyFromPrevDay={copyFromPreviousDay}
         onClearDay={clearActiveDay}
@@ -747,6 +750,7 @@ export function SubscriptionCheckoutFlow() {
                 setEditingLine((prev) => (prev ? { ...prev, modifierIds: ids } : null))
               }}
               onClose={() => setEditingLine(null)}
+              onRemove={() => removeLine(editingLine)}
             />
           )
         })()
