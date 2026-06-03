@@ -37,7 +37,7 @@ import { softResetClientApp } from '@/lib/client-app-recovery'
    }, [error])
 
   const clearAndReload = () => {
-    softResetClientApp('/profile/owner')
+    softResetClientApp({ redirect: '/' })
   }
 
    return (
@@ -72,7 +72,7 @@ import { softResetClientApp } from '@/lib/client-app-recovery'
                  onClick={clearAndReload}
                  className="inline-flex h-11 items-center justify-center rounded-full bg-black/[0.03] px-6 text-[13px] font-semibold text-black/70 transition active:scale-[0.98]"
                >
-                 выбрать заведение заново
+                 восстановить приложение
                </button>
              </div>
            </div>

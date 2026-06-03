@@ -51,8 +51,14 @@ export default function HomePage() {
   const [rawReels, setRawReels] = useState<Banner[]>([])
   const [bannersLoaded, setBannersLoaded] = useState(false)
 
-  const chips = useMemo(() => filterBannersBySettings(rawChips, settings), [rawChips, settings])
-  const reels = useMemo(() => filterBannersBySettings(rawReels, settings), [rawReels, settings])
+  const chips = useMemo(
+    () => (venueLoading ? rawChips : filterBannersBySettings(rawChips, settings)),
+    [rawChips, settings, venueLoading]
+  )
+  const reels = useMemo(
+    () => (venueLoading ? rawReels : filterBannersBySettings(rawReels, settings)),
+    [rawReels, settings, venueLoading]
+  )
 
   useEffect(() => {
     if (session?.user) return
@@ -61,8 +67,7 @@ export default function HomePage() {
   }, [session?.user, tmeLink])
 
   useEffect(() => {
-    if (venueLoading || !restaurantId) return
-    const cacheKey = `${HOME_BANNERS_CACHE_PREFIX}${restaurantId}`
+    const cacheKey = `${HOME_BANNERS_CACHE_PREFIX}${restaurantId || 'default'}`
     const now = Date.now()
     const memoryCached = memoryBannersCache.get(cacheKey)
     const storageCached = (() => {
@@ -123,7 +128,7 @@ export default function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [restaurantId, venueLoading])
+  }, [restaurantId])
 
   const [reelIndex, setReelIndex] = useState(0)
   const [chipIndex, setChipIndex] = useState(0)

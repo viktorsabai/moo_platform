@@ -43,17 +43,21 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({} as any))
     const initData = typeof body?.initData === 'string' ? body.initData.trim() : ''
-    if (!initData) {
-      return NextResponse.json({ ok: false, error: 'initData required' }, { status: 400 })
-    }
+    const bodyStartParam = typeof body?.startParam === 'string' ? body.startParam.trim() : ''
 
     const rawStartParam = (() => {
+      if (bodyStartParam) return bodyStartParam
+      if (!initData) return ''
       try {
         return String(new URLSearchParams(initData).get('start_param') || '').trim()
       } catch {
         return ''
       }
     })()
+
+    if (!initData && !rawStartParam) {
+      return NextResponse.json({ ok: false, error: 'initData or startParam required' }, { status: 400 })
+    }
 
     const envToken = String(process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '')
     const integration = rawStartParam
@@ -63,10 +67,14 @@ export async function POST(request: Request) {
         })
       : null
 
-    const verifyToken = String(integration?.botToken || envToken)
-    const verified = verifyTelegramInitData(initData, verifyToken)
-    const startParam = verified?.startParam || rawStartParam
-    if (!startParam) return NextResponse.json({ ok: false, error: 'invalid initData' }, { status: 400 })
+    let startParam = rawStartParam
+    if (initData) {
+      const verifyToken = String(integration?.botToken || envToken)
+      const verified = verifyTelegramInitData(initData, verifyToken)
+      startParam = verified?.startParam || rawStartParam
+      if (!startParam) return NextResponse.json({ ok: false, error: 'invalid initData' }, { status: 400 })
+    }
+    if (!startParam) return NextResponse.json({ ok: false, error: 'startParam required' }, { status: 400 })
 
     let restaurantId: string | null = integration?.restaurantId ?? null
     if (!restaurantId) {

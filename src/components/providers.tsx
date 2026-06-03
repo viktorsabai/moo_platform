@@ -6,6 +6,7 @@ import { VenueProvider } from '@/lib/venue-context'
 import { DynamicTitle } from '@/components/DynamicTitle'
 import { ActivityTracker } from '@/components/ActivityTracker'
 import { useEffect, useRef } from 'react'
+import { dispatchVenueRebootstrap } from '@/lib/venue-bootstrap'
 import { Toaster } from 'react-hot-toast'
 function ClientErrorReporter() {
   useEffect(() => {
@@ -116,7 +117,10 @@ function TelegramAutoLogin() {
               body: JSON.stringify({ initData }),
             }).catch(() => null)
             const res = await signIn('telegram', { initData, redirect: false, callbackUrl: '/' })
-            if ((res as any)?.ok) return
+            if ((res as any)?.ok) {
+              dispatchVenueRebootstrap()
+              return
+            }
           } catch {
             // ignore and retry
           }

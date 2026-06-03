@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { usePathname } from 'next/navigation'
 import { useCartStore } from '@/store/cart-store'
+import { VENUE_REBOOTSTRAP_EVENT, bootstrapVenueCookie } from '@/lib/venue-bootstrap'
 
 export type VenueSettings = {
   menuEnabled: boolean
@@ -28,7 +29,7 @@ export type VenueContextValue = {
 }
 
 const defaultSettings: VenueSettings = {
-  menuEnabled: false,
+  menuEnabled: true,
   storeEnabled: true,
   subscriptionEnabled: false,
 }
@@ -109,60 +110,13 @@ export function VenueProvider({ children }: { children: ReactNode }) {
     setIsLoading(!hasStableVenue)
     setError(false)
     try {
-      let explicitRestaurantId = inOwnerContext ? '' : cached?.restaurantId || lastValidRestaurantIdRef.current || ''
-      // Set venue cookie from Telegram startParam when available (before context fetch)
-      const tg = (typeof window !== 'undefined' ? (window as any)?.Telegram?.WebApp : null) as { initData?: string } | null
-      const initData = tg?.initData
-      const queryStartParam = (() => {
-        if (typeof window === 'undefined') return ''
-        try {
-          const qs = new URLSearchParams(window.location.search)
-          return String(qs.get('startapp') || qs.get('start_param') || '').trim()
-        } catch {
-          return ''
-        }
-      })()
-      if (initData && !inOwnerContext) {
-        try {
-          const initRes = await fetch('/api/venue/init', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ initData, startParam: queryStartParam || undefined }),
-            cache: 'no-store',
-            credentials: 'include',
-          })
-          if (initRes.ok) {
-            const initDataRes = await initRes.json().catch(() => null)
-            if (initDataRes?.name) setName(initDataRes.name)
-            if (initDataRes?.restaurantId && initDataRes.restaurantId !== 'default') {
-              explicitRestaurantId = String(initDataRes.restaurantId)
-              lastValidRestaurantIdRef.current = explicitRestaurantId
-            }
-          }
-        } catch {
-          // ignore init failure, proceed with context
-        }
-      } else if (queryStartParam && !inOwnerContext) {
-        // Fallback: WebApp can be opened from URL with ?startapp=... even when initData has no start_param.
-        try {
-          const initRes = await fetch('/api/venue/init', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ startParam: queryStartParam }),
-            cache: 'no-store',
-            credentials: 'include',
-          })
-          if (initRes.ok) {
-            const initDataRes = await initRes.json().catch(() => null)
-            if (initDataRes?.name) setName(initDataRes.name)
-            if (initDataRes?.restaurantId && initDataRes.restaurantId !== 'default') {
-              explicitRestaurantId = String(initDataRes.restaurantId)
-              lastValidRestaurantIdRef.current = explicitRestaurantId
-            }
-          }
-        } catch {
-          // ignore init failure, proceed with context
-        }
+      let explicitRestaurantId = cached?.restaurantId || lastValidRestaurantIdRef.current || ''
+
+      const boot = await bootstrapVenueCookie()
+      if (boot?.restaurantId) {
+        explicitRestaurantId = boot.restaurantId
+        lastValidRestaurantIdRef.current = boot.restaurantId
+        if (boot.name) setName(boot.name)
       }
 
       const contextFetchOptions = () => ({
@@ -174,10 +128,14 @@ export function VenueProvider({ children }: { children: ReactNode }) {
             ? { 'x-ufo-restaurant': explicitRestaurantId }
             : undefined,
       })
-      const contextUrl = inOwnerContext ? '/api/owner/venue/context' : '/api/venue/context'
+      let contextUrl = inOwnerContext ? '/api/owner/venue/context' : '/api/venue/context'
       let res = await fetch(contextUrl, contextFetchOptions())
       let data = await res.json().catch(() => null)
-      // Retry при transient failure (БД, сеть)
+      if (inOwnerContext && (res.status === 401 || res.status === 403)) {
+        contextUrl = '/api/venue/context'
+        res = await fetch(contextUrl, contextFetchOptions())
+        data = await res.json().catch(() => null)
+      }
       if ((!res.ok || !data?.ok) && res.status >= 500) {
         await new Promise((r) => setTimeout(r, 800))
         res = await fetch(contextUrl, contextFetchOptions())
@@ -258,6 +216,14 @@ export function VenueProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (pathname) void fetchContext()
   }, [pathname, fetchContext])
+
+  useEffect(() => {
+    const onRebootstrap = () => {
+      void fetchContext()
+    }
+    window.addEventListener(VENUE_REBOOTSTRAP_EVENT, onRebootstrap)
+    return () => window.removeEventListener(VENUE_REBOOTSTRAP_EVENT, onRebootstrap)
+  }, [fetchContext])
 
   const value: VenueContextValue = {
     restaurantId,

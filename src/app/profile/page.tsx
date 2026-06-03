@@ -11,6 +11,7 @@ import { IconBell, IconCrown, IconHeart, IconMapPin, IconReceipt } from '@/compo
 import { loadDeliveryProfile } from '@/lib/delivery-profile'
 import { useVenue } from '@/lib/venue-context'
 import { readTelegramInitData, telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
+import { VENUE_REBOOTSTRAP_EVENT } from '@/lib/venue-bootstrap'
 import { cn } from '@/lib/utils'
 
 const bizInquirySentStorageKey = (userId: string) => `ufo:biz-inquiry-sent:v1:${userId}`
@@ -83,8 +84,8 @@ export default function ProfilePage() {
   }, [sessionUserId])
 
   useEffect(() => {
-    if (sessionStatus === 'loading') return
     const tgInit = isTelegramWebApp ? readTelegramInitData() : ''
+    if (sessionStatus === 'loading' && !tgInit) return
     if (!sessionUserId && !tgInit) return
     let cancelled = false
     const cacheKey = `ufo:profile:summary:v1:${sessionUserId || sessionTelegramId || 'guest'}:${String(venueRestaurantId || 'default')}`
@@ -145,6 +146,37 @@ export default function ProfilePage() {
       cancelled = true
     }
   }, [sessionStatus, isTelegramWebApp, venueRestaurantId, sessionUserId, sessionTelegramId])
+
+  useEffect(() => {
+    const onRebootstrap = () => {
+      profileSummaryMemoryCache.clear()
+      const tgInit = isTelegramWebApp ? readTelegramInitData() : ''
+      if (!sessionUserId && !tgInit) return
+      void fetch('/api/profile/summary', {
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          ...telegramInitHeaderRecord(),
+          ...(venueRestaurantId && venueRestaurantId !== 'default'
+            ? { 'x-ufo-restaurant': venueRestaurantId }
+            : {}),
+        } as HeadersInit,
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data?.ok) return
+          setSummary((prev) => ({
+            ordersCount: Number(data.summary?.ordersCount ?? 0),
+            activeSubscriptionsCount: Number(data.summary?.activeSubscriptionsCount ?? 0),
+            favoritesCount: Number(data.summary?.favoritesCount ?? 0),
+            addressLabel: String(data.summary?.addressLabel || '').trim() || prev.addressLabel || null,
+          }))
+        })
+        .catch(() => {})
+    }
+    window.addEventListener(VENUE_REBOOTSTRAP_EVENT, onRebootstrap)
+    return () => window.removeEventListener(VENUE_REBOOTSTRAP_EVENT, onRebootstrap)
+  }, [isTelegramWebApp, sessionUserId, venueRestaurantId])
 
   useEffect(() => {
     const syncLocal = () => {
