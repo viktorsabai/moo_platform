@@ -16,6 +16,8 @@ export type ModifierPricingRow = {
 export type SubscriptionQuoteInput = {
   items: SubscriptionItemInput[]
   deliveryDaysPerWeek: number
+  /** JS weekdays 0–6; если задан — цена считается по меню каждого дня отдельно. */
+  deliveryDaysJs?: number[]
   periodDays: number
   personCount: number
   commerce: SubscriptionCommerceConfig
@@ -68,10 +70,37 @@ function lineUnit(
   return { retail, cost, hasCost }
 }
 
+function itemsForJsDay(jsDay: number, items: SubscriptionItemInput[]): SubscriptionItemInput[] {
+  const hasPerDay = items.some((it) => it.dayOfWeek != null)
+  if (!hasPerDay) return items
+  return items.filter((it) => it.dayOfWeek == null || it.dayOfWeek === jsDay)
+}
+
+function sumItemsRetailCost(
+  dayItems: SubscriptionItemInput[],
+  persons: number,
+  dishes: Map<string, DishPricingRow>,
+  modifiers: Map<string, ModifierPricingRow>
+) {
+  let retail = 0
+  let cost = 0
+  let missingCostCount = 0
+  for (const it of dayItems) {
+    const dish = dishes.get(it.dishId)
+    const unit = lineUnit(dish, it.modifierIds ?? [], modifiers)
+    if (!unit.hasCost) missingCostCount += 1
+    const qty = Math.max(0, it.quantity) * persons
+    retail += unit.retail * qty
+    cost += unit.cost * qty
+  }
+  return { retail, cost, missingCostCount }
+}
+
 export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): SubscriptionQuoteResult {
   const {
     items,
     deliveryDaysPerWeek,
+    deliveryDaysJs,
     periodDays,
     personCount,
     commerce,
@@ -82,24 +111,37 @@ export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): Subsc
   } = input
 
   const persons = Math.max(1, personCount)
-  const daysPerWeek = Math.max(1, Math.min(7, deliveryDaysPerWeek))
+  const jsDays =
+    deliveryDaysJs && deliveryDaysJs.length > 0
+      ? [...new Set(deliveryDaysJs.filter((d) => d >= 0 && d <= 6))].sort((a, b) => a - b)
+      : null
+  const daysPerWeek = jsDays?.length ?? Math.max(1, Math.min(7, deliveryDaysPerWeek))
   const weeksInPeriod = periodDays / 7
   const deliveriesInPeriod = Math.max(1, Math.round(daysPerWeek * weeksInPeriod))
 
   let perDeliveryRetail = 0
   let perDeliveryCost = 0
   let missingCostCount = 0
+  let periodRetail = 0
 
-  for (const it of items) {
-    const dish = dishes.get(it.dishId)
-    const unit = lineUnit(dish, it.modifierIds ?? [], modifiers)
-    if (!unit.hasCost) missingCostCount += 1
-    const qty = Math.max(0, it.quantity) * persons
-    perDeliveryRetail += unit.retail * qty
-    perDeliveryCost += unit.cost * qty
+  if (jsDays && items.some((it) => it.dayOfWeek != null)) {
+    for (let w = 0; w < weeksInPeriod; w++) {
+      for (const jsDay of jsDays) {
+        const dayItems = itemsForJsDay(jsDay, items)
+        const sums = sumItemsRetailCost(dayItems, persons, dishes, modifiers)
+        periodRetail += sums.retail
+        perDeliveryCost += sums.cost
+        missingCostCount += sums.missingCostCount
+      }
+    }
+    perDeliveryRetail = deliveriesInPeriod > 0 ? periodRetail / deliveriesInPeriod : 0
+  } else {
+    const sums = sumItemsRetailCost(items, persons, dishes, modifiers)
+    perDeliveryRetail = sums.retail
+    perDeliveryCost = sums.cost
+    missingCostCount = sums.missingCostCount
+    periodRetail = perDeliveryRetail * deliveriesInPeriod
   }
-
-  const periodRetail = perDeliveryRetail * deliveriesInPeriod
 
   const costBased =
     perDeliveryCost > 0

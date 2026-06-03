@@ -9,6 +9,7 @@ export type QuoteLineInput = {
   quantity: number
   mealSlot?: MealSlot | string | null
   modifierIds?: string[]
+  dayOfWeek?: number | null
 }
 
 export async function computeSubscriptionQuoteForRestaurant(
@@ -27,6 +28,12 @@ export async function computeSubscriptionQuoteForRestaurant(
       quantity: Math.max(1, Number(it.quantity ?? 1)),
       mealSlot: parseMealSlot(it.mealSlot),
       modifierIds: Array.isArray(it.modifierIds) ? it.modifierIds.filter((x) => typeof x === 'string') : [],
+      dayOfWeek:
+        it.dayOfWeek === null || typeof it.dayOfWeek === 'undefined'
+          ? null
+          : Number(it.dayOfWeek) >= 0 && Number(it.dayOfWeek) <= 6
+            ? Number(it.dayOfWeek)
+            : null,
     }))
     .filter((it) => it.dishId && it.quantity > 0)
 
@@ -67,13 +74,15 @@ export async function computeSubscriptionQuoteForRestaurant(
     })
   }
 
-  const deliveryDaysPerWeek = input.deliveryDays.length || config.minDaysPerWeek
+  const deliveryDaysJs = [...new Set(input.deliveryDays.filter((d) => d >= 0 && d <= 6))].sort((a, b) => a - b)
+  const deliveryDaysPerWeek = deliveryDaysJs.length || config.minDaysPerWeek
   const persons = Math.max(config.minPersons, Math.min(config.maxPersons, Math.round(input.personCount)))
   const periodDays = config.availablePeriods.includes(input.periodDays) ? input.periodDays : config.defaultPeriodDays
 
   const quote = calculateSubscriptionQuote({
     items,
     deliveryDaysPerWeek,
+    deliveryDaysJs,
     periodDays,
     personCount: persons,
     commerce: config.commerce,

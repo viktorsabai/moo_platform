@@ -3,7 +3,14 @@ import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
 import { getEnabledMealSlots, type SubscriptionConfig } from '@/lib/subscription-config'
 
 export type MenuCategory = { id: string; name: string; slug: string; emoji?: string | null }
-export type SelectedLine = { dishId: string; quantity: number; mealSlot: MealSlot | null; modifierIds: string[] }
+export type SelectedLine = {
+  dishId: string
+  quantity: number
+  mealSlot: MealSlot | null
+  modifierIds: string[]
+  /** JS weekday 0=Вс … 6=Сб */
+  dayOfWeek: number
+}
 
 export type PeriodQuote = {
   guestPrice: number
@@ -32,7 +39,7 @@ export function jsDayToWizard(d: number) {
 }
 
 export function lineKey(item: SelectedLine) {
-  return `${item.dishId}:${item.mealSlot ?? 'any'}:${(item.modifierIds ?? []).join('|')}`
+  return `${item.dayOfWeek}:${item.dishId}:${item.mealSlot ?? 'any'}:${(item.modifierIds ?? []).join('|')}`
 }
 
 export function mapSubscriptionDish(d: any): Dish {
@@ -115,13 +122,24 @@ export function categoriesFromDishes(dishes: Dish[], categories: MenuCategory[])
   return Array.from(map.values())
 }
 
-/** Пояснение для гостя: одни и те же блюда в каждый день доставки. */
+/** Краткое описание рациона по дням для чекаута. */
 export function formatWeeklyRationHint(lines: SelectedLine[], wizardDays: number[]) {
   if (!lines.length || !wizardDays.length) return null
-  const dayPart = wizardDays.map((d) => WEEKDAYS[d]).join(', ')
-  const slots = [...new Set(lines.map((l) => l.mealSlot).filter(Boolean))] as MealSlot[]
-  const slotLabels = slots.map((s) => MEAL_SLOT_LABEL[s].toLowerCase()).join(' и ')
-  return `В ${dayPart} привозим один и тот же рацион${slotLabels ? `: ${slotLabels}` : ''}. Меню на день можно уточнить у заведения.`
+  const parts = wizardDays.map((wizardDay) => {
+    const js = wizardDayToJs(wizardDay)
+    const dayItems = lines.filter((l) => l.dayOfWeek === js)
+    if (!dayItems.length) return null
+    const meals = dayItems
+      .map((l) => {
+        const slot = l.mealSlot ? MEAL_SLOT_LABEL[l.mealSlot].toLowerCase() : 'блюдо'
+        return slot
+      })
+      .join(', ')
+    return `${WEEKDAYS[wizardDay]}: ${meals}`
+  })
+  const filled = parts.filter(Boolean)
+  if (!filled.length) return null
+  return `Меню по дням: ${filled.join(' · ')}`
 }
 
 export function mealSlotShort(slot: MealSlot | null) {

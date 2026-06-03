@@ -29,16 +29,33 @@ export async function POST(request: Request) {
 
     const rawItems = Array.isArray(body?.items) ? body.items : []
     const items = rawItems
-      .map((it: any) => ({
-        dishId: String(it?.dishId || ''),
-        quantity: Number(it?.quantity ?? 1),
-        mealSlot: parseMealSlot(it?.mealSlot),
-        modifierIds: Array.isArray(it?.modifierIds) ? it.modifierIds.filter((x: any) => typeof x === 'string') : [],
-      }))
+      .map((it: any) => {
+        const dw = it?.dayOfWeek
+        const dayOfWeek =
+          dw === null || typeof dw === 'undefined'
+            ? null
+            : Number(dw) >= 0 && Number(dw) <= 6
+              ? Number(dw)
+              : null
+        return {
+          dishId: String(it?.dishId || ''),
+          quantity: Number(it?.quantity ?? 1),
+          mealSlot: parseMealSlot(it?.mealSlot),
+          modifierIds: Array.isArray(it?.modifierIds) ? it.modifierIds.filter((x: any) => typeof x === 'string') : [],
+          dayOfWeek,
+        }
+      })
       .filter((it: { dishId: string; quantity: number }) => it.dishId && it.quantity > 0)
 
     const deliveryDaysRaw = Array.isArray(body?.deliveryDays) ? body.deliveryDays : []
-    const deliveryDaysPerWeek = deliveryDaysRaw.length || config.minDaysPerWeek
+    const deliveryDaysJs = Array.from(
+      new Set(
+        (deliveryDaysRaw as unknown[])
+          .map((n) => Number(n))
+          .filter((n) => Number.isFinite(n) && n >= 0 && n <= 6)
+      )
+    )
+    const deliveryDaysPerWeek = deliveryDaysJs.length || config.minDaysPerWeek
     const periodDays = Number(body?.periodDays ?? config.defaultPeriodDays)
     const personCount = Number(body?.personCount ?? 1)
 
@@ -63,7 +80,7 @@ export async function POST(request: Request) {
     const eligibleIds = new Set(
       dishes.filter((d) => d.isAvailable && d.subscriptionEligible).map((d) => d.id)
     )
-    const validation = validateSubscriptionItemsByMealSlots(items, config, eligibleIds)
+    const validation = validateSubscriptionItemsByMealSlots(items, config, eligibleIds, deliveryDaysJs)
     if (!validation.valid) {
       return NextResponse.json({ ok: false, error: validation.error }, { status: 400 })
     }
@@ -97,6 +114,7 @@ export async function POST(request: Request) {
     const quote = calculateSubscriptionQuote({
       items,
       deliveryDaysPerWeek,
+      deliveryDaysJs,
       periodDays,
       personCount: persons,
       commerce: config.commerce,

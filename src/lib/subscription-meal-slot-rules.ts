@@ -1,11 +1,20 @@
-import type { MealSlot } from '@/lib/subscription-meal-slots'
+import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
 import { getEnabledMealSlots, type SubscriptionConfig } from '@/lib/subscription-config'
+
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const
+
+function jsDayToWizardLabel(jsDay: number) {
+  const wizard = jsDay === 0 ? 6 : jsDay - 1
+  return WEEKDAY_LABELS[wizard] ?? 'день'
+}
 
 export type SubscriptionItemInput = {
   dishId: string
   quantity: number
   mealSlot?: MealSlot | null
   modifierIds?: string[]
+  /** 0=Вс … 6=Сб (как в Subscription.deliveryDays). null = на все дни (legacy). */
+  dayOfWeek?: number | null
 }
 
 export type ResolvedMealSlotRules = {
@@ -46,7 +55,8 @@ export function itemsPerDeliveryBySlot(items: SubscriptionItemInput[]): Record<M
 export function validateSubscriptionItemsByMealSlots(
   items: SubscriptionItemInput[],
   config: SubscriptionConfig,
-  dishIdsEligible: Set<string>
+  dishIdsEligible: Set<string>,
+  deliveryDaysJs?: number[]
 ): { valid: true } | { valid: false; error: string } {
   const rules = resolveMealSlotRules(config)
   if (rules.enabledSlots.size === 0) {
@@ -65,6 +75,31 @@ export function validateSubscriptionItemsByMealSlots(
     if (allowed && !allowed.has(it.dishId)) {
       return { valid: false, error: `Блюдо не входит в слот «${slot}».` }
     }
+  }
+
+  const jsDays =
+    deliveryDaysJs && deliveryDaysJs.length > 0
+      ? [...new Set(deliveryDaysJs.filter((d) => d >= 0 && d <= 6))]
+      : null
+
+  if (jsDays && items.some((it) => it.dayOfWeek != null)) {
+    for (const jsDay of jsDays) {
+      const dayItems = items.filter((it) => it.dayOfWeek === jsDay)
+      const bySlot = itemsPerDeliveryBySlot(dayItems)
+      for (const slot of rules.enabledSlots) {
+        const max = rules.maxItemsBySlot[slot] ?? 999
+        if (bySlot[slot] <= 0) {
+          return {
+            valid: false,
+            error: `На ${jsDayToWizardLabel(jsDay)} выберите · ${MEAL_SLOT_LABEL[slot]}`,
+          }
+        }
+        if (max < 999 && bySlot[slot] > max) {
+          return { valid: false, error: `На ${jsDayToWizardLabel(jsDay)} в «${slot}» не более ${max} блюд.` }
+        }
+      }
+    }
+    return { valid: true }
   }
 
   const bySlot = itemsPerDeliveryBySlot(items)

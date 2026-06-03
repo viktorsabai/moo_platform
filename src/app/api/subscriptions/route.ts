@@ -240,9 +240,16 @@ export async function POST(request: Request) {
 
   const eligibleDishIds = new Set(existingDishes.filter((d) => d.subscriptionEligible && d.isAvailable).map((d) => d.id))
   const mealSlotValidation = validateSubscriptionItemsByMealSlots(
-    itemCreates.map((it) => ({ dishId: it.dishId, quantity: it.quantity, mealSlot: it.mealSlot, modifierIds: it.modifierIds })),
+    itemCreates.map((it) => ({
+      dishId: it.dishId,
+      quantity: it.quantity,
+      mealSlot: it.mealSlot,
+      modifierIds: it.modifierIds,
+      dayOfWeek: it.dayOfWeek,
+    })),
     subConfig,
-    eligibleDishIds
+    eligibleDishIds,
+    deliveryDays
   )
   if (!mealSlotValidation.valid) {
     return NextResponse.json({ ok: false, error: mealSlotValidation.error }, { status: 400 })

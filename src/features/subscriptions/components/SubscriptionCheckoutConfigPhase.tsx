@@ -8,6 +8,7 @@ import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
 import { SubscriptionDishOptionsPanel } from '@/features/subscriptions/components/SubscriptionDishOptionsPanel'
 import { SubscriptionFlowProgress } from '@/features/subscriptions/components/SubscriptionFlowProgress'
+import type { SubscriptionFlowStep } from '@/features/subscriptions/components/SubscriptionFlowProgress'
 import { SubscriptionPeriodCards } from '@/features/subscriptions/components/SubscriptionPeriodCards'
 import {
   WEEKDAYS,
@@ -16,6 +17,7 @@ import {
   type SelectedLine,
   formatFirstDeliveryMessage,
   formatWeeklyRationHint,
+  jsDayToWizard,
   lineKey,
   mealSlotShort,
 } from '@/features/subscriptions/lib/subscription-checkout-utils'
@@ -38,6 +40,8 @@ type Props = {
   submitting: boolean
   minDays: number
   maxDays: number
+  /** Дни уже выбраны на шаге 1 — только просмотр */
+  daysLocked?: boolean
   onBack: () => void
   onToggleDay: (day: number) => void
   onPeriodDays: (days: number) => void
@@ -69,6 +73,7 @@ export function SubscriptionCheckoutConfigPhase({
   submitting,
   minDays,
   maxDays,
+  daysLocked = false,
   onBack,
   onToggleDay,
   onPeriodDays,
@@ -101,7 +106,7 @@ export function SubscriptionCheckoutConfigPhase({
         <PageHeader title="доставка и оплата" subtitle="дни, период и итог" compact className="min-w-0 flex-1" />
       </div>
 
-      <SubscriptionFlowProgress step="delivery" />
+      <SubscriptionFlowProgress step={'pay' as SubscriptionFlowStep} />
 
       {scheduleHint ? (
         <p className="mb-4 rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[12px] leading-snug text-[color:var(--muted)]">
@@ -175,7 +180,9 @@ export function SubscriptionCheckoutConfigPhase({
                 <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold">{dish.name}</p>
-                    <p className="text-[11px] text-[color:var(--muted)]">{mealSlotShort(l.mealSlot)}</p>
+                    <p className="text-[11px] text-[color:var(--muted)]">
+                      {WEEKDAYS[jsDayToWizard(l.dayOfWeek)]} · {mealSlotShort(l.mealSlot)}
+                    </p>
                   </div>
                   <InlineCounter value={l.quantity} onDec={() => onUpdateQty(l, -1)} onInc={() => onUpdateQty(l, 1)} />
                 </div>
@@ -193,26 +200,37 @@ export function SubscriptionCheckoutConfigPhase({
 
       <section className="mb-5">
         <h3 className="mb-3 text-[14px] font-extrabold">дни доставки</h3>
-        <div className="grid grid-cols-7 gap-1.5">
-          {WEEKDAYS.map((label, idx) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => onToggleDay(idx)}
-              className={cn(
-                'flex aspect-square max-h-11 items-center justify-center rounded-full text-[12px] font-semibold transition active:scale-[0.96]',
-                selectedDays.includes(idx)
-                  ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
-                  : 'border border-[color:var(--stroke)]'
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] text-[color:var(--muted)]">
-          от {minDays} до {maxDays} дней в неделю
-        </p>
+        {daysLocked ? (
+          <p className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[14px] font-semibold">
+            {deliveryDaysLabel}
+            <span className="mt-1 block text-[11px] font-medium text-[color:var(--muted)]">
+              изменить дни — вернитесь к шагу «меню»
+            </span>
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-7 gap-1.5">
+              {WEEKDAYS.map((label, idx) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onToggleDay(idx)}
+                  className={cn(
+                    'flex aspect-square max-h-11 items-center justify-center rounded-full text-[12px] font-semibold transition active:scale-[0.96]',
+                    selectedDays.includes(idx)
+                      ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                      : 'border border-[color:var(--stroke)]'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-[color:var(--muted)]">
+              от {minDays} до {maxDays} дней в неделю
+            </p>
+          </>
+        )}
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-[color:var(--stroke)] pt-3">
           <span className="text-[13px] font-semibold text-[color:var(--muted)]">время</span>

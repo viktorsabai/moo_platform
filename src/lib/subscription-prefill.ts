@@ -69,3 +69,31 @@ export function buildPrefillItems(
 
   return items
 }
+
+/** Префилл: отдельный набор блюд на каждый выбранный день недели (wizard 0=Пн … 6=Вс). */
+export function buildPrefillItemsPerDay(
+  config: SubscriptionConfig,
+  eligibleDishes: PrefillDish[],
+  wizardDays: number[],
+  favoriteDishIds: string[] = []
+): SubscriptionItemInput[] {
+  const slots = getEnabledMealSlots(config)
+  const favorites = new Set(favoriteDishIds)
+  const items: SubscriptionItemInput[] = []
+
+  for (const wizardDay of wizardDays) {
+    const jsDay = wizardDay === 6 ? 0 : wizardDay + 1
+    const used = new Set<string>()
+    for (const slot of slots) {
+      const max = config.mealSlots[slot]?.maxItemsPerDelivery ?? 1
+      for (let i = 0; i < max; i++) {
+        const dishId = pickDishId(slot, config, eligibleDishes, used, favorites)
+        if (!dishId) continue
+        used.add(dishId)
+        items.push({ dishId, quantity: 1, mealSlot: slot, dayOfWeek: jsDay, modifierIds: [] })
+      }
+    }
+  }
+
+  return items
+}

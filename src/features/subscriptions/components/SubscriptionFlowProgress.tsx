@@ -2,15 +2,15 @@
 
 import { cn } from '@/lib/utils'
 
-type Step = 'ration' | 'delivery' | 'pay'
+export type SubscriptionFlowStep = 'schedule' | 'fill' | 'pay'
 
 type Props = {
-  step: Step
+  step: SubscriptionFlowStep
 }
 
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'ration', label: 'рацион' },
-  { id: 'delivery', label: 'доставка' },
+const STEPS: { id: SubscriptionFlowStep; label: string }[] = [
+  { id: 'schedule', label: 'дни' },
+  { id: 'fill', label: 'меню' },
   { id: 'pay', label: 'оплата' },
 ]
 

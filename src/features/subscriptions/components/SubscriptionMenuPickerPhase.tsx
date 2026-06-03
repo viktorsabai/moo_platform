@@ -105,7 +105,7 @@ export function SubscriptionMenuPickerPhase({
     <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+96px)]">
       <PageHeader backHref="/" title="подписка на доставку" subtitle="готовый рацион · фикс цена за период" />
 
-      <SubscriptionFlowProgress step="ration" />
+      <SubscriptionFlowProgress step="fill" />
 
       <div className="mb-4 rounded-[var(--radius-large)] border border-[color:var(--primary)]/25 bg-[color:var(--primary)]/8 px-3 py-2.5 text-[12px] leading-snug text-[color:var(--text)]">
         <strong>Как это работает:</strong> выбираете блюда на завтрак / обед — в{' '}
