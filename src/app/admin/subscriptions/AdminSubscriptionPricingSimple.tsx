@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useMemo } from 'react'
 import { cn, formatPrice } from '@/lib/utils'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
@@ -18,9 +17,16 @@ type Props = {
   exampleDish: CatalogProduct | null
   missingCostCount: number
   onPatchConfig: (next: SubscriptionConfig) => void
+  onOpenCostSheet?: () => void
 }
 
-export function AdminSubscriptionPricingSimple({ config, exampleDish, missingCostCount, onPatchConfig }: Props) {
+export function AdminSubscriptionPricingSimple({
+  config,
+  exampleDish,
+  missingCostCount,
+  onPatchConfig,
+  onOpenCostSheet,
+}: Props) {
   const preview = useMemo(() => {
     if (!exampleDish) return null
     return previewOneDeliveryPrice(exampleDish.price, exampleDish.costPrice, config.commerce)
@@ -74,18 +80,32 @@ export function AdminSubscriptionPricingSimple({ config, exampleDish, missingCos
 
         <div className={cn('mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[12px] leading-snug', styles.wrap)}>
           <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', styles.dot)} />
-          <span>{preview?.verdictLabel ?? '—'}</span>
+          {preview?.verdict === 'unknown' && missingCostCount > 0 && onOpenCostSheet ? (
+            <button type="button" onClick={onOpenCostSheet} className="text-left underline decoration-dotted underline-offset-2">
+              {preview.verdictLabel}
+            </button>
+          ) : (
+            <span>{preview?.verdictLabel ?? '—'}</span>
+          )}
         </div>
       </div>
 
       {missingCostCount > 0 ? (
-        <p className="mt-3 text-[12px] leading-snug text-amber-800">
-          {missingCostCount} блюд без себестоимости — подсказка «норм / мало» неполная.{' '}
-          <Link href="/admin/menu" className="font-semibold underline">
-            Указать в меню
-          </Link>{' '}
-          (необязательно, подписка работает и без этого).
-        </p>
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] leading-snug text-amber-900">
+          <p>
+            {missingCostCount} блюд в каталоге без себестоимости — подсказка «норм / мало» неполная.
+          </p>
+          {onOpenCostSheet ? (
+            <button
+              type="button"
+              onClick={onOpenCostSheet}
+              className="mt-2 w-full rounded-full bg-amber-900 px-4 py-2 text-[13px] font-semibold text-white active:opacity-90"
+            >
+              добавить себестоимость
+            </button>
+          ) : null}
+          <p className="mt-2 text-[11px] text-amber-800/90">Необязательно — подписка работает и без этого.</p>
+        </div>
       ) : null}
 
       <label className="mt-5 block">

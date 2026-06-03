@@ -15,6 +15,7 @@ import { PillTabToggle } from '@/components/ui/PillTabToggle'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { AdminSubscriptionNav } from './AdminSubscriptionNav'
 import { AdminSubscriptionDishPickerSheet } from './AdminSubscriptionDishPickerSheet'
+import { AdminSubscriptionCostSheet } from './AdminSubscriptionCostSheet'
 import { AdminSubscriptionPricingSimple } from './AdminSubscriptionPricingSimple'
 
 export type CatalogProduct = {
@@ -51,6 +52,7 @@ export function AdminSubscriptionDashboard() {
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [activeSlot, setActiveSlot] = useState<MealSlot>('lunch')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [costSheetOpen, setCostSheetOpen] = useState(false)
 
   const dishes = useMemo(() => products.filter((p) => p.kind === 'dish'), [products])
 
@@ -96,13 +98,29 @@ export function AdminSubscriptionDashboard() {
     return dishes.find((d) => d.id === pickId) ?? null
   }, [config, activeSlot, dishes])
 
-  const missingCostInSlot = useMemo(() => {
-    const ids = config.mealSlots[activeSlot].dishIds
-    return ids.filter((id) => {
-      const d = dishes.find((x) => x.id === id)
-      return !d || d.costPrice == null || d.costPrice <= 0
-    }).length
-  }, [config, activeSlot, dishes])
+  const catalogDishIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const slot of MEAL_SLOT_IDS) {
+      for (const id of config.mealSlots[slot]?.dishIds ?? []) ids.add(id)
+    }
+    return ids
+  }, [config])
+
+  const dishesMissingCost = useMemo(
+    () =>
+      dishes.filter(
+        (d) => catalogDishIds.has(d.id) && (d.costPrice == null || d.costPrice <= 0)
+      ),
+    [dishes, catalogDishIds]
+  )
+
+  const missingCostInCatalog = dishesMissingCost.length
+
+  function patchDishCostPrice(dishId: string, costPrice: number | null) {
+    setProducts((prev) =>
+      prev.map((p) => (p.kind === 'dish' && p.id === dishId ? { ...p, costPrice } : p))
+    )
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -353,7 +371,18 @@ export function AdminSubscriptionDashboard() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{dish.name}</p>
-                      <p className="text-[11px] tabular-nums text-[color:var(--muted)]">{formatPrice(dish.price)}</p>
+                      <p className="text-[11px] tabular-nums text-[color:var(--muted)]">
+                        {formatPrice(dish.price)}
+                        {dish.costPrice == null || dish.costPrice <= 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setCostSheetOpen(true)}
+                            className="ml-1.5 font-semibold text-amber-800 underline"
+                          >
+                            нет себест.
+                          </button>
+                        ) : null}
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -412,8 +441,16 @@ export function AdminSubscriptionDashboard() {
       <AdminSubscriptionPricingSimple
         config={config}
         exampleDish={exampleDish}
-        missingCostCount={missingCostInSlot}
+        missingCostCount={missingCostInCatalog}
         onPatchConfig={patchConfig}
+        onOpenCostSheet={() => setCostSheetOpen(true)}
+      />
+
+      <AdminSubscriptionCostSheet
+        open={costSheetOpen}
+        dishes={dishesMissingCost}
+        onClose={() => setCostSheetOpen(false)}
+        onSaved={patchDishCostPrice}
       />
 
       <div
