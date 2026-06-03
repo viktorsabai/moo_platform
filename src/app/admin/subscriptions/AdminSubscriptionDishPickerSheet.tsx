@@ -42,7 +42,7 @@ export function AdminSubscriptionDishPickerSheet({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/45" role="dialog" aria-modal>
+    <div className="fixed inset-0 z-[120] flex flex-col justify-end bg-black/45" role="dialog" aria-modal>
       <button type="button" className="absolute inset-0" aria-label="закрыть" onClick={onClose} />
       <div className="relative max-h-[85dvh] rounded-t-[var(--radius-large)] bg-[color:var(--surface-strong)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[color:var(--stroke)] px-4 py-3">

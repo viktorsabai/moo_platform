@@ -281,33 +281,15 @@ export function AdminSubscriptionDashboard() {
   }
 
   return (
-    <main className="ui-container ui-screen !pb-6 pt-1">
-      <header className="sticky top-0 z-30 -mx-4 mb-3 border-b border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/95 px-4 pb-3 pt-1 backdrop-blur-md sm:-mx-6 sm:px-6">
-        <div className="flex items-start gap-2">
-          <Link
-            href="/profile"
-            className="ui-back-button mt-1 shrink-0"
-            aria-label="назад в профиль"
-          >
-            ←
-          </Link>
-          <div className="min-w-0 flex-1">
-            <AdminSubscriptionNav />
-          </div>
-          <button
-            type="button"
-            disabled={saving || !isDirty}
-            onClick={() => void saveAll()}
-            className={cn(
-              'mt-0.5 shrink-0 rounded-full px-4 py-2.5 text-[13px] font-bold transition',
-              isDirty
-                ? 'bg-[color:var(--primary)] text-white shadow-md'
-                : 'border border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--muted)]'
-            )}
-          >
-            {saving ? '…' : isDirty ? 'сохранить' : 'сохранено'}
-          </button>
-        </div>
+    <main className="ui-container ui-screen pb-[calc(100px+env(safe-area-inset-bottom))] pt-1">
+      <header className="mb-3">
+        <Link
+          href="/profile"
+          className="mb-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[color:var(--muted)]"
+        >
+          ← профиль
+        </Link>
+        <AdminSubscriptionNav />
         {isDirty ? (
           <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-900">
             {totalCatalogDishes} блюд · {slotDishCount} в {MEAL_SLOT_LABEL[activeSlot]} · не сохранено
@@ -317,7 +299,7 @@ export function AdminSubscriptionDashboard() {
             {totalCatalogDishes} блюд в каталоге · гости видят сохранённый набор
           </p>
         ) : (
-          <p className="ui-muted mt-2 text-[12px]">Добавьте блюда и нажмите «сохранить»</p>
+          <p className="ui-muted mt-2 text-[12px]">Добавьте блюда и нажмите «сохранить» внизу</p>
         )}
       </header>
 
@@ -433,6 +415,30 @@ export function AdminSubscriptionDashboard() {
         missingCostCount={missingCostInSlot}
         onPatchConfig={patchConfig}
       />
+
+      <div
+        className={cn(
+          'fixed inset-x-0 bottom-0 z-[110] border-t backdrop-blur-md',
+          isDirty ? 'border-amber-300 bg-amber-50/98' : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98'
+        )}
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+      >
+        <div className="ui-container space-y-2 px-4 py-3">
+          {isDirty ? (
+            <p className="text-center text-[11px] font-semibold text-amber-900">
+              готово? сохраните каталог — гости увидят изменения
+            </p>
+          ) : null}
+          <button
+            type="button"
+            disabled={saving || !isDirty}
+            onClick={() => void saveAll()}
+            className="btn btn-primary h-12 w-full rounded-full text-[16px] font-bold disabled:opacity-50"
+          >
+            {saving ? 'сохраняем…' : isDirty ? 'сохранить каталог' : 'каталог сохранён'}
+          </button>
+        </div>
+      </div>
     </main>
   )
 }
