@@ -156,6 +156,11 @@ export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): Subsc
     const minPrice = perDeliveryCost * (1 + commerce.minMarginPercent / 100) * deliveriesInPeriod
     recommended = Math.max(recommended, minPrice)
   }
+  // Бонус за длинный период заложен в discountBased; если победила себестоимость — применяем бонус отдельно.
+  const costBasedWins = costBased > 0 && recommended >= costBased - 0.01 && costBased >= discountBased
+  if (costBasedWins && extraPeriod > 0) {
+    recommended = roundPrice(recommended * (1 - extraPeriod / 100), commerce.priceRoundTo)
+  }
   recommended = roundPrice(recommended, commerce.priceRoundTo)
 
   let guestPrice = recommended
@@ -172,6 +177,7 @@ export function calculateSubscriptionQuote(input: SubscriptionQuoteInput): Subsc
   const ownerMargin = guestPrice - totalCost
   const ownerMarginPercent = guestPrice > 0 ? (ownerMargin / guestPrice) * 100 : 0
   const guestSavings = Math.max(0, periodRetail - guestPrice)
+  /** Фактическая скидка vs меню (для бейджа на карточках — не путать с totalDiscountPercent из настроек). */
   const guestSavingsPercent = periodRetail > 0 ? (guestSavings / periodRetail) * 100 : 0
 
   return {

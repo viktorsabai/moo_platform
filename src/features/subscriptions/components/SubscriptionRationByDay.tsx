@@ -10,7 +10,6 @@ import type { SubscriptionConfig } from '@/lib/subscription-config'
 import {
   WEEKDAYS,
   allowedOptionIdsForLine,
-  jsDayToWizard,
   lineKey,
   mealSlotShort,
   wizardDayToJs,
@@ -38,14 +37,11 @@ export function SubscriptionRationByDay({
   onLineModifiers,
   onAddMore,
 }: Props) {
-  const daysWithLines = useMemo(() => {
-    return selectedDays.filter((w) => lines.some((l) => l.dayOfWeek === wizardDayToJs(w)))
-  }, [lines, selectedDays])
+  const [activeWizardDay, setActiveWizardDay] = useState(selectedDays[0] ?? 0)
+  const jsDay = wizardDayToJs(activeWizardDay)
+  const dayLines = useMemo(() => lines.filter((l) => l.dayOfWeek === jsDay), [lines, jsDay])
 
-  const [activeWizardDay, setActiveWizardDay] = useState(daysWithLines[0] ?? selectedDays[0] ?? 0)
-  const dayLines = lines.filter((l) => l.dayOfWeek === wizardDayToJs(activeWizardDay))
-
-  const [activeLineKey, setActiveLineKey] = useState<string | null>(dayLines[0] ? lineKey(dayLines[0]) : null)
+  const [activeLineKey, setActiveLineKey] = useState<string | null>(null)
   const activeLine = dayLines.find((l) => lineKey(l) === activeLineKey) ?? dayLines[0] ?? null
   const activeDish = activeLine ? dishes.find((d) => d.id === activeLine.dishId) : null
 
@@ -60,11 +56,9 @@ export function SubscriptionRationByDay({
         </button>
       </div>
 
-      <div className="-mx-1 mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {selectedDays.map((w) => {
-          const js = wizardDayToJs(w)
-          const count = lines.filter((l) => l.dayOfWeek === js).length
-          const thumbs = lines.filter((l) => l.dayOfWeek === js).slice(0, 3)
+          const count = lines.filter((l) => l.dayOfWeek === wizardDayToJs(w)).length
           const current = w === activeWizardDay
           return (
             <button
@@ -72,44 +66,24 @@ export function SubscriptionRationByDay({
               type="button"
               onClick={() => {
                 setActiveWizardDay(w)
-                const first = lines.find((l) => l.dayOfWeek === js)
-                setActiveLineKey(first ? lineKey(first) : null)
+                setActiveLineKey(null)
               }}
               className={cn(
-                'flex w-[108px] shrink-0 flex-col rounded-[var(--radius-medium)] border p-2 text-left transition',
-                current ? 'border-[color:var(--text)] bg-[color:var(--text)]/[0.03]' : 'border-[color:var(--stroke)] bg-[color:var(--surface)]'
+                'shrink-0 rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums',
+                current
+                  ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                  : 'border border-[color:var(--stroke)] text-[color:var(--muted)]'
               )}
             >
-              <span className="text-[12px] font-extrabold">{WEEKDAYS[w]}</span>
-              <span className="mt-0.5 text-[10px] font-semibold text-[color:var(--muted)]">{count || '—'} блюд</span>
-              <div className="mt-2 flex -space-x-1.5">
-                {thumbs.map((l) => {
-                  const d = dishes.find((x) => x.id === l.dishId)
-                  return (
-                    <span
-                      key={lineKey(l)}
-                      className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border-2 border-[color:var(--surface)] bg-black/[0.04]"
-                    >
-                      {d?.image ? <OptimizedImage src={d.image} alt="" className="object-cover" sizes="28px" /> : null}
-                    </span>
-                  )
-                })}
-              </div>
+              {WEEKDAYS[w]}
+              {count > 0 ? ` · ${count}` : ''}
             </button>
           )
         })}
-        <button
-          type="button"
-          onClick={onAddMore}
-          className="flex w-[72px] shrink-0 flex-col items-center justify-center rounded-[var(--radius-medium)] border border-dashed border-[color:var(--stroke)] text-[color:var(--muted)]"
-        >
-          <span className="text-[22px] font-light leading-none">+</span>
-          <span className="mt-1 text-[10px] font-semibold">ещё</span>
-        </button>
       </div>
 
       {dayLines.length > 0 ? (
-        <div className="-mx-1 mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {dayLines.map((l) => {
             const dish = dishes.find((d) => d.id === l.dishId)
             if (!dish) return null
@@ -125,7 +99,7 @@ export function SubscriptionRationByDay({
                   if (e.key === 'Enter' || e.key === ' ') setActiveLineKey(k)
                 }}
                 className={cn(
-                  'relative w-[76px] shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-medium)] border text-left',
+                  'relative w-[72px] shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-medium)] border',
                   current ? 'border-[color:var(--text)]' : 'border-[color:var(--stroke)]'
                 )}
               >
@@ -145,7 +119,7 @@ export function SubscriptionRationByDay({
                     ×
                   </button>
                 </div>
-                <p className="truncate px-1 py-1 text-[9px] font-semibold leading-tight">{dish.name}</p>
+                <p className="truncate px-1 py-0.5 text-[9px] font-semibold">{dish.name}</p>
               </div>
             )
           })}
@@ -155,7 +129,7 @@ export function SubscriptionRationByDay({
       {activeLine && activeDish ? (
         <div className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-3">
           <div className="flex items-start gap-3">
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-black/[0.04]">
+            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-black/[0.04]">
               {activeDish.image ? (
                 <OptimizedImage src={activeDish.image} alt="" className="object-cover" sizes={IMAGE_SIZES.cartRow} />
               ) : null}
@@ -163,7 +137,7 @@ export function SubscriptionRationByDay({
             <div className="min-w-0 flex-1">
               <p className="text-[15px] font-extrabold leading-tight">{activeDish.name}</p>
               <p className="text-[11px] text-[color:var(--muted)]">
-                {WEEKDAYS[jsDayToWizard(activeLine.dayOfWeek)]} · {mealSlotShort(activeLine.mealSlot)}
+                {mealSlotShort(activeLine.mealSlot)}
               </p>
             </div>
             <InlineCounter value={activeLine.quantity} onDec={() => onUpdateQty(activeLine, -1)} onInc={() => onUpdateQty(activeLine, 1)} />
@@ -177,7 +151,9 @@ export function SubscriptionRationByDay({
             defaultCollapsed
           />
         </div>
-      ) : null}
+      ) : (
+        <p className="text-[12px] text-[color:var(--muted)]">На {WEEKDAYS[activeWizardDay]} блюд нет</p>
+      )}
     </section>
   )
 }

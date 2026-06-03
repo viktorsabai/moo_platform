@@ -15,6 +15,12 @@ import { buildPrefillItemsPerDay, suggestDeliveryDays } from '@/lib/subscription
 import { MEAL_SLOT_LABEL, parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import { loadDeliveryProfile } from '@/lib/delivery-profile'
+import { useVenue } from '@/lib/venue-context'
+import {
+  clearSubscriptionBuilderDraft,
+  loadSubscriptionBuilderDraft,
+  saveSubscriptionBuilderDraft,
+} from '@/lib/subscription-builder-draft'
 import { SubscriptionBuildPhase } from '@/features/subscriptions/components/SubscriptionBuildPhase'
 import { itemsPerDeliveryBySlot } from '@/lib/subscription-meal-slot-rules'
 import { SubscriptionCheckoutConfigPhase } from '@/features/subscriptions/components/SubscriptionCheckoutConfigPhase'
@@ -36,7 +42,9 @@ export function SubscriptionCheckoutFlow() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const resumeId = searchParams.get('resume') || ''
+  const { restaurantId } = useVenue()
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
+  const draftHydratedRef = useRef(false)
 
   const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'build')
   const [loading, setLoading] = useState(true)
@@ -205,6 +213,70 @@ export function SubscriptionCheckoutFlow() {
     }
   }, [resumeId, loading])
 
+  useEffect(() => {
+    if (loading || resumeId || draftHydratedRef.current) return
+    const draft = loadSubscriptionBuilderDraft(restaurantId)
+    if (!draft?.lines?.length) return
+    draftHydratedRef.current = true
+    setLines(draft.lines as SelectedLine[])
+    if (draft.selectedDays?.length) {
+      setSelectedDays(draft.selectedDays)
+      setActiveWizardDay(draft.activeWizardDay ?? draft.selectedDays[0])
+    }
+    if (draft.activeSlot) setActiveSlot(draft.activeSlot)
+    if (draft.periodDays) setPeriodDays(draft.periodDays)
+    if (draft.personCount) setPersonCount(draft.personCount)
+    if (draft.deliveryTime) setDeliveryTime(draft.deliveryTime)
+    if (draft.startDate) {
+      const sd = new Date(draft.startDate)
+      if (!Number.isNaN(sd.getTime())) setStartDate(sd)
+    }
+    if (draft.name) setName(draft.name)
+    if (draft.phase === 'checkout') setPhase('checkout')
+  }, [loading, resumeId, restaurantId])
+
+  useEffect(() => {
+    if (loading || resumeId) return
+    const t = setTimeout(() => {
+      if (!lines.length && !selectedDays.length) return
+      saveSubscriptionBuilderDraft(restaurantId, {
+        v: 1,
+        updatedAt: Date.now(),
+        phase,
+        selectedDays,
+        activeWizardDay,
+        activeSlot,
+        periodDays,
+        personCount,
+        deliveryTime,
+        startDate: startDate.toISOString(),
+        name,
+        lines: lines.map((l) => ({
+          dishId: l.dishId,
+          quantity: l.quantity,
+          mealSlot: l.mealSlot,
+          modifierIds: l.modifierIds ?? [],
+          dayOfWeek: l.dayOfWeek,
+        })),
+      })
+    }, 450)
+    return () => clearTimeout(t)
+  }, [
+    loading,
+    resumeId,
+    restaurantId,
+    phase,
+    lines,
+    selectedDays,
+    activeWizardDay,
+    activeSlot,
+    periodDays,
+    personCount,
+    deliveryTime,
+    startDate,
+    name,
+  ])
+
   const quotePayload = useMemo(
     () => ({
       items: lines.map((l) => ({
@@ -297,7 +369,8 @@ export function SubscriptionCheckoutFlow() {
   }
 
   useEffect(() => {
-    if (phase !== 'build' || loading || lines.length > 0 || selectedDays.length < minDays) return
+    if (phase !== 'build' || loading || draftHydratedRef.current || lines.length > 0 || selectedDays.length < minDays)
+      return
     applyPrefillForDays(selectedDays, subConfig, dishes)
   }, [phase, loading, lines.length, selectedDays, minDays, subConfig, dishes])
 
@@ -321,17 +394,40 @@ export function SubscriptionCheckoutFlow() {
     })
   }
 
-  function copyDayFrom(fromWizardDay: number) {
-    const fromJs = wizardDayToJs(fromWizardDay)
-    const toJs = wizardDayToJs(activeWizardDay)
+  function handleDayCell(wizardDay: number) {
+    if (selectedDays.includes(wizardDay)) {
+      setActiveWizardDay(wizardDay)
+      return
+    }
+    toggleDay(wizardDay)
+    setActiveWizardDay(wizardDay)
+  }
+
+  function copyActiveDayToAllWeek() {
+    const fromJs = wizardDayToJs(activeWizardDay)
+    const template = lines.filter((l) => l.dayOfWeek === fromJs)
+    if (!template.length) {
+      toast.error(`сначала добавьте блюда на ${WEEKDAYS[activeWizardDay]}`)
+      return
+    }
+    const jsSet = new Set(selectedDays.map(wizardDayToJs))
     setLines((prev) => {
-      const copied = prev
-        .filter((l) => l.dayOfWeek === fromJs)
-        .map((l) => ({ ...l, dayOfWeek: toJs }))
-      const rest = prev.filter((l) => l.dayOfWeek !== toJs)
-      return [...rest, ...copied]
+      const other = prev.filter((l) => !jsSet.has(l.dayOfWeek))
+      const expanded = selectedDays.flatMap((d) =>
+        template.map((l) => ({
+          ...l,
+          dayOfWeek: wizardDayToJs(d),
+          modifierIds: [...(l.modifierIds ?? [])],
+        }))
+      )
+      return [...other, ...expanded]
     })
-    toast.success(`как в ${WEEKDAYS[fromWizardDay]}`)
+    toast.success('меню скопировано на все дни доставки')
+  }
+
+  function clearActiveDay() {
+    const js = wizardDayToJs(activeWizardDay)
+    setLines((prev) => prev.filter((l) => l.dayOfWeek !== js))
   }
 
   function daySlotsComplete(wizardDay: number) {
@@ -465,6 +561,7 @@ export function SubscriptionCheckoutFlow() {
         startDate: new Date(),
         items: lines.map((l) => ({ ...l, dish: dishes.find((d) => d.id === l.dishId) })) as any,
       } as any)
+      clearSubscriptionBuilderDraft(restaurantId)
       toast.success('отправлено на подтверждение')
       router.push(data.subscriptionId ? `/subscriptions/${data.subscriptionId}` : '/subscriptions')
     } finally {
@@ -496,12 +593,12 @@ export function SubscriptionCheckoutFlow() {
         maxDays={maxDays}
         quotesByPeriod={quotesByPeriod}
         periodDays={periodDays}
-        onToggleDay={toggleDay}
-        onWizardDay={setActiveWizardDay}
+        onDayCell={handleDayCell}
         onActiveSlot={setActiveSlot}
         onAddDish={addDish}
         onRemoveLine={removeLine}
-        onCopyDayFrom={copyDayFrom}
+        onCopyToAllWeek={copyActiveDayToAllWeek}
+        onClearDay={clearActiveDay}
         onContinue={goToCheckout}
         onOpenPay={goToCheckout}
       />

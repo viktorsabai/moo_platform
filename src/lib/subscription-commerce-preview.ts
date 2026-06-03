@@ -110,7 +110,7 @@ export function verdictStyles(verdict: DeliveryPriceVerdict) {
 /** Один слайдер «за месяц» → 7/14/28 дней автоматически. */
 export function periodDiscountsFromMonthBonus(monthBonus: number): Record<number, number> {
   const m = Math.max(0, Math.min(20, Math.round(monthBonus)))
-  return { 7: 0, 14: Math.round(m / 2), 28: m }
+  return { 7: Math.round(m * 0.15), 14: Math.round(m * 0.5), 28: m }
 }
 
 export function monthBonusFromPeriodDiscounts(periodDiscounts: Record<number, number> | undefined): number {

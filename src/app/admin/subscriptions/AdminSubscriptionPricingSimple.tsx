@@ -140,9 +140,10 @@ export function AdminSubscriptionPricingSimple({
           }
           className="h-2.5 w-full accent-[color:var(--primary)]"
         />
-        {monthBadge ? (
-          <p className="ui-muted mt-2 text-[12px]">
-            На карточке «{periodLabel(28)}» гость увидит бейдж <span className="font-bold">{monthBadge}</span> (база −{baseDiscount}% + бонус).
+        {monthBonus > 0 ? (
+          <p className="ui-muted mt-2 text-[12px] leading-snug">
+            Бонус за длину периода: <span className="font-bold">2 нед.</span> ≈ −{Math.round(monthBonus * 0.5)}%,{' '}
+            <span className="font-bold">1 мес.</span> ≈ −{monthBonus}% (плюс база −{baseDiscount}%).
           </p>
         ) : null}
       </label>

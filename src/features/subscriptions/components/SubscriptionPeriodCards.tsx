@@ -2,7 +2,7 @@
 
 import { cn, formatPrice } from '@/lib/utils'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
-import { formatGuestPeriodBadge, formatQuoteSavingsBadge } from '@/lib/subscription-offer-labels'
+import { formatGuestPeriodBadge, formatPeriodExtraLabel, formatQuoteSavingsBadge } from '@/lib/subscription-offer-labels'
 import type { PeriodQuote } from '@/features/subscriptions/lib/subscription-checkout-utils'
 
 type Props = {
@@ -38,6 +38,7 @@ export function SubscriptionPeriodCards({
         const sel = selectedPeriodDays === d
         const perDelivery =
           q && q.deliveriesInPeriod > 0 ? Math.round(q.guestPrice / q.deliveriesInPeriod) : null
+        const periodExtra = formatPeriodExtraLabel(config.periodDiscounts, d)
 
         return (
           <button
@@ -90,6 +91,11 @@ export function SubscriptionPeriodCards({
                 {perDelivery != null ? (
                   <span className={cn('text-[9px] leading-tight', sel ? 'opacity-70' : 'text-[color:var(--muted)]')}>
                     ≈ {formatPrice(perDelivery)}/дост.
+                  </span>
+                ) : null}
+                {periodExtra ? (
+                  <span className={cn('text-[9px] leading-tight font-semibold', sel ? 'opacity-85' : 'text-[color:var(--muted)]')}>
+                    {periodExtra}
                   </span>
                 ) : null}
               </div>

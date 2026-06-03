@@ -1,5 +1,6 @@
 import {
   getPeriodDiscountPercent,
+  periodLabel,
   type SubscriptionCommerceConfig,
   type SubscriptionConfig,
 } from '@/lib/subscription-config'
@@ -25,6 +26,16 @@ export function formatGuestPeriodBadge(
 }
 
 /** Бейдж на карточке периода — из того же quote, что цена и зачёркнутая сумма. */
+/** Доп. скидка только за длину периода (для подписи на карточке). */
+export function formatPeriodExtraLabel(
+  periodDiscounts: SubscriptionConfig['periodDiscounts'],
+  periodDays: number
+): string | null {
+  const extra = getPeriodDiscountPercent(periodDiscounts, periodDays)
+  if (extra <= 0) return null
+  return `ещё −${Math.round(extra)}% за ${periodLabel(periodDays).toLowerCase()}`
+}
+
 export function formatQuoteSavingsBadge(quote: {
   periodRetail: number
   guestPrice: number

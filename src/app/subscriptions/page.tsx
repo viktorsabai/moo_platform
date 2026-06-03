@@ -12,6 +12,7 @@ import { Chip } from '@/components/ui/Chip'
 import { SubscriptionUnavailableCard } from '@/components/subscriptions/SubscriptionUnavailableCard'
 import { SubscriptionHubTabs, type SubscriptionHubTab } from '@/features/subscriptions/components/SubscriptionHubTabs'
 import { SubscriptionHubOverview } from '@/features/subscriptions/components/SubscriptionHubOverview'
+import { SubscriptionHubDraftBanner } from '@/features/subscriptions/components/SubscriptionHubDraftBanner'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { type SubscriptionConfig } from '@/lib/subscription-config'
@@ -158,6 +159,8 @@ export default function SubscriptionsPage() {
       </div>
 
       <SubscriptionHubTabs tab={hubTab} onTab={setHubTab} listCount={subscriptions.length} />
+
+      {hubTab === 'list' ? <SubscriptionHubDraftBanner /> : null}
 
       {loadError && subscriptions.length === 0 && !refreshing ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-center">
