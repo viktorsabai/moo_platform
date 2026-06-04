@@ -5,7 +5,7 @@ import { PillTabToggle } from '@/components/ui/PillTabToggle'
 
 const TABS = [
   { id: 'catalog', label: 'каталог', href: '/admin/subscriptions' },
-  { id: 'clients', label: 'клиенты', href: '/admin/subscriptions/clients' },
+  { id: 'clients', label: 'подписчики', href: '/admin/subscriptions/clients' },
 ] as const
 
 export function AdminSubscriptionNav() {

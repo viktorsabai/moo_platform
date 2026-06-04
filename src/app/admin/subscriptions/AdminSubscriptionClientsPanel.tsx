@@ -1,15 +1,20 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { cn, formatPrice } from '@/lib/utils'
 import { periodLabel } from '@/lib/subscription-config'
-import { formatTelegramContact, telegramUserUrl } from '@/lib/telegram-contact'
+import { MEAL_SLOT_LABEL, parseMealSlot } from '@/lib/subscription-meal-slots'
 import type { AdminSubscriptionRow } from '@/lib/get-admin-subscriptions'
+import { buildDeliveryCalendar, buildKitchenPrepForDay } from '@/lib/subscription-kitchen-prep'
+import { GuestClientCard, guestClientFromSubscriptionUser } from '@/components/ui/GuestClientCard'
+import { PillTabToggle } from '@/components/ui/PillTabToggle'
 import { IconTrash } from '@/components/ui/icons'
 import { AdminSubscriptionNav } from './AdminSubscriptionNav'
 
 type SubRow = AdminSubscriptionRow
+type PanelTab = 'today' | 'clients'
 
 const WEEKDAYS_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 const DELIVERY_STATUS: Record<string, string> = {
@@ -30,67 +35,25 @@ function startOfDay(d: Date) {
   return x
 }
 
-type CalendarEntry = {
-  date: Date
-  key: string
-  count: number
-  items: { sub: SubRow; delivery: SubRow['deliveries'][number]; clientName: string }[]
-}
-
-function buildCalendar(subs: SubRow[], days = 14): CalendarEntry[] {
-  const today = startOfDay(new Date())
-  const result: CalendarEntry[] = []
-  for (let i = 0; i < days; i++) {
-    const date = new Date(today)
-    date.setDate(date.getDate() + i)
-    const key = dayKey(date)
-    const items: CalendarEntry['items'] = []
-    for (const s of subs) {
-      if (s.status !== 'ACTIVE') continue
-      const clientName = s.user?.name ?? 'гость'
-      for (const d of s.deliveries ?? []) {
-        if (d.status === 'CANCELLED' || d.status === 'DELIVERED') continue
-        const dd = startOfDay(new Date(d.scheduledDate))
-        if (dayKey(dd) !== key) continue
-        items.push({ sub: s, delivery: d, clientName })
-      }
-    }
-    result.push({ date, key, count: items.length, items })
-  }
-  return result
-}
-
-function buildTodayQueue(subs: SubRow[]) {
-  const today = dayKey(startOfDay(new Date()))
-  const toSend: { sub: SubRow; clientName: string }[] = []
-  const inPrep: { sub: SubRow; clientName: string }[] = []
-  for (const s of subs) {
-    if (s.status !== 'ACTIVE') continue
-    const clientName = s.user?.name ?? 'гость'
-    for (const d of s.deliveries ?? []) {
-      if (d.status === 'CANCELLED' || d.status === 'DELIVERED') continue
-      const dd = dayKey(startOfDay(new Date(d.scheduledDate)))
-      if (dd !== today) continue
-      if (d.status === 'SCHEDULED') toSend.push({ sub: s, clientName })
-      else inPrep.push({ sub: s, clientName })
-    }
-  }
-  return { toSend, inPrep }
-}
-
 function formatDeliveryDays(days: number[]) {
   if (!days.length) return '—'
   return [...days].sort((a, b) => a - b).map((d) => WEEKDAYS_SHORT[d]).join(', ')
 }
 
+function formatDayTitle(key: string) {
+  const d = new Date(`${key}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return key
+  const isToday = key === dayKey(startOfDay(new Date()))
+  const label = d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
+  return isToday ? `сегодня · ${label}` : label
+}
+
 type ClientRow = {
   userId: string
-  name: string
-  telegramUsername: string | null
-  telegramId: string | null
-  photo: string | null
+  client: ReturnType<typeof guestClientFromSubscriptionUser>
   subs: SubRow[]
   active: number
+  pending: number
   revenue: number
 }
 
@@ -102,12 +65,10 @@ function groupClients(subs: SubRow[]): ClientRow[] {
       map.get(uid) ??
       ({
         userId: uid,
-        name: s.user?.name ?? 'гость',
-        telegramUsername: s.user?.telegramUsername ?? null,
-        telegramId: s.user?.telegramId ?? null,
-        photo: s.user?.telegramPhotoUrl ?? s.user?.avatar ?? null,
+        client: guestClientFromSubscriptionUser(s.user),
         subs: [],
         active: 0,
+        pending: 0,
         revenue: 0,
       } satisfies ClientRow)
     row.subs.push(s)
@@ -115,9 +76,136 @@ function groupClients(subs: SubRow[]): ClientRow[] {
       row.active += 1
       row.revenue += Number(s.price) || 0
     }
+    if (s.status === 'PENDING') row.pending += 1
     map.set(uid, row)
   }
-  return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue)
+  return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue || b.pending - a.pending)
+}
+
+function SubscriptionDetailCard({
+  sub,
+  highlighted,
+  onDelete,
+  onApprove,
+  onReject,
+}: {
+  sub: SubRow
+  highlighted?: boolean
+  onDelete: (id: string) => void
+  onApprove?: (id: string) => void
+  onReject?: (id: string) => void
+}) {
+  const upcoming = (sub.deliveries ?? [])
+    .filter((d) => d.status !== 'CANCELLED' && d.status !== 'DELIVERED')
+    .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
+    .slice(0, 5)
+
+  return (
+    <div
+      id={`admin-sub-${sub.id}`}
+      className={cn(
+        'rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4',
+        highlighted && 'ring-2 ring-[color:var(--primary)]'
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">{sub.name}</span>
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                sub.status === 'ACTIVE'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : sub.status === 'PENDING'
+                    ? 'bg-amber-100 text-amber-900'
+                    : 'bg-black/5 text-[color:var(--muted)]'
+              )}
+            >
+              {sub.statusLabel}
+            </span>
+          </div>
+          <p className="mt-1 text-[12px] text-[color:var(--muted)]">
+            {formatPrice(sub.price)} · {periodLabel(sub.periodDays)} · {sub.personCount} перс.
+          </p>
+          <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
+            дни: {formatDeliveryDays(sub.deliveryDays)}
+            {sub.deliveryTime ? ` · ${sub.deliveryTime}` : ''}
+          </p>
+        </div>
+        {sub.status !== 'PENDING' ? (
+          <button
+            type="button"
+            onClick={() => onDelete(sub.id)}
+            className="shrink-0 rounded-full p-2 text-red-600 hover:bg-red-50"
+            title="удалить"
+          >
+            <IconTrash className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+
+      {sub.status === 'PENDING' && onApprove && onReject ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => onApprove(sub.id)}
+            className="flex-1 rounded-full bg-[color:var(--primary)] py-2 text-[12px] font-semibold text-white"
+          >
+            подтвердить
+          </button>
+          <button
+            type="button"
+            onClick={() => onReject(sub.id)}
+            className="flex-1 rounded-full border border-[color:var(--stroke)] py-2 text-[12px] font-semibold"
+          >
+            отклонить
+          </button>
+        </div>
+      ) : null}
+
+      {sub.items.length > 0 ? (
+        <div className="mt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">рацион</p>
+          <ul className="mt-1.5 space-y-1">
+            {sub.items.map((it) => (
+              <li key={it.id} className="text-[12px] text-[color:var(--text)]">
+                {it.quantity > 1 ? `${it.quantity}× ` : ''}
+                {it.dish?.name ?? '—'}
+                {it.mealSlot ? (
+                  <span className="text-[color:var(--muted)]">
+                    {' '}
+                    · {parseMealSlot(it.mealSlot) ? MEAL_SLOT_LABEL[parseMealSlot(it.mealSlot)!] : it.mealSlot}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {upcoming.length > 0 ? (
+        <div className="mt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
+            ближайшие доставки
+          </p>
+          <ul className="mt-1 space-y-1">
+            {upcoming.map((d) => {
+              const dt = new Date(d.scheduledDate)
+              return (
+                <li key={d.id} className="flex justify-between text-[12px]">
+                  <span>
+                    {dt.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </span>
+                  <span className="text-[color:var(--muted)]">{DELIVERY_STATUS[d.status] ?? d.status}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export function AdminSubscriptionClientsPanel({
@@ -125,11 +213,16 @@ export function AdminSubscriptionClientsPanel({
 }: {
   initialClientSubscriptions?: SubRow[]
 }) {
+  const searchParams = useSearchParams()
+  const focusSubscriptionId = searchParams.get('subscriptionId')?.trim() ?? null
+  const [tab, setTab] = useState<PanelTab>(focusSubscriptionId ? 'clients' : 'today')
   const [loading, setLoading] = useState(true)
   const [subs, setSubs] = useState<SubRow[]>(initialClientSubscriptions)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [highlightSubId, setHighlightSubId] = useState<string | null>(null)
   const [selectedDayKey, setSelectedDayKey] = useState<string>(() => dayKey(startOfDay(new Date())))
   const [search, setSearch] = useState('')
+  const [expandedSubId, setExpandedSubId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -145,7 +238,7 @@ export function AdminSubscriptionClientsPanel({
   }
 
   useEffect(() => {
-    load()
+    void load()
   }, [])
 
   const clients = useMemo(() => groupClients(subs), [subs])
@@ -154,22 +247,39 @@ export function AdminSubscriptionClientsPanel({
     if (!q) return clients
     return clients.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.telegramUsername ?? '').toLowerCase().includes(q.replace(/^@/, '')) ||
-        (c.telegramId ?? '').includes(q)
+        c.client.displayName.toLowerCase().includes(q) ||
+        (c.client.contactLabel ?? '').toLowerCase().includes(q.replace(/^@/, '')) ||
+        (c.client.telegramId ?? '').includes(q)
     )
   }, [clients, search])
 
   useEffect(() => {
+    if (!focusSubscriptionId || subs.length === 0) return
+    const sub = subs.find((s) => s.id === focusSubscriptionId)
+    if (!sub) return
+    const uid = sub.user?.id ?? `anon-${sub.id}`
+    setTab('clients')
+    setSelectedId(uid)
+    setHighlightSubId(sub.id)
+    setExpandedSubId(sub.id)
+  }, [focusSubscriptionId, subs])
+
+  useEffect(() => {
+    if (!highlightSubId) return
+    const el = document.getElementById(`admin-sub-${highlightSubId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [highlightSubId, selectedId, loading, tab])
+
+  useEffect(() => {
+    if (focusSubscriptionId) return
     if (!selectedId && filteredClients[0]) setSelectedId(filteredClients[0].userId)
-  }, [filteredClients, selectedId])
+  }, [filteredClients, selectedId, focusSubscriptionId])
 
   const client = filteredClients.find((c) => c.userId === selectedId) ?? filteredClients[0]
   const activeSubs = useMemo(() => subs.filter((s) => s.status === 'ACTIVE'), [subs])
   const pendingSubs = useMemo(() => subs.filter((s) => s.status === 'PENDING'), [subs])
-  const calendar = useMemo(() => buildCalendar(activeSubs, 14), [activeSubs])
-  const todayQueue = useMemo(() => buildTodayQueue(activeSubs), [activeSubs])
-  const selectedDay = calendar.find((d) => d.key === selectedDayKey) ?? calendar[0]
+  const calendar = useMemo(() => buildDeliveryCalendar(activeSubs, 14), [activeSubs])
+  const dayPrep = useMemo(() => buildKitchenPrepForDay(activeSubs, selectedDayKey), [activeSubs, selectedDayKey])
   const deliveriesToday = calendar[0]?.count ?? 0
   const deliveriesWeek = calendar.slice(0, 7).reduce((n, d) => n + d.count, 0)
 
@@ -202,53 +312,62 @@ export function AdminSubscriptionClientsPanel({
     } else toast.error(data?.error || 'Ошибка')
   }
 
+  const tabOptions = useMemo(
+    () => [
+      { id: 'today', label: pendingSubs.length ? `сводка · ${pendingSubs.length}` : 'сводка' },
+      { id: 'clients', label: `клиенты · ${clients.length}` },
+    ],
+    [pendingSubs.length, clients.length]
+  )
+
   return (
     <main className="ui-container ui-screen flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden !pb-6 pt-1">
       <header className="mb-3 shrink-0 space-y-2">
         <AdminSubscriptionNav />
-        <p className="text-[12px] text-[color:var(--muted)]">подписчики · доставки · мини-crm</p>
+        <p className="text-[12px] text-[color:var(--muted)]">
+          подписчики · свод на кухню · подтверждения
+        </p>
+        <PillTabToggle className="w-full" options={tabOptions} value={tab} onChange={(v) => setTab(v as PanelTab)} />
       </header>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-24">
         {loading ? (
           <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
-        ) : clients.length === 0 ? (
-          <p className="text-[13px] text-[color:var(--muted)]">Пока нет клиентских подписок.</p>
-        ) : (
+        ) : subs.length === 0 ? (
+          <p className="text-[13px] text-[color:var(--muted)]">Пока нет подписок. Гости оформляют их в разделе «подписка».</p>
+        ) : tab === 'today' ? (
           <>
             {pendingSubs.length > 0 ? (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3">
+              <section className="rounded-2xl border border-amber-300 bg-amber-50/90 p-3">
                 <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-amber-900">
-                  на подтверждении · {pendingSubs.length}
+                  ждут подтверждения · {pendingSubs.length}
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {pendingSubs.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-100 bg-white px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-semibold">{s.name}</p>
-                        <p className="text-[11px] text-[color:var(--muted)]">
-                          {formatTelegramContact({
-                            name: s.user?.name,
-                            telegramUsername: s.user?.telegramUsername,
-                            telegramId: s.user?.telegramId,
-                          }) || 'гость'} · {formatPrice(s.price)} · {s.periodDays ?? '—'} дн.
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
+                    <div key={s.id} className="rounded-xl border border-amber-200 bg-white p-3">
+                      <GuestClientCard
+                        client={guestClientFromSubscriptionUser(s.user)}
+                        variant="row"
+                        meta={`${s.name} · ${formatPrice(s.price)}`}
+                        onClick={() => {
+                          setTab('clients')
+                          setSelectedId(s.user?.id ?? `anon-${s.id}`)
+                          setExpandedSubId(s.id)
+                          setHighlightSubId(s.id)
+                        }}
+                      />
+                      <div className="mt-2 flex gap-2">
                         <button
                           type="button"
                           onClick={() => reviewSub(s.id, 'approve')}
-                          className="rounded-lg bg-[color:var(--primary)] px-3 py-1.5 text-[12px] font-semibold text-white"
+                          className="flex-1 rounded-full bg-[color:var(--primary)] py-2 text-[12px] font-semibold text-white"
                         >
                           подтвердить
                         </button>
                         <button
                           type="button"
                           onClick={() => reviewSub(s.id, 'reject')}
-                          className="rounded-lg border border-[color:var(--stroke)] px-3 py-1.5 text-[12px] font-semibold"
+                          className="flex-1 rounded-full border border-[color:var(--stroke)] py-2 text-[12px] font-semibold"
                         >
                           отклонить
                         </button>
@@ -278,44 +397,43 @@ export function AdminSubscriptionClientsPanel({
               ))}
             </div>
 
-            <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2">
+            <section className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                оборот активных
+                на кухню · {formatDayTitle(selectedDayKey)}
               </p>
-              <p className="text-[22px] font-bold tabular-nums text-[color:var(--accent)]">
-                {formatPrice(activeSubs.reduce((n, s) => n + Number(s.price), 0))}
-              </p>
-            </div>
-
-            {(todayQueue.inPrep.length > 0 || todayQueue.toSend.length > 0) && (
-              <section>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                  сегодня · все клиенты
-                </p>
-                <div className="space-y-2">
-                  {todayQueue.inPrep.length > 0 && (
-                    <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] px-3 py-2.5">
-                      <p className="text-[10px] font-semibold uppercase text-[color:var(--muted)]">в готовке</p>
-                      <p className="mt-1 text-[13px] font-medium">
-                        {todayQueue.inPrep.map((t) => `${t.clientName} · ${t.sub.name}`).join(' · ')}
-                      </p>
-                    </div>
-                  )}
-                  {todayQueue.toSend.length > 0 && (
-                    <div className="rounded-xl border border-[color:var(--stroke)] px-3 py-2.5">
-                      <p className="text-[10px] font-semibold uppercase text-[color:var(--muted)]">к отправке</p>
-                      <p className="mt-1 text-[13px] font-medium">
-                        {todayQueue.toSend.map((t) => `${t.clientName} · ${t.sub.name}`).join(' · ')}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
+              {dayPrep.deliveryCount === 0 ? (
+                <p className="mt-3 text-[13px] text-[color:var(--muted)]">На этот день доставок нет.</p>
+              ) : (
+                <>
+                  <ul className="mt-3 space-y-2">
+                    {dayPrep.aggregate.map((line) => (
+                      <li
+                        key={`${line.mealSlot}:${line.dishName}`}
+                        className="flex items-center justify-between gap-2 rounded-xl bg-black/[0.03] px-3 py-2"
+                      >
+                        <span className="text-[13px] font-semibold">
+                          {line.quantity > 1 ? `${line.quantity}× ` : ''}
+                          {line.dishName}
+                        </span>
+                        {line.mealLabel ? (
+                          <span className="shrink-0 text-[10px] font-semibold uppercase text-[color:var(--muted)]">
+                            {line.mealLabel}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-[11px] text-[color:var(--muted)]">
+                    {dayPrep.deliveryCount}{' '}
+                    {dayPrep.deliveryCount === 1 ? 'доставка' : 'доставки'} · свод по рационам подписчиков
+                  </p>
+                </>
+              )}
+            </section>
 
             <section>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                график доставок · 14 дней
+                график · 14 дней
               </p>
               <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
                 {calendar.map((d) => {
@@ -331,9 +449,7 @@ export function AdminSubscriptionClientsPanel({
                         isSel ? 'border-[color:var(--primary)] bg-[color:var(--primary)]/10' : 'border-[color:var(--stroke)]'
                       )}
                     >
-                      <span className="text-[10px] text-[color:var(--muted)]">
-                        {WEEKDAYS_SHORT[d.date.getDay()]}
-                      </span>
+                      <span className="text-[10px] text-[color:var(--muted)]">{WEEKDAYS_SHORT[d.date.getDay()]}</span>
                       <span className="text-[15px] font-bold tabular-nums">{d.date.getDate()}</span>
                       <span
                         className={cn(
@@ -353,191 +469,112 @@ export function AdminSubscriptionClientsPanel({
                 })}
               </div>
 
-              {selectedDay && selectedDay.count > 0 ? (
+              {dayPrep.deliveries.length > 0 ? (
                 <div className="mt-3 space-y-2">
-                  {selectedDay.items.map(({ sub, delivery, clientName }) => (
-                    <div
-                      key={delivery.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-[color:var(--stroke)] px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold">{clientName}</p>
-                        <p className="truncate text-[12px] text-[color:var(--muted)]">{sub.name}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
+                    по клиентам
+                  </p>
+                  {dayPrep.deliveries.map((row) => {
+                    const sub = activeSubs.find((s) => s.id === row.subscriptionId)
+                    const clientInfo = guestClientFromSubscriptionUser(sub?.user ?? null, row.clientName)
+                    return (
+                      <div
+                        key={row.deliveryId}
+                        className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-3"
+                      >
+                        <GuestClientCard
+                          client={clientInfo}
+                          variant="row"
+                          meta={`${row.subscriptionName}${row.deliveryTime ? ` · ${row.deliveryTime}` : ''}`}
+                          badge={DELIVERY_STATUS[row.status] ?? row.status}
+                          onClick={() => {
+                            if (!sub?.user?.id) return
+                            setTab('clients')
+                            setSelectedId(sub.user.id)
+                            setExpandedSubId(sub.id)
+                          }}
+                        />
+                        <ul className="mt-2 space-y-0.5 border-t border-[color:var(--stroke)] pt-2">
+                          {row.dishes.map((d, i) => (
+                            <li key={i} className="text-[12px] text-[color:var(--text)]">
+                              {d.quantity > 1 ? `${d.quantity}× ` : ''}
+                              {d.dishName}
+                              {d.mealLabel ? (
+                                <span className="text-[color:var(--muted)]"> · {d.mealLabel}</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <span className="shrink-0 text-[11px] font-medium text-[color:var(--muted)]">
-                        {DELIVERY_STATUS[delivery.status] ?? delivery.status}
-                      </span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
-              ) : selectedDay ? (
-                <p className="mt-2 text-[12px] text-[color:var(--muted)]">Нет доставок на этот день.</p>
               ) : null}
             </section>
+          </>
+        ) : (
+          <>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="поиск по имени или @telegram"
+              className="input w-full rounded-xl px-3 py-2 text-[13px]"
+            />
 
-            <section>
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="поиск по имени или @telegram"
-                className="input mb-3 w-full rounded-xl px-3 py-2 text-[13px]"
-              />
-
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                клиенты
-              </p>
-              <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
-                {filteredClients.map((c) => (
-                  <button
-                    key={c.userId}
-                    type="button"
-                    onClick={() => setSelectedId(c.userId)}
-                    className={cn(
-                      'flex shrink-0 flex-col items-center gap-1 rounded-xl border-2 p-3 transition',
-                      c.userId === selectedId
-                        ? 'border-[color:var(--primary)] bg-[color:var(--primary)]/5'
-                        : 'border-[color:var(--stroke)]'
-                    )}
-                  >
-                    <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-black/5">
-                      {c.photo ? (
-                        <img src={c.photo} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-[18px] font-bold text-[color:var(--muted)]">
-                          {c.name.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <span className="max-w-[80px] truncate text-[11px] font-medium">{c.name}</span>
-                    <span className="text-[10px] text-[color:var(--muted)]">{c.active} акт.</span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {filteredClients.map((c) => (
+                <GuestClientCard
+                  key={c.userId}
+                  client={c.client}
+                  variant="tile"
+                  selected={c.userId === selectedId}
+                  meta={`${c.active} акт.${c.pending ? ` · ${c.pending} ждёт` : ''}`}
+                  onClick={() => {
+                    setSelectedId(c.userId)
+                    setExpandedSubId(null)
+                  }}
+                />
+              ))}
+            </div>
 
             {client ? (
               <section className="space-y-3">
-                <div className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black/5">
-                      {client.photo ? (
-                        <img src={client.photo} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-[22px] font-bold text-[color:var(--muted)]">
-                          {client.name.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[16px] font-bold">{client.name}</p>
-                      {(() => {
-                        const handle = formatTelegramContact(client)
-                        const url = telegramUserUrl(client.telegramId)
-                        if (url) {
-                          return (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-1 block text-[13px] font-semibold text-[color:var(--primary)]"
-                            >
-                              {handle}
-                            </a>
-                          )
-                        }
-                        return (
-                          <p className="mt-1 text-[13px] font-semibold text-[color:var(--muted)]">{handle}</p>
-                        )
-                      })()}
-                      <p className="mt-2 text-[12px] text-[color:var(--muted)]">
-                        {client.active} активных · {formatPrice(client.revenue)} оборот
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <GuestClientCard
+                  client={client.client}
+                  variant="hero"
+                  meta={`${client.active} активных · ${formatPrice(client.revenue)} оборот`}
+                />
 
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                  подписки
+                  подписки · {client.subs.length}
                 </p>
                 {client.subs.map((s) => {
-                  const upcoming = (s.deliveries ?? [])
-                    .filter((d) => d.status !== 'CANCELLED' && d.status !== 'DELIVERED')
-                    .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
-                    .slice(0, 4)
+                  const open = expandedSubId === s.id
                   return (
-                    <div key={s.id} className="rounded-xl border border-[color:var(--stroke)] p-4">
-                      <div className="flex items-start justify-between gap-2">
+                    <div key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSubId(open ? null : s.id)}
+                        className="flex w-full items-center justify-between gap-2 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-3 text-left"
+                      >
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold">{s.name}</span>
-                            <span
-                              className={cn(
-                                'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                s.status === 'ACTIVE'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-black/5 text-[color:var(--muted)]'
-                              )}
-                            >
-                              {s.statusLabel}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[12px] text-[color:var(--muted)]">
-                            {formatPrice(s.price)} · {periodLabel(s.periodDays)} · {s.personCount} перс.
-                          </p>
-                          <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
-                            дни: {formatDeliveryDays(s.deliveryDays)}
-                            {s.deliveryTime ? ` · ${s.deliveryTime}` : ''}
+                          <p className="truncate text-[14px] font-semibold">{s.name}</p>
+                          <p className="text-[12px] text-[color:var(--muted)]">
+                            {s.statusLabel} · {formatPrice(s.price)}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void deleteSub(s.id)}
-                          className="shrink-0 rounded-full p-2 text-red-600 hover:bg-red-50"
-                          title="удалить"
-                        >
-                          <IconTrash className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      {s.items.length > 0 ? (
-                        <div className="mt-3">
-                          <p className="text-[10px] font-semibold uppercase text-[color:var(--muted)]">рацион</p>
-                          <ul className="mt-1 space-y-0.5">
-                            {s.items.map((it) => (
-                              <li key={it.id} className="text-[12px]">
-                                {it.quantity > 1 ? `${it.quantity}× ` : ''}
-                                {it.dish?.name ?? '—'}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      {upcoming.length > 0 ? (
-                        <div className="mt-3">
-                          <p className="text-[10px] font-semibold uppercase text-[color:var(--muted)]">
-                            ближайшие доставки
-                          </p>
-                          <ul className="mt-1 space-y-1">
-                            {upcoming.map((d) => {
-                              const dt = new Date(d.scheduledDate)
-                              return (
-                                <li key={d.id} className="flex justify-between text-[12px]">
-                                  <span>
-                                    {dt.toLocaleDateString('ru-RU', {
-                                      weekday: 'short',
-                                      day: 'numeric',
-                                      month: 'short',
-                                    })}
-                                  </span>
-                                  <span className="text-[color:var(--muted)]">
-                                    {DELIVERY_STATUS[d.status] ?? d.status}
-                                  </span>
-                                </li>
-                              )
-                            })}
-                          </ul>
+                        <span className="shrink-0 text-[12px] text-[color:var(--muted)]">{open ? '▲' : '▼'}</span>
+                      </button>
+                      {open ? (
+                        <div className="mt-2">
+                          <SubscriptionDetailCard
+                            sub={s}
+                            highlighted={highlightSubId === s.id}
+                            onDelete={deleteSub}
+                            onApprove={s.status === 'PENDING' ? (id) => reviewSub(id, 'approve') : undefined}
+                            onReject={s.status === 'PENDING' ? (id) => reviewSub(id, 'reject') : undefined}
+                          />
                         </div>
                       ) : null}
                     </div>

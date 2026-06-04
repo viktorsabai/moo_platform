@@ -1,96 +1,18 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { formatTelegramContact } from '@/lib/telegram-contact'
+import { getAdminSubscriptions } from '@/lib/get-admin-subscriptions'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: 'активная',
-  PENDING: 'на подтверждении',
-  PAUSED: 'на паузе',
-  CANCELLED: 'отменена',
-  EXPIRED: 'закончилась',
-  DRAFT: 'черновик',
-}
-
 export async function GET() {
   try {
     const ctx = requireRestaurantAdmin(await getRestaurantContext())
-
-    const subs = await prisma.subscription.findMany({
-      where: { restaurantId: ctx.restaurantId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        price: true,
-        plan: true,
-        personCount: true,
-        periodDays: true,
-        deliveryDays: true,
-        deliveryTime: true,
-        nextDelivery: true,
-        createdAt: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            telegramUsername: true,
-            telegramId: true,
-            telegramPhotoUrl: true,
-            avatar: true,
-          },
-        },
-        items: {
-          select: {
-            id: true,
-            quantity: true,
-            dish: { select: { id: true, name: true, price: true } },
-          },
-        },
-        deliveries: {
-          select: { id: true, scheduledDate: true, status: true },
-        },
-      },
-    })
-
-    const mapped = subs.map((s) => ({
-      ...s,
-      price: Number(s.price),
-      nextDelivery: s.nextDelivery ? s.nextDelivery.toISOString() : null,
-      createdAt: s.createdAt.toISOString(),
-      statusLabel: STATUS_LABEL[s.status] ?? s.status,
-      user: s.user
-        ? {
-            id: s.user.id,
-            name: formatTelegramContact({
-              name: s.user.name,
-              telegramUsername: s.user.telegramUsername,
-              telegramId: s.user.telegramId,
-            }),
-            telegramUsername: s.user.telegramUsername ?? null,
-            telegramId: s.user.telegramId ?? null,
-            telegramPhotoUrl: s.user.telegramPhotoUrl ?? null,
-            avatar: s.user.avatar ?? null,
-          }
-        : null,
-      items: (s.items ?? []).map((it) => ({
-        ...it,
-        dish: it.dish ? { ...it.dish, price: Number(it.dish.price) } : it.dish,
-      })),
-      deliveries: (s.deliveries ?? []).map((d) => ({
-        id: d.id,
-        scheduledDate: d.scheduledDate.toISOString(),
-        status: d.status,
-      })),
-    }))
-
-    return NextResponse.json({ ok: true, subscriptions: mapped })
-  } catch (e: any) {
-    const status = Number(e?.statusCode || 500)
+    const subscriptions = await getAdminSubscriptions(ctx.restaurantId)
+    return NextResponse.json({ ok: true, subscriptions })
+  } catch (e: unknown) {
+    const status = Number((e as { statusCode?: number })?.statusCode || 500)
     return NextResponse.json({ ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' }, { status })
   }
 }
@@ -99,27 +21,21 @@ export async function GET() {
 export async function DELETE(request: Request) {
   try {
     const ctx = requireRestaurantAdmin(await getRestaurantContext())
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    const resetAll = searchParams.get('resetAll') === '1'
+    const url = new URL(request.url)
+    const resetAll = url.searchParams.get('resetAll') === '1'
+    const id = url.searchParams.get('id')?.trim()
 
     if (resetAll) {
-      const deleted = await prisma.subscription.deleteMany({
-        where: { restaurantId: ctx.restaurantId },
-      })
-      return NextResponse.json({ ok: true, deleted: deleted.count })
+      await prisma.subscription.deleteMany({ where: { restaurantId: ctx.restaurantId } })
+      return NextResponse.json({ ok: true })
     }
-
-    if (!id) return NextResponse.json({ ok: false, error: 'id обязателен' }, { status: 400 })
-    const sub = await prisma.subscription.findFirst({
-      where: { id, restaurantId: ctx.restaurantId },
-      select: { id: true },
-    })
-    if (!sub) return NextResponse.json({ ok: false, error: 'не найдена' }, { status: 404 })
-    await prisma.subscription.delete({ where: { id } })
+    if (!id) {
+      return NextResponse.json({ ok: false, error: 'id required' }, { status: 400 })
+    }
+    await prisma.subscription.delete({ where: { id, restaurantId: ctx.restaurantId } })
     return NextResponse.json({ ok: true })
-  } catch (e: any) {
-    const status = Number(e?.statusCode || 500)
-    return NextResponse.json({ ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' }, { status })
+  } catch (e: unknown) {
+    const status = Number((e as { statusCode?: number })?.statusCode || 500)
+    return NextResponse.json({ ok: false, error: 'Ошибка' }, { status })
   }
 }

@@ -495,7 +495,12 @@ export async function notifySubscriptionCreatedToOwner(params: {
     ])
   }
   inline_keyboard.push([
-    { text: 'Подписка в ЛК', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } },
+    {
+      text: 'Заявка в админке',
+      web_app: {
+        url: buildWebAppUrl(`/admin/subscriptions/clients?subscriptionId=${subscriptionId}`),
+      },
+    },
     { text: 'Панель владельца', web_app: { url: buildWebAppUrl('/admin') } },
   ])
 
@@ -587,7 +592,16 @@ export async function notifySubscriptionStatusChangedToOwner(params: {
         text,
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [[{ text: 'Открыть в ЛК', web_app: { url: buildWebAppUrl('/admin/subscriptions') } }]],
+          inline_keyboard: [
+            [
+              {
+                text: 'Клиенты и заявки',
+                web_app: {
+                  url: buildWebAppUrl(`/admin/subscriptions/clients?subscriptionId=${subscriptionId}`),
+                },
+              },
+            ],
+          ],
         },
       },
       botToken
@@ -621,7 +635,9 @@ export async function notifySubscriptionRequestToOps(params: {
         text,
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [[{ text: 'Перейти к подпискам', web_app: { url: buildWebAppUrl('/admin/subscriptions') } }]],
+          inline_keyboard: [
+            [{ text: 'Клиенты и заявки', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } }],
+          ],
         },
       },
       botToken

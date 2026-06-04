@@ -121,7 +121,7 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
       {/* actions */}
       <div className="mt-4 flex flex-wrap gap-2 border-t border-black/10 pt-4">
         <Link
-          href={`/subscriptions?subscriptionId=${subscription.id}`}
+          href={`/subscriptions/${subscription.id}`}
           className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[13px] font-semibold text-black/70 transition active:scale-[0.98]"
         >
           детали

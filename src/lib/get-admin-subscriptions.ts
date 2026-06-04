@@ -25,13 +25,21 @@ export type AdminSubscriptionRow = {
   createdAt: string
   user: {
     id: string
+    displayName: string
+    contactLabel: string
     name: string
     telegramUsername: string | null
     telegramId: string | null
     telegramPhotoUrl: string | null
     avatar: string | null
   } | null
-  items: { id: string; quantity: number; dish: { id: string; name: string; price: number } }[]
+  items: {
+    id: string
+    quantity: number
+    dayOfWeek: number | null
+    mealSlot: string | null
+    dish: { id: string; name: string; price: number } | null
+  }[]
   deliveries: { id: string; scheduledDate: string; status: string }[]
 }
 
@@ -66,6 +74,8 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
         select: {
           id: true,
           quantity: true,
+          dayOfWeek: true,
+          mealSlot: true,
           dish: { select: { id: true, name: true, price: true } },
         },
       },
@@ -75,34 +85,43 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
     },
   })
 
-  return subs.map((s) => ({
-    ...s,
-    price: Number(s.price),
-    nextDelivery: s.nextDelivery ? s.nextDelivery.toISOString() : null,
-    createdAt: s.createdAt.toISOString(),
-    statusLabel: STATUS_LABEL[s.status] ?? s.status,
-    user: s.user
-      ? {
-          id: s.user.id,
-          name: formatTelegramContact({
-            name: s.user.name,
-            telegramUsername: s.user.telegramUsername,
-            telegramId: s.user.telegramId,
-          }),
-          telegramUsername: s.user.telegramUsername ?? null,
-          telegramId: s.user.telegramId ?? null,
-          telegramPhotoUrl: s.user.telegramPhotoUrl ?? null,
-          avatar: s.user.avatar ?? null,
-        }
-      : null,
-    items: (s.items ?? []).map((it) => ({
-      ...it,
-      dish: it.dish ? { ...it.dish, price: Number(it.dish.price) } : it.dish,
-    })),
-    deliveries: (s.deliveries ?? []).map((d) => ({
-      id: d.id,
-      scheduledDate: d.scheduledDate.toISOString(),
-      status: d.status,
-    })),
-  }))
+  return subs.map((s) => {
+    const displayName = String(s.user?.name || '').trim() || 'Гость'
+    const contactLabel = s.user
+      ? formatTelegramContact({
+          name: s.user.name,
+          telegramUsername: s.user.telegramUsername,
+          telegramId: s.user.telegramId,
+        })
+      : '—'
+
+    return {
+      ...s,
+      price: Number(s.price),
+      nextDelivery: s.nextDelivery ? s.nextDelivery.toISOString() : null,
+      createdAt: s.createdAt.toISOString(),
+      statusLabel: STATUS_LABEL[s.status] ?? s.status,
+      user: s.user
+        ? {
+            id: s.user.id,
+            displayName,
+            contactLabel,
+            name: displayName,
+            telegramUsername: s.user.telegramUsername ?? null,
+            telegramId: s.user.telegramId ?? null,
+            telegramPhotoUrl: s.user.telegramPhotoUrl ?? null,
+            avatar: s.user.avatar ?? null,
+          }
+        : null,
+      items: (s.items ?? []).map((it) => ({
+        ...it,
+        dish: it.dish ? { ...it.dish, price: Number(it.dish.price) } : null,
+      })),
+      deliveries: (s.deliveries ?? []).map((d) => ({
+        id: d.id,
+        scheduledDate: d.scheduledDate.toISOString(),
+        status: d.status,
+      })),
+    }
+  })
 }

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { AdminDashboardSections } from '@/app/admin/AdminDashboardSections'
+import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
 import { Card } from '@/components/ui/Card'
 
 const ARCHIVE_CATEGORY_SLUG = '__archive'
@@ -114,6 +115,8 @@ export default async function AdminHomePage() {
          (SELECT COUNT(*)::int FROM "SubscriptionPlanTemplate" WHERE "restaurantId" = $1) AS "subscriptionPlansCount",
          (SELECT COUNT(*)::int FROM "Subscription" WHERE "restaurantId" = $1) AS "subscriptionsCount",
          (SELECT COUNT(*)::int FROM "Order" WHERE "restaurantId" = $1 AND "status" IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY')) AS "activeOrdersCount",
+         (SELECT COUNT(*)::int FROM "Order" WHERE "restaurantId" = $1 AND "status" = 'PENDING') AS "pendingOrdersCount",
+         (SELECT COUNT(*)::int FROM "Subscription" WHERE "restaurantId" = $1 AND "status" = 'PENDING') AS "pendingSubscriptionsCount",
          (SELECT COUNT(*)::int FROM "Order" WHERE "restaurantId" = $1 AND "createdAt" >= date_trunc('day', now())) AS "ordersToday",
          (SELECT COUNT(*)::int FROM "Order" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '7 days') AS "ordersWeek",
          (SELECT COALESCE(SUM("totalAmount"), 0)::float FROM "Order" WHERE "restaurantId" = $1 AND "createdAt" >= date_trunc('day', now())) AS "revenueToday",
@@ -184,6 +187,8 @@ export default async function AdminHomePage() {
   const subscriptionsCount = Number(counts?.subscriptionsCount ?? 0)
   const teamMembers: TeamMemberRow[] = settled[3].status === 'fulfilled' ? settled[3].value : []
   const activeOrdersCount = Number(counts?.activeOrdersCount ?? 0)
+  const pendingOrdersCount = Number(counts?.pendingOrdersCount ?? 0)
+  const pendingSubscriptionsCount = Number(counts?.pendingSubscriptionsCount ?? 0)
   const newLeadsCount = settled[4].status === 'fulfilled'
     ? Number((settled[4].value?.[0] as any)?.n ?? 0)
     : 0
@@ -313,14 +318,22 @@ export default async function AdminHomePage() {
       group: 'operations' as const,
       id: 'orders',
       title: 'Заказы',
-      hint: activeOrdersCount > 0 ? `${activeOrdersCount} активных` : 'новые и в работе',
+      hint:
+        pendingOrdersCount > 0
+          ? `${pendingOrdersCount} новых · ${activeOrdersCount} в работе`
+          : activeOrdersCount > 0
+            ? `${activeOrdersCount} активных`
+            : 'новые и в работе',
       href: '/admin/orders',
       summary: 'Список заказов, статусы и выручка.',
       linkLabel: 'Перейти к деталям',
       icon: 'orders' as const,
-      badgeCount: activeOrdersCount,
-      badgeLabel: `активных заказов: ${activeOrdersCount}`,
-      badgeTone: 'info' as const,
+      badgeCount: pendingOrdersCount > 0 ? pendingOrdersCount : activeOrdersCount,
+      badgeLabel:
+        pendingOrdersCount > 0
+          ? `новых заказов: ${pendingOrdersCount}`
+          : `активных заказов: ${activeOrdersCount}`,
+      badgeTone: pendingOrdersCount > 0 ? ('alert' as const) : ('info' as const),
     },
     {
       group: 'operations' as const,
@@ -346,11 +359,18 @@ export default async function AdminHomePage() {
       group: 'subscriptions' as const,
       id: 'subscriptions',
       title: 'Подписки',
-      hint: settings?.subscriptionEnabled ? 'планы и доставки' : 'выключены в настройках',
-      href: '/admin/subscriptions',
+      hint: pendingSubscriptionsCount > 0
+        ? `${pendingSubscriptionsCount} на подтверждении`
+        : settings?.subscriptionEnabled
+          ? 'планы и доставки'
+          : 'выключены в настройках',
+      href: pendingSubscriptionsCount > 0 ? '/admin/subscriptions/clients' : '/admin/subscriptions',
       summary: 'Шаблоны планов подписки и регулярные доставки.',
-      linkLabel: 'Перейти к деталям',
+      linkLabel: pendingSubscriptionsCount > 0 ? 'Открыть заявки' : 'Перейти к деталям',
       icon: 'subscriptions' as const,
+      badgeCount: pendingSubscriptionsCount,
+      badgeLabel: `на подтверждении: ${pendingSubscriptionsCount}`,
+      badgeTone: 'alert' as const,
     },
     {
       group: 'subscriptions' as const,
@@ -419,6 +439,7 @@ export default async function AdminHomePage() {
 
   return (
     <main className="ui-container ui-screen !pb-20 min-w-0 max-w-full overflow-x-hidden">
+      <AdminOwnerInbox />
       <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
     </main>
   )

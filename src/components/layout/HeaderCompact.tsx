@@ -10,6 +10,11 @@ import { BackLink } from '@/components/ui/BackLink'
 import { cn } from '@/lib/utils'
 import { applyTheme, readTheme, saveTheme, type UiTheme } from '@/lib/theme'
 import { IconCrown, IconMoon, IconSun } from '@/components/ui/icons'
+import {
+  countUnseenInboxItems,
+  OWNER_INBOX_SEEN_EVENT,
+  type OwnerInboxItemClient,
+} from '@/lib/owner-inbox-client'
 
 function isOwnerContext(pathname: string) {
   return pathname.startsWith('/admin') || pathname === '/profile/owner'
@@ -58,14 +63,15 @@ export function HeaderCompact() {
   const inOwnerContext = isOwnerContext(pathname)
   const itemCount = useCartStore((state) => state.getItemCount())
   const { data: session } = useSession()
-  const { name: venueName } = useVenue()
+  const { name: venueName, restaurantId } = useVenue()
   const [isMounted, setIsMounted] = useState(false)
   const [tgUser, setTgUser] = useState<any>(null)
   const [compact, setCompact] = useState(false)
   const [openState, setOpenState] = useState<{ isOpen: boolean; label: string }>({ isOpen: true, label: 'открыто' })
   const [restaurantName, setRestaurantName] = useState<string>('—')
   const [theme, setTheme] = useState<UiTheme>('system')
-  const [ownerInboxTotal, setOwnerInboxTotal] = useState(0)
+  const [ownerInboxUnseen, setOwnerInboxUnseen] = useState(0)
+  const [inboxItems, setInboxItems] = useState<OwnerInboxItemClient[]>([])
 
   const platformRole = (session?.user as any)?.platformRole as string | undefined
   const memberRole = (session?.user as any)?.memberRole as string | undefined
@@ -163,14 +169,17 @@ export function HeaderCompact() {
 
     const loadOwnerInbox = async () => {
       if (!isAdmin) {
-        setOwnerInboxTotal(0)
+        setOwnerInboxUnseen(0)
+        setInboxItems([])
         return
       }
       try {
         const res = await fetch('/api/owner/inbox', { cache: 'no-store', credentials: 'include' })
         const data = await res.json().catch(() => null)
-        if (res.ok && data?.ok && typeof data.total === 'number') {
-          setOwnerInboxTotal(Math.max(0, data.total))
+        if (res.ok && data?.ok && Array.isArray(data.items)) {
+          const items = data.items as OwnerInboxItemClient[]
+          setInboxItems(items)
+          setOwnerInboxUnseen(countUnseenInboxItems(restaurantId, items))
         }
       } catch {
         // ignore
@@ -179,14 +188,23 @@ export function HeaderCompact() {
     void loadOwnerInbox()
     const inboxTimer = window.setInterval(() => void loadOwnerInbox(), 45_000)
 
+    const onInboxSeen = () => void loadOwnerInbox()
+    window.addEventListener(OWNER_INBOX_SEEN_EVENT, onInboxSeen)
+
     return () => {
       window.clearInterval(inboxTimer)
+      window.removeEventListener(OWNER_INBOX_SEEN_EVENT, onInboxSeen)
       window.removeEventListener('storage', onStorage)
       window.removeEventListener('tg_user_updated' as any, onCustom)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('scroll', onScroll)
     }
-  }, [isAdmin])
+  }, [isAdmin, restaurantId])
+
+  useEffect(() => {
+    if (!isAdmin || !inboxItems.length) return
+    setOwnerInboxUnseen(countUnseenInboxItems(restaurantId, inboxItems))
+  }, [isAdmin, restaurantId, inboxItems])
 
   const initials = useMemo(() => {
     const name = String(tgUser?.first_name || tgUser?.username || '').trim()
@@ -257,18 +275,23 @@ export function HeaderCompact() {
             </button>
             {isAdmin ? (
               <Link
-                href="/admin"
+                href="/admin#inbox"
                 className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition active:scale-[0.95]"
+                title={
+                  ownerInboxUnseen > 0
+                    ? `${ownerInboxUnseen} новых входящих в ЛК`
+                    : 'Личный кабинет владельца'
+                }
                 aria-label={
-                  ownerInboxTotal > 0
-                    ? `Панель владельца: ${ownerInboxTotal} входящих`
-                    : 'Панель владельца'
+                  ownerInboxUnseen > 0
+                    ? `Личный кабинет: ${ownerInboxUnseen} новых входящих`
+                    : 'Личный кабинет владельца'
                 }
               >
                 <IconCrown className="h-5 w-5" />
-                {isMounted && ownerInboxTotal > 0 ? (
-                  <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-extrabold text-white">
-                    {ownerInboxTotal > 99 ? '99+' : ownerInboxTotal}
+                {isMounted && ownerInboxUnseen > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-[color:var(--sticky-bg)]">
+                    {ownerInboxUnseen > 99 ? '99+' : ownerInboxUnseen}
                   </span>
                 ) : null}
               </Link>
@@ -276,7 +299,10 @@ export function HeaderCompact() {
             <Link
               href="/cart"
               className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition active:scale-[0.95]"
-              aria-label="Корзина"
+              title={itemCount > 0 ? `Корзина: ${itemCount} ${itemCount === 1 ? 'товар' : itemCount < 5 ? 'товара' : 'товаров'}` : 'Корзина'}
+              aria-label={
+                itemCount > 0 ? `Корзина: ${itemCount} ${itemCount === 1 ? 'товар' : 'товаров'}` : 'Корзина'
+              }
             >
               <CartIcon />
               {isMounted && itemCount > 0 && (

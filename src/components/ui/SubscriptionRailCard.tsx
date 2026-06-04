@@ -95,7 +95,7 @@ export function SubscriptionRailCard({
                   type="button"
                   onClick={() => {
                     try {
-                      const url = `${window.location.origin}/subscriptions?subscriptionId=${encodeURIComponent(String(subscription.id))}`
+                      const url = `${window.location.origin}/subscriptions/${encodeURIComponent(String(subscription.id))}`
                       navigator.clipboard?.writeText(url).catch(() => {})
                     } catch {}
                   }}

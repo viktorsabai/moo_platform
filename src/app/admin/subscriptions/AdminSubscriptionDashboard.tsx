@@ -287,7 +287,7 @@ export function AdminSubscriptionDashboard() {
     )
   }
 
-  if (dishes.length === 0) {
+  if (dishes.length === 0 && totalCatalogDishes === 0) {
     return (
       <main className="ui-container ui-screen flex h-[100dvh] flex-col">
         <EmptyStatePlaceholder
@@ -308,6 +308,12 @@ export function AdminSubscriptionDashboard() {
           ← профиль
         </Link>
         <AdminSubscriptionNav />
+        {dishes.length === 0 && totalCatalogDishes > 0 ? (
+          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-900">
+            В меню нет блюд с флагом «доступно для подписки», но в каталоге уже {totalCatalogDishes} позиций — гости
+            видят сохранённый набор.
+          </p>
+        ) : null}
         {isDirty ? (
           <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-900">
             {totalCatalogDishes} блюд · {slotDishCount} в {MEAL_SLOT_LABEL[activeSlot]} · не сохранено

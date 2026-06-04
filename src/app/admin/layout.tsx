@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { getRestaurantContext } from '@/lib/restaurant-context'
+import { AdminInboxSeenSync } from '@/components/admin/AdminInboxSeenSync'
 
 export default async function AdminLayout({
   children,
@@ -30,5 +31,10 @@ export default async function AdminLayout({
     // venue init can rewrite the consumer cookie after navigation, so repair it here.
     redirect(`/api/restaurant/switch?venue=${encodeURIComponent(ctxRid)}&redirect=/admin`)
   }
-  return <>{children}</>
+  return (
+    <>
+      <AdminInboxSeenSync />
+      {children}
+    </>
+  )
 }

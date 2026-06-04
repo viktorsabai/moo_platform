@@ -12,6 +12,7 @@ import { EmptyStatePlaceholder } from '@/components/ui/EmptyStatePlaceholder'
 import { IconPencil, IconHome, IconTrash } from '@/components/ui/icons'
 import Link from 'next/link'
 import { AdminSubscriptionCatalog } from '@/app/admin/subscriptions/AdminSubscriptionCatalog'
+import { GuestClientCard, guestClientFromSubscriptionUser } from '@/components/ui/GuestClientCard'
 
 export type ClientSubscription = {
   id: string
@@ -108,7 +109,13 @@ function ClientsSubsSection({
   cn,
   onDeleteSubscription,
 }: {
-  clients: { userId: string; name: string; photo: string | null; subs: ClientSubscription[]; active: number; total: number }[]
+  clients: {
+    userId: string
+    client: ReturnType<typeof guestClientFromSubscriptionUser>
+    subs: ClientSubscription[]
+    active: number
+    total: number
+  }[]
   formatPrice: (n: number) => string
   cn: (...args: any[]) => string
   onDeleteSubscription?: (id: string) => void
@@ -121,96 +128,26 @@ function ClientsSubsSection({
     <div className="space-y-4">
       <div className="overflow-hidden">
         <p className="ui-muted mb-2 text-[11px] font-semibold uppercase tracking-wide">клиенты</p>
-        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
-          {clients.map((c) => {
-            const isSel = c.userId === selectedId
-            return (
-              <button
-                key={c.userId}
-                type="button"
-                onClick={() => setSelectedId(c.userId)}
-                className={cn(
-                  'flex shrink-0 flex-col items-center gap-1 rounded-xl border-2 p-3 transition',
-                  isSel ? 'border-[color:var(--primary)] bg-[color:var(--primary)]/5' : 'border-transparent hover:bg-black/5'
-                )}
-                style={{
-                  borderRadius: 'var(--radius-large)',
-                  borderColor: isSel ? 'var(--primary)' : 'var(--stroke)',
-                  background: isSel ? undefined : 'var(--surface)',
-                }}
-              >
-                <div
-                  className="h-14 w-14 overflow-hidden rounded-full"
-                  style={{
-                    borderRadius: '9999px',
-                    background: 'color-mix(in srgb, var(--text) 8%, transparent)',
-                  }}
-                >
-                  {c.photo ? (
-                    <img
-                      src={c.photo}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span
-                      className="flex h-full w-full items-center justify-center text-[18px] font-bold"
-                      style={{ color: 'var(--muted)' }}
-                    >
-                      {c.name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <span className="max-w-[80px] truncate text-[11px] font-medium" style={{ color: 'var(--text)' }}>{c.name}</span>
-                <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{c.active} подписок</span>
-              </button>
-            )
-          })}
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 scrollbar-none">
+          {clients.map((c) => (
+            <GuestClientCard
+              key={c.userId}
+              client={c.client}
+              variant="tile"
+              selected={c.userId === selectedId}
+              meta={`${c.active} подписок`}
+              onClick={() => setSelectedId(c.userId)}
+            />
+          ))}
         </div>
       </div>
       {client && (
         <div>
-          <div
-            className="flex items-center gap-4 rounded-2xl border p-4"
-            style={{
-              borderRadius: 'var(--radius-large)',
-              borderColor: 'var(--stroke)',
-              background: 'var(--surface-strong)',
-            }}
-          >
-            <div
-              className="h-16 w-16 shrink-0 overflow-hidden rounded-full"
-              style={{ borderRadius: '9999px', background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}
-            >
-              {client.photo ? (
-                <img src={client.photo} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <span
-                  className="flex h-full w-full items-center justify-center text-[22px] font-bold"
-                  style={{ color: 'var(--muted)' }}
-                >
-                  {client.name.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-bold" style={{ color: 'var(--text)' }}>{client.name}</p>
-              <p className="mt-1 text-[12px]" style={{ color: 'var(--muted)' }}>{client.active} подписок</p>
-              <div
-                className="mt-2 inline-flex items-baseline gap-1 rounded-lg px-2.5 py-1"
-                style={{
-                  background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
-                  borderRadius: 'var(--radius)',
-                }}
-              >
-                <span className="text-[16px] font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
-                  {formatPrice(client.total)}
-                </span>
-                <span className="text-[11px]" style={{ color: 'var(--muted)' }}>/мес</span>
-              </div>
-            </div>
-          </div>
+          <GuestClientCard
+            client={client.client}
+            variant="hero"
+            meta={`${client.active} подписок · ${formatPrice(client.total)}/мес`}
+          />
 
           {(todayTodo.toSend.length > 0 || todayTodo.inPrep.length > 0) && (
             <div className="mt-4">
@@ -1257,8 +1194,7 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                 const total = subs.reduce((acc, x) => acc + Number(x.price || 0), 0)
                 return {
                   userId,
-                  name: u?.name ?? 'Без имени',
-                  photo: u?.telegramPhotoUrl ?? u?.avatar ?? null,
+                  client: guestClientFromSubscriptionUser(u),
                   subs,
                   active,
                   total,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import Link from 'next/link'
 import { useVenue } from '@/lib/venue-context'
@@ -29,6 +29,8 @@ const STATUS_OPTIONS: { value: StatusFilterKey; label: string }[] = [
 
 export default function SubscriptionsPage() {
   const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { settings, error: venueError, isLoading: venueLoading, refetch: refetchVenue } = useVenue()
   const storeSubscriptions = useSubscriptionStore((state) => state.subscriptions)
   const setSubscriptions = useSubscriptionStore((state) => state.setSubscriptions)
@@ -92,6 +94,16 @@ export default function SubscriptionsPage() {
   }, [loadSubscriptions])
 
   useEffect(() => {
+    const id = searchParams.get('subscriptionId')?.trim()
+    if (id) router.replace(`/subscriptions/${id}`)
+  }, [searchParams, router])
+
+  useEffect(() => {
+    const id = searchParams.get('focus')?.trim()
+    if (id) setFocusSubscriptionId(id)
+  }, [searchParams])
+
+  useEffect(() => {
     fetch('/api/subscriptions/config', {
       cache: 'no-store',
       credentials: 'include',
@@ -121,6 +133,15 @@ export default function SubscriptionsPage() {
             обновить
           </button>
         </div>
+      </main>
+    )
+  }
+
+  if (venueLoading) {
+    return (
+      <main className="ui-container ui-screen">
+        <PageHeader title="подписка" compact className="mb-3" />
+        <p className="py-8 text-center text-[13px] text-[color:var(--muted)]">загрузка…</p>
       </main>
     )
   }

@@ -439,7 +439,7 @@ export async function POST(request: Request) {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Открыть эту подписку', web_app: { url: buildWebAppUrl(`/subscriptions?subscriptionId=${subscription.id}`) } }],
+          [{ text: 'Открыть эту подписку', web_app: { url: buildWebAppUrl(`/subscriptions/${subscription.id}`) } }],
           [{ text: 'Мои подписки', web_app: { url: buildWebAppUrl('/subscriptions') } }],
           [{ text: 'Открыть mini app', web_app: { url: buildWebAppUrl('/') } }],
         ],
