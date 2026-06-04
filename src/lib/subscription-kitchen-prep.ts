@@ -13,7 +13,7 @@ export type SubscriptionForPrep = {
   status: string
   deliveryTime: string | null
   items: SubscriptionItemForPrep[]
-  deliveries: { id: string; scheduledDate: string; status: string }[]
+  deliveries: { id: string; scheduledDate: string; status: string; orderId?: string | null }[]
   user?: { displayName?: string; name?: string } | null
 }
 
@@ -31,6 +31,7 @@ export type KitchenDeliveryRow = {
   clientName: string
   deliveryTime: string | null
   status: string
+  orderId: string | null
   dishes: KitchenDishLine[]
 }
 
@@ -101,6 +102,7 @@ export function buildKitchenPrepForDay(subs: SubscriptionForPrep[], targetDayKey
         clientName,
         deliveryTime: sub.deliveryTime,
         status: del.status,
+        orderId: (del as { orderId?: string | null }).orderId ?? null,
         dishes,
       })
     }

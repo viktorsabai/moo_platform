@@ -82,7 +82,7 @@ export function AdminOwnerInbox() {
         className="mb-4 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 py-3"
       >
         <div className="flex items-center gap-2 text-[13px] font-semibold text-[color:var(--muted)]">
-          <IconCrown className="h-4 w-4 shrink-0 text-amber-500" />
+          <IconCrown className="h-4 w-4 shrink-0 text-[color:var(--primary)]" />
           входящие · всё просмотрено
         </div>
       </section>
@@ -95,7 +95,7 @@ export function AdminOwnerInbox() {
       className={cn(
         'mb-4 overflow-hidden rounded-2xl border',
         hasUnseen
-          ? 'border-amber-300/80 bg-gradient-to-b from-amber-50/90 to-[color:var(--surface-strong)]'
+          ? 'border-[color:var(--primary)]/30 bg-gradient-to-b from-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] to-[color:var(--surface-strong)]'
           : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)]'
       )}
     >
@@ -114,7 +114,7 @@ export function AdminOwnerInbox() {
           </p>
         </div>
         {hasUnseen ? (
-          <span className="inline-flex min-h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-extrabold text-white">
+          <span className="inline-flex min-h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full bg-[color:var(--primary)] px-1.5 text-[11px] font-extrabold text-[color:var(--surface)]">
             {displayNew.length > 99 ? '99+' : displayNew.length}
           </span>
         ) : null}

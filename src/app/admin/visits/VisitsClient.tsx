@@ -12,6 +12,8 @@ import {
   type GuestListFocus,
 } from '@/lib/guest-crm'
 import { cn } from '@/lib/utils'
+import { GuestClientCard, guestClientFromSubscriptionUser } from '@/components/ui/GuestClientCard'
+import { UserAvatar } from '@/components/ui/UserAvatar'
 
 const TZ = 'Asia/Bangkok'
 
@@ -26,6 +28,9 @@ export type SerializedActivityEvent = {
 export type SerializedGuest = {
   key: string
   name: string
+  displayName: string
+  contactLabel: string | null
+  photoUrl: string | null
   telegramId: string | null
   lastAt: string
   isFresh: boolean
@@ -126,6 +131,15 @@ function crmMetricsFromSerialized(g: SerializedGuest) {
     isFresh: g.isFresh,
     interests: g.interests,
   }
+}
+
+function guestCardInfo(g: SerializedGuest) {
+  return guestClientFromSubscriptionUser({
+    displayName: g.displayName || g.name,
+    contactLabel: g.contactLabel ?? undefined,
+    telegramId: g.telegramId,
+    telegramPhotoUrl: g.photoUrl,
+  })
 }
 
 export function VisitsClient({
@@ -409,21 +423,19 @@ export function VisitsClient({
                     onClick={() => setPanelGuestKey(g.key)}
                     className="flex w-full items-center gap-3 px-3 py-3 text-left transition active:bg-[color:var(--surface-strong)]"
                   >
-                    <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-extrabold text-[color:var(--text)]"
-                      style={{
-                        background:
-                          'color-mix(in srgb, var(--primary) 18%, var(--surface-strong))',
-                      }}
-                      aria-hidden
-                    >
-                      {g.name.trim().slice(0, 1).toUpperCase() || '?'}
-                    </div>
+                    <UserAvatar name={g.displayName || g.name} photoUrl={g.photoUrl} size="md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-[15px] font-extrabold text-[color:var(--text)]">{g.name}</span>
+                        <span className="truncate text-[15px] font-extrabold text-[color:var(--text)]">
+                          {g.displayName || g.name}
+                        </span>
+                        {g.contactLabel ? (
+                          <span className="truncate text-[12px] font-semibold text-[color:var(--primary)]">
+                            {g.contactLabel}
+                          </span>
+                        ) : null}
                         {g.isFresh ? (
-                          <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[8px] font-extrabold text-white">
+                          <span className="shrink-0 rounded-full bg-[color:var(--primary)] px-1.5 py-0.5 text-[8px] font-extrabold text-[color:var(--surface)]">
                             new
                           </span>
                         ) : null}
@@ -487,11 +499,8 @@ function GuestDetailPanel({
         className="relative z-[121] max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-[22px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] shadow-2xl sm:rounded-[var(--radius-large)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate text-[17px] font-extrabold text-[color:var(--text)]">{guest.name}</div>
-            <div className="text-[11px] font-medium text-[color:var(--muted)]">был {formatDate(guest.lastAt)}</div>
-          </div>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 py-3">
+          <GuestClientCard client={guestCardInfo(guest)} variant="row" meta={`был ${formatDate(guest.lastAt)}`} />
           <button
             type="button"
             onClick={onClose}

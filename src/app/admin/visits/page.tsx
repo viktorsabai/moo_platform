@@ -37,11 +37,15 @@ type ActivityEventRow = {
   userName: string | null
   telegramUsername: string | null
   telegramId: string | null
+  userPhotoUrl: string | null
 }
 
 type GuestInsight = {
   key: string
   name: string
+  displayName: string
+  contactLabel: string | null
+  photoUrl: string | null
   telegramId: string | null
   userId: string | null
   lastAt: Date
@@ -168,10 +172,21 @@ function buildGuestInsights(events: ActivityEventRow[]): GuestInsight[] {
       sorted.map((e) => String(e.telegramId || '').trim()).find((id) => id.length > 0) || null
     const resolvedUserId =
       sorted.map((e) => String(e.userId || '').trim()).find((id) => id.length > 0) || null
+    const photoUrl =
+      sorted.map((e) => e.userPhotoUrl).find((url) => typeof url === 'string' && url.trim()) || null
+    const displayName = String(latest.userName || latest.telegramUsername || name).trim() || name
+    const contactLabel = latest.telegramUsername
+      ? `@${String(latest.telegramUsername).replace(/^@/, '')}`
+      : resolvedTg
+        ? `tg ${resolvedTg}`
+        : null
 
     return {
       key,
       name,
+      displayName,
+      contactLabel,
+      photoUrl,
       telegramId: resolvedTg,
       userId: resolvedUserId,
       lastAt,
@@ -195,7 +210,10 @@ function buildGuestInsights(events: ActivityEventRow[]): GuestInsight[] {
 function serializeGuest(g: GuestInsight): SerializedGuest {
   return {
     key: g.key,
-    name: g.name,
+    name: g.displayName,
+    displayName: g.displayName,
+    contactLabel: g.contactLabel,
+    photoUrl: g.photoUrl,
     telegramId: g.telegramId,
     lastAt: g.lastAt.toISOString(),
     isFresh: g.isFresh,
@@ -302,7 +320,7 @@ export default async function AdminVisitsPage({
           createdAt: true,
           userId: true,
           telegramId: true,
-          user: { select: { name: true, telegramUsername: true } },
+          user: { select: { name: true, telegramUsername: true, telegramPhotoUrl: true, avatar: true } },
         },
       })
       return rows.map((e) => ({
@@ -315,6 +333,7 @@ export default async function AdminVisitsPage({
         userName: e.user?.name ?? null,
         telegramUsername: e.user?.telegramUsername ?? null,
         telegramId: e.telegramId,
+        userPhotoUrl: e.user?.telegramPhotoUrl ?? e.user?.avatar ?? null,
       }))
     })(),
   ])
@@ -346,18 +365,31 @@ export default async function AdminVisitsPage({
   const missingSchema = summaryResult.status === 'rejected' || dailyResult.status === 'rejected' || eventsResult.status === 'rejected'
   let guestInsights = buildGuestInsights(events)
   const userIdsNeedingTg = [...new Set(guestInsights.filter((g) => !g.telegramId && g.userId).map((g) => g.userId as string))]
-  if (userIdsNeedingTg.length > 0) {
+  const userIdsNeedingPhoto = [
+    ...new Set(guestInsights.filter((g) => !g.photoUrl && g.userId).map((g) => g.userId as string)),
+  ]
+  const allUserIds = [...new Set([...userIdsNeedingTg, ...userIdsNeedingPhoto])]
+  if (allUserIds.length > 0) {
     const users = await prisma.user.findMany({
-      where: { id: { in: userIdsNeedingTg } },
-      select: { id: true, telegramId: true },
+      where: { id: { in: allUserIds } },
+      select: { id: true, telegramId: true, telegramPhotoUrl: true, avatar: true, name: true, telegramUsername: true },
     })
-    const tgByUser = new Map(
-      users.filter((u) => String(u.telegramId || '').trim()).map((u) => [u.id, String(u.telegramId).trim()] as const)
-    )
+    const userById = new Map(users.map((u) => [u.id, u] as const))
     guestInsights = guestInsights.map((g) => {
-      if (g.telegramId) return g
-      const tid = g.userId ? tgByUser.get(g.userId) : undefined
-      return tid ? { ...g, telegramId: tid } : g
+      const u = g.userId ? userById.get(g.userId) : undefined
+      const tid = g.telegramId || (u?.telegramId ? String(u.telegramId).trim() : undefined)
+      const photoUrl = g.photoUrl || u?.telegramPhotoUrl || u?.avatar || null
+      const displayName = g.displayName || String(u?.name || '').trim() || g.name
+      const contactLabel =
+        g.contactLabel ||
+        (u?.telegramUsername ? `@${String(u.telegramUsername).replace(/^@/, '')}` : tid ? `tg ${tid}` : null)
+      return {
+        ...g,
+        telegramId: tid ?? g.telegramId,
+        photoUrl,
+        displayName,
+        contactLabel,
+      }
     })
   }
 

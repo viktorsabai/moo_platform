@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -82,18 +83,89 @@ function groupClients(subs: SubRow[]): ClientRow[] {
   return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue || b.pending - a.pending)
 }
 
+function DeliveryActionButtons({
+  deliveryId,
+  status,
+  orderId,
+  busy,
+  onAction,
+}: {
+  deliveryId: string
+  status: string
+  orderId: string | null
+  busy: boolean
+  onAction: (deliveryId: string, action: 'start_prep' | 'create_kitchen_order' | 'mark_delivered') => void
+}) {
+  if (status === 'DELIVERED' || status === 'CANCELLED') {
+    return orderId ? (
+      <Link
+        href={`/admin/orders?id=${encodeURIComponent(orderId)}`}
+        className="mt-2 inline-flex rounded-full border border-[color:var(--stroke)] px-3 py-1.5 text-[11px] font-semibold"
+      >
+        заказ в кухне →
+      </Link>
+    ) : null
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {orderId ? (
+        <Link
+          href={`/admin/orders?id=${encodeURIComponent(orderId)}`}
+          className="rounded-full border border-[color:var(--primary)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--primary)]"
+        >
+          открыть заказ
+        </Link>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onAction(deliveryId, 'create_kitchen_order')}
+          className="rounded-full bg-[color:var(--primary)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--surface)] disabled:opacity-50"
+        >
+          {busy ? '…' : 'заказ на кухню'}
+        </button>
+      )}
+      {status === 'SCHEDULED' ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onAction(deliveryId, 'start_prep')}
+          className="rounded-full border border-[color:var(--stroke)] px-3 py-1.5 text-[11px] font-semibold disabled:opacity-50"
+        >
+          в готовку
+        </button>
+      ) : null}
+      {status === 'CONFIRMED' ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onAction(deliveryId, 'mark_delivered')}
+          className="rounded-full border border-[color:var(--stroke)] px-3 py-1.5 text-[11px] font-semibold disabled:opacity-50"
+        >
+          доставлено
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function SubscriptionDetailCard({
   sub,
   highlighted,
   onDelete,
   onApprove,
   onReject,
+  onDeliveryAction,
+  deliveryBusyId,
 }: {
   sub: SubRow
   highlighted?: boolean
   onDelete: (id: string) => void
   onApprove?: (id: string) => void
   onReject?: (id: string) => void
+  onDeliveryAction: (deliveryId: string, action: 'start_prep' | 'create_kitchen_order' | 'mark_delivered') => void
+  deliveryBusyId: string | null
 }) {
   const upcoming = (sub.deliveries ?? [])
     .filter((d) => d.status !== 'CANCELLED' && d.status !== 'DELIVERED')
@@ -189,15 +261,24 @@ function SubscriptionDetailCard({
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
             ближайшие доставки
           </p>
-          <ul className="mt-1 space-y-1">
+          <ul className="mt-1 space-y-2">
             {upcoming.map((d) => {
               const dt = new Date(d.scheduledDate)
               return (
-                <li key={d.id} className="flex justify-between text-[12px]">
-                  <span>
-                    {dt.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}
-                  </span>
-                  <span className="text-[color:var(--muted)]">{DELIVERY_STATUS[d.status] ?? d.status}</span>
+                <li key={d.id} className="rounded-lg border border-[color:var(--stroke)] px-2.5 py-2">
+                  <div className="flex justify-between text-[12px]">
+                    <span>
+                      {dt.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                    <span className="text-[color:var(--muted)]">{DELIVERY_STATUS[d.status] ?? d.status}</span>
+                  </div>
+                  <DeliveryActionButtons
+                    deliveryId={d.id}
+                    status={d.status}
+                    orderId={d.orderId ?? null}
+                    busy={deliveryBusyId === d.id}
+                    onAction={onDeliveryAction}
+                  />
                 </li>
               )
             })}
@@ -223,6 +304,7 @@ export function AdminSubscriptionClientsPanel({
   const [selectedDayKey, setSelectedDayKey] = useState<string>(() => dayKey(startOfDay(new Date())))
   const [search, setSearch] = useState('')
   const [expandedSubId, setExpandedSubId] = useState<string | null>(null)
+  const [deliveryBusyId, setDeliveryBusyId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -312,6 +394,38 @@ export function AdminSubscriptionClientsPanel({
     } else toast.error(data?.error || 'Ошибка')
   }
 
+  async function deliveryAction(
+    deliveryId: string,
+    action: 'start_prep' | 'create_kitchen_order' | 'mark_delivered'
+  ) {
+    setDeliveryBusyId(deliveryId)
+    try {
+      const res = await fetch(`/api/admin/subscriptions/deliveries/${encodeURIComponent(deliveryId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) {
+        toast.error(data?.error || 'Не удалось выполнить действие')
+        return
+      }
+      if (action === 'create_kitchen_order' && data.orderId) {
+        toast.success('Заказ создан — в разделе «Заказы»')
+      } else if (action === 'start_prep') {
+        toast.success('В готовке')
+      } else if (action === 'mark_delivered') {
+        toast.success('Доставка отмечена')
+      }
+      await load()
+    } catch {
+      toast.error('Ошибка сети')
+    } finally {
+      setDeliveryBusyId(null)
+    }
+  }
+
   const tabOptions = useMemo(
     () => [
       { id: 'today', label: pendingSubs.length ? `сводка · ${pendingSubs.length}` : 'сводка' },
@@ -321,7 +435,7 @@ export function AdminSubscriptionClientsPanel({
   )
 
   return (
-    <main className="ui-container ui-screen flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden !pb-6 pt-1">
+    <main className="ui-container ui-screen flex h-[100dvh] max-h-[100dvh] max-w-full flex-col overflow-hidden !pb-6 pt-1">
       <header className="mb-3 shrink-0 space-y-2">
         <AdminSubscriptionNav />
         <p className="text-[12px] text-[color:var(--muted)]">
@@ -330,7 +444,7 @@ export function AdminSubscriptionClientsPanel({
         <PillTabToggle className="w-full" options={tabOptions} value={tab} onChange={(v) => setTab(v as PanelTab)} />
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-24">
+      <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto pb-24">
         {loading ? (
           <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
         ) : subs.length === 0 ? (
@@ -435,7 +549,8 @@ export function AdminSubscriptionClientsPanel({
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
                 график · 14 дней
               </p>
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+              <div className="overflow-hidden">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
                 {calendar.map((d) => {
                   const isToday = d.key === dayKey(startOfDay(new Date()))
                   const isSel = d.key === selectedDayKey
@@ -467,6 +582,7 @@ export function AdminSubscriptionClientsPanel({
                     </button>
                   )
                 })}
+                </div>
               </div>
 
               {dayPrep.deliveries.length > 0 ? (
@@ -505,6 +621,13 @@ export function AdminSubscriptionClientsPanel({
                             </li>
                           ))}
                         </ul>
+                        <DeliveryActionButtons
+                          deliveryId={row.deliveryId}
+                          status={row.status}
+                          orderId={row.orderId}
+                          busy={deliveryBusyId === row.deliveryId}
+                          onAction={deliveryAction}
+                        />
                       </div>
                     )
                   })}
@@ -522,7 +645,8 @@ export function AdminSubscriptionClientsPanel({
               className="input w-full rounded-xl px-3 py-2 text-[13px]"
             />
 
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            <div className="overflow-hidden">
+              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
               {filteredClients.map((c) => (
                 <GuestClientCard
                   key={c.userId}
@@ -536,6 +660,7 @@ export function AdminSubscriptionClientsPanel({
                   }}
                 />
               ))}
+              </div>
             </div>
 
             {client ? (
@@ -574,6 +699,8 @@ export function AdminSubscriptionClientsPanel({
                             onDelete={deleteSub}
                             onApprove={s.status === 'PENDING' ? (id) => reviewSub(id, 'approve') : undefined}
                             onReject={s.status === 'PENDING' ? (id) => reviewSub(id, 'reject') : undefined}
+                            onDeliveryAction={deliveryAction}
+                            deliveryBusyId={deliveryBusyId}
                           />
                         </div>
                       ) : null}

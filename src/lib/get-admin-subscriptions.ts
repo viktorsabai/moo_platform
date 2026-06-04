@@ -40,7 +40,7 @@ export type AdminSubscriptionRow = {
     mealSlot: string | null
     dish: { id: string; name: string; price: number } | null
   }[]
-  deliveries: { id: string; scheduledDate: string; status: string }[]
+  deliveries: { id: string; scheduledDate: string; status: string; orderId: string | null }[]
 }
 
 /** Список подписок ресторана для ЛК — тот же контекст, что и счётчик на дашборде. */
@@ -80,7 +80,7 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
         },
       },
       deliveries: {
-        select: { id: true, scheduledDate: true, status: true },
+        select: { id: true, scheduledDate: true, status: true, orderId: true },
       },
     },
   })
@@ -117,11 +117,12 @@ export async function getAdminSubscriptions(restaurantId: string): Promise<Admin
         ...it,
         dish: it.dish ? { ...it.dish, price: Number(it.dish.price) } : null,
       })),
-      deliveries: (s.deliveries ?? []).map((d) => ({
-        id: d.id,
-        scheduledDate: d.scheduledDate.toISOString(),
-        status: d.status,
-      })),
+    deliveries: (s.deliveries ?? []).map((d) => ({
+      id: d.id,
+      scheduledDate: d.scheduledDate.toISOString(),
+      status: d.status,
+      orderId: d.orderId ?? null,
+    })),
     }
   })
 }

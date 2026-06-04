@@ -290,7 +290,7 @@ export function HeaderCompact() {
               >
                 <IconCrown className="h-5 w-5" />
                 {isMounted && ownerInboxUnseen > 0 ? (
-                  <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-[color:var(--sticky-bg)]">
+                  <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[color:var(--primary)] px-1 text-[10px] font-extrabold text-[color:var(--surface)] ring-2 ring-[color:var(--sticky-bg)]">
                     {ownerInboxUnseen > 99 ? '99+' : ownerInboxUnseen}
                   </span>
                 ) : null}
