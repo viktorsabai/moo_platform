@@ -31,9 +31,14 @@ export function loadDeliveryProfile(): DeliveryProfile | null {
   }
 }
 
+export const DELIVERY_PROFILE_CHANGED_EVENT = 'ufo:delivery-profile-changed'
+
 export function saveDeliveryProfile(profile: DeliveryProfile) {
   try {
     globalThis?.localStorage?.setItem(KEY, JSON.stringify(profile))
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(DELIVERY_PROFILE_CHANGED_EVENT))
+    }
   } catch {
     // ignore (quota / denied in some webviews)
   }

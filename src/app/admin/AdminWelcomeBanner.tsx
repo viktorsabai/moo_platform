@@ -33,16 +33,19 @@ export function AdminWelcomeBanner() {
     >
       <div className="flex items-start justify-between gap-2">
         <p className="ui-body min-w-0 flex-1 text-[13px] text-[color:var(--text)]">
-          Добро пожаловать в кабинет. Начните с{' '}
-          <Link
-            href="/admin/venue"
-            prefetch={false}
-            scroll={false}
-            className="font-semibold text-[color:var(--primary)] underline underline-offset-2 transition active:opacity-80"
-          >
-            настройки заведения
+          Добро пожаловать. Сверху —{' '}
+          <a href="#inbox" className="font-semibold text-[color:var(--primary)] underline underline-offset-2">
+            входящие
+          </a>
+          . Дальше:{' '}
+          <Link href="/admin/venue" prefetch={false} className="font-semibold text-[color:var(--primary)] underline underline-offset-2">
+            профиль заведения
           </Link>
-          , затем перейдите в товары и подключите бота для QR.
+          ,{' '}
+          <Link href="/admin/qr" prefetch={false} className="font-semibold text-[color:var(--primary)] underline underline-offset-2">
+            бот и QR
+          </Link>
+          , меню и подписчики.
         </p>
         <button
           type="button"

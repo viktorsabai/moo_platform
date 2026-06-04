@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Card } from '@/components/ui/Card'
@@ -85,6 +86,14 @@ export default function AdminQrPage() {
 
   return (
     <main className="ui-container ui-screen !pb-20">
+      <div className="mb-4">
+        <Link
+          href="/admin"
+          className="text-[13px] font-medium text-[color:var(--muted)] hover:text-[color:var(--text)]"
+        >
+          ← панель владельца
+        </Link>
+      </div>
       {loading ? (
         <Card variant="surfaceStrong" className="p-5 text-[13px] font-semibold text-[color:var(--muted)]">
           загрузка…

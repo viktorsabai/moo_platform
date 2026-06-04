@@ -37,6 +37,12 @@ export type DashboardData = {
     revenueWeek: number
   }
   activeOrdersCount?: number
+  pendingOrdersCount?: number
+  pendingSubscriptionsCount?: number
+  inboxPendingTotal?: number
+  hotGuestsCount?: number
+  activeCampaignsCount?: number
+  newSubscriptionRequestLeads?: number
   newServiceLeadsCount?: number
   visitsCount?: number
   newVisitsCount?: number
@@ -113,51 +119,67 @@ function QuickGhostButton({
 export function VenueDashboard({ data }: { data: DashboardData }) {
   const { name: venueName, refetch: refetchVenue } = useVenue()
   const s = data.settings
-  const [menuEnabled, setMenuEnabled] = useState(s?.menuEnabled ?? false)
-  const [storeEnabled, setStoreEnabled] = useState(s?.storeEnabled ?? true)
-  const [subscriptionEnabled, setSubscriptionEnabled] = useState(s?.subscriptionEnabled ?? false)
-  const [loading, setLoading] = useState(false)
   const [nameEditing, setNameEditing] = useState(false)
   const [nameValue, setNameValue] = useState(data.restaurantName)
   const [nameSaving, setNameSaving] = useState(false)
+  const [override, setOverride] = useState<boolean | null>(s?.isOpenOverride ?? null)
+  const [pauseSaving, setPauseSaving] = useState(false)
+  const [paymentEnabledCount, setPaymentEnabledCount] = useState<number | null>(null)
   const displayName = venueName ?? data.restaurantName
+  const paused = override === false
+  const acceptingLabel = paused ? 'приём на паузе' : data.isOpenNow ? 'принимаем заказы' : 'вне часов работы'
 
   useEffect(() => {
     if (!nameEditing) setNameValue(displayName)
   }, [displayName, nameEditing])
 
-  async function patchCatalog(key: 'menuEnabled' | 'storeEnabled' | 'subscriptionEnabled', value: boolean) {
-    const prevMenu = menuEnabled
-    const prevStore = storeEnabled
-    const prevSub = subscriptionEnabled
-    if (key === 'menuEnabled') setMenuEnabled(value)
-    if (key === 'storeEnabled') setStoreEnabled(value)
-    if (key === 'subscriptionEnabled') setSubscriptionEnabled(value)
-    setLoading(true)
+  useEffect(() => {
+    setOverride(s?.isOpenOverride ?? null)
+  }, [s?.isOpenOverride])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/admin/settings', { cache: 'no-store', credentials: 'include' })
+        const json = await res.json().catch(() => null)
+        if (cancelled || !res.ok || !json?.ok) return
+        const rows = Array.isArray(json.settings?.paymentMethodsJson)
+          ? json.settings.paymentMethodsJson
+          : []
+        const n = rows.filter((r: { enabled?: boolean }) => Boolean(r?.enabled)).length
+        setPaymentEnabledCount(n)
+      } catch {
+        if (!cancelled) setPaymentEnabledCount(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function toggleAccepting() {
+    const next = paused ? null : false
+    setPauseSaving(true)
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
         credentials: 'include',
+        body: JSON.stringify({ isOpenOverride: next }),
       })
       const d = await res.json().catch(() => null)
-      if (res.ok && d?.ok) {
-        toast.success('Сохранено')
-        void refetchVenue()
-      } else {
-        if (key === 'menuEnabled') setMenuEnabled(prevMenu)
-        if (key === 'storeEnabled') setStoreEnabled(prevStore)
-        if (key === 'subscriptionEnabled') setSubscriptionEnabled(prevSub)
-        toast.error(d?.error || 'Не удалось сохранить')
+      if (!res.ok || !d?.ok) {
+        toast.error(d?.error || 'Не удалось обновить режим')
+        return
       }
+      setOverride(next)
+      void refetchVenue()
+      toast.success(next === false ? 'Прием заказов на паузе' : 'Прием заказов возобновлен')
     } catch {
-      if (key === 'menuEnabled') setMenuEnabled(prevMenu)
-      if (key === 'storeEnabled') setStoreEnabled(prevStore)
-      if (key === 'subscriptionEnabled') setSubscriptionEnabled(prevSub)
       toast.error('Ошибка сохранения')
     } finally {
-      setLoading(false)
+      setPauseSaving(false)
     }
   }
 
@@ -247,68 +269,66 @@ export function VenueDashboard({ data }: { data: DashboardData }) {
             </Link>
           </div>
           <div className={rowClass}>
+            <span className={labelClass}>режим</span>
+            <span className={valueClass}>{acceptingLabel}</span>
+          </div>
+          <div className={rowClass}>
             <span className={labelClass}>доставка</span>
             <span className={valueClass}>
               {formatPrice(s.deliveryFee)} · бесплатно от {formatPrice(s.freeDeliveryFrom)}
             </span>
           </div>
-          <div className="space-y-2 pt-2">
-            <div className={labelClass}>каталоги</div>
-            <div className="space-y-1.5">
-              <label className="flex items-center justify-between gap-3 py-1.5">
-                <span className="ui-body text-[13px] font-medium">готовые блюда</span>
-                <input
-                  type="checkbox"
-                  checked={menuEnabled}
-                  disabled={loading}
-                  onChange={(e) => patchCatalog('menuEnabled', e.target.checked)}
-                  className="h-5 w-5 accent-[color:var(--accent)]"
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3 py-1.5">
-                <span className="ui-body text-[13px] font-medium">магазин</span>
-                <input
-                  type="checkbox"
-                  checked={storeEnabled}
-                  disabled={loading}
-                  onChange={(e) => patchCatalog('storeEnabled', e.target.checked)}
-                  className="h-5 w-5 accent-[color:var(--accent)]"
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3 py-1.5">
-                <span className="ui-body text-[13px] font-medium">подписки</span>
-                <input
-                  type="checkbox"
-                  checked={subscriptionEnabled}
-                  disabled={loading}
-                  onChange={(e) => patchCatalog('subscriptionEnabled', e.target.checked)}
-                  className="h-5 w-5 accent-[color:var(--accent)]"
-                />
-              </label>
-            </div>
+          <div className={rowClass}>
+            <span className={labelClass}>оплата</span>
+            <span className={valueClass}>
+              {paymentEnabledCount == null ? '…' : `${paymentEnabledCount} способов включено`}
+            </span>
           </div>
         </>
       )}
-      <Link
-        href="/admin/venue?section=delivery"
-        prefetch={false}
-        scroll={false}
-        className="mt-2 flex h-10 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-5 text-[14px] font-semibold text-white transition active:opacity-90"
-      >
-        Перейти к деталям
-      </Link>
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <QuickPrimaryButton onClick={toggleAccepting} disabled={pauseSaving}>
+          {pauseSaving ? '…' : paused ? 'возобновить прием' : 'пауза приема'}
+        </QuickPrimaryButton>
+        <Link
+          href="/admin/venue?section=delivery"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          доставка
+        </Link>
+        <Link
+          href="/admin/venue?section=payments"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          оплата
+        </Link>
+        <Link
+          href="/admin/venue"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+        >
+          все настройки
+        </Link>
+      </div>
     </div>
   )
 }
 
 export function MenuStoreDashboard({ data }: { data: DashboardData }) {
+  const { refetch: refetchVenue } = useVenue()
   const s = data.settings
   const [menuEnabled, setMenuEnabled] = useState(Boolean(s?.menuEnabled))
   const [storeEnabled, setStoreEnabled] = useState(Boolean(s?.storeEnabled ?? true))
-  const [saving, setSaving] = useState<null | 'menu' | 'store'>(null)
+  const [subscriptionEnabled, setSubscriptionEnabled] = useState(Boolean(s?.subscriptionEnabled))
+  const [saving, setSaving] = useState<null | 'menu' | 'store' | 'subscription'>(null)
 
-  async function toggleCatalog(key: 'menuEnabled' | 'storeEnabled', next: boolean) {
-    setSaving(key === 'menuEnabled' ? 'menu' : 'store')
+  async function toggleCatalog(key: 'menuEnabled' | 'storeEnabled' | 'subscriptionEnabled', next: boolean) {
+    setSaving(key === 'menuEnabled' ? 'menu' : key === 'storeEnabled' ? 'store' : 'subscription')
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'PATCH',
@@ -323,6 +343,8 @@ export function MenuStoreDashboard({ data }: { data: DashboardData }) {
       }
       if (key === 'menuEnabled') setMenuEnabled(next)
       if (key === 'storeEnabled') setStoreEnabled(next)
+      if (key === 'subscriptionEnabled') setSubscriptionEnabled(next)
+      void refetchVenue()
       toast.success(next ? 'Раздел включен' : 'Раздел скрыт')
     } catch {
       toast.error('Ошибка сохранения')
@@ -358,6 +380,20 @@ export function MenuStoreDashboard({ data }: { data: DashboardData }) {
         >
           {saving === 'store' ? '…' : storeEnabled ? 'пауза магазин' : 'включить магазин'}
         </QuickGhostButton>
+        <QuickGhostButton
+          onClick={() => toggleCatalog('subscriptionEnabled', !subscriptionEnabled)}
+          disabled={saving !== null}
+        >
+          {saving === 'subscription' ? '…' : subscriptionEnabled ? 'пауза подписки' : 'включить подписки'}
+        </QuickGhostButton>
+        <Link
+          href="/admin/subscriptions/clients"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          подписчики
+        </Link>
       </div>
       <Link
         href="/admin/store"
@@ -399,24 +435,14 @@ export function TeamDashboard({ data }: { data: DashboardData }) {
           </li>
         ))}
       </ul>
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          href="/admin/team"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          добавить
-        </Link>
-        <Link
-          href="/admin/team"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          детали
-        </Link>
-      </div>
+      <Link
+        href="/admin/team"
+        prefetch={false}
+        scroll={false}
+        className="flex h-10 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+      >
+        управление командой
+      </Link>
     </div>
   )
 }
@@ -425,33 +451,8 @@ export function OrdersDashboard({ data }: { data: DashboardData }) {
   const stats = data.stats ?? { ordersToday: 0, ordersWeek: 0, revenueToday: 0, revenueWeek: 0 }
   const { ordersToday, ordersWeek, revenueToday, revenueWeek } = stats
   const todayPct = ordersWeek > 0 ? Math.min(100, (ordersToday / ordersWeek) * 100) : 0
-  const [override, setOverride] = useState<boolean | null>(data.settings?.isOpenOverride ?? null)
-  const [saving, setSaving] = useState(false)
-  const paused = override === false
-
-  async function toggleAccepting() {
-    const next = paused ? null : false
-    setSaving(true)
-    try {
-      const res = await fetch('/api/admin/settings', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ isOpenOverride: next }),
-      })
-      const d = await res.json().catch(() => null)
-      if (!res.ok || !d?.ok) {
-        toast.error(d?.error || 'Не удалось обновить режим')
-        return
-      }
-      setOverride(next)
-      toast.success(next === false ? 'Прием заказов на паузе' : 'Прием заказов возобновлен')
-    } catch {
-      toast.error('Ошибка сохранения')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const pendingNew = data.pendingOrdersCount ?? 0
+  const active = data.activeOrdersCount ?? 0
 
   return (
     <div className="space-y-3 pt-1">
@@ -477,16 +478,21 @@ export function OrdersDashboard({ data }: { data: DashboardData }) {
         <div className="ui-muted mt-1 text-[10px]">сегодня / неделя</div>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <QuickPrimaryButton onClick={toggleAccepting} disabled={saving}>
-          {saving ? '…' : paused ? 'возобновить прием' : 'пауза приема'}
-        </QuickPrimaryButton>
+        <Link
+          href="/admin/orders"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+        >
+          {pendingNew > 0 ? `новые: ${pendingNew}` : 'все заказы'}
+        </Link>
         <Link
           href="/admin/orders"
           prefetch={false}
           scroll={false}
           className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
         >
-          открыть очередь
+          {active > 0 ? `в работе: ${active}` : 'очередь'}
         </Link>
       </div>
     </div>
@@ -496,6 +502,7 @@ export function OrdersDashboard({ data }: { data: DashboardData }) {
 export function BannersDashboard({ data }: { data: DashboardData }) {
   const [busy, setBusy] = useState(false)
   const [activeCount, setActiveCount] = useState<number | null>(null)
+  const campaignsActive = data.activeCampaignsCount ?? 0
 
   async function toggleAllBanners() {
     setBusy(true)
@@ -546,6 +553,10 @@ export function BannersDashboard({ data }: { data: DashboardData }) {
         <span className={labelClass}>баннеров на главной</span>
         <span className={valueClass}>{displayCount}</span>
       </div>
+      <div className={rowClass}>
+        <span className={labelClass}>активных акций</span>
+        <span className={valueClass}>{campaignsActive}</span>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <QuickGhostButton onClick={toggleAllBanners} disabled={busy}>
           {busy ? '…' : displayCount > 0 ? 'скрыть все' : 'включить баннеры'}
@@ -556,7 +567,7 @@ export function BannersDashboard({ data }: { data: DashboardData }) {
           scroll={false}
           className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
         >
-          детали
+          баннеры и акции
         </Link>
       </div>
     </div>
@@ -745,7 +756,45 @@ export function ServiceLeadsDashboard() {
   )
 }
 
-export function SubscriptionsDashboard({ data }: { data: DashboardData }) {
+export function SubscribersDashboard({ data }: { data: DashboardData }) {
+  const pending = data.pendingSubscriptionsCount ?? 0
+  const total = data.subscriptionsCount ?? 0
+
+  return (
+    <div className="space-y-3 pt-1">
+      <div className={rowClass}>
+        <span className={labelClass}>на подтверждении</span>
+        <span className={valueClass}>{pending}</span>
+      </div>
+      <div className={rowClass}>
+        <span className={labelClass}>всего подписок</span>
+        <span className={valueClass}>{total}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href="/admin/subscriptions/clients"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+        >
+          {pending > 0 ? 'подтвердить' : 'подписчики'}
+        </Link>
+        <Link
+          href="/admin/subscriptions/clients"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          сводка на кухню
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+export function SubscriptionPlansDashboard({ data }: { data: DashboardData }) {
+  const enabled = Boolean(data.settings?.subscriptionEnabled)
+
   return (
     <div className="space-y-3 pt-1">
       <div className={rowClass}>
@@ -753,17 +802,106 @@ export function SubscriptionsDashboard({ data }: { data: DashboardData }) {
         <span className={valueClass}>{data.subscriptionPlansCount}</span>
       </div>
       <div className={rowClass}>
-        <span className={labelClass}>подписок клиентов</span>
-        <span className={valueClass}>{data.subscriptionsCount ?? 0}</span>
+        <span className={labelClass}>раздел в приложении</span>
+        <span className={valueClass}>{enabled ? 'включен' : 'выключен'}</span>
       </div>
-      <Link
-        href="/admin/subscriptions"
-        prefetch={false}
-        scroll={false}
-        className="mt-2 flex h-10 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-5 text-[14px] font-semibold text-white transition active:opacity-90"
-      >
-        Перейти к деталям
-      </Link>
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href="/admin/subscriptions"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+        >
+          конструктор планов
+        </Link>
+        <Link
+          href="/admin/store"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          меню для рационов
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+type NotificationSetup = {
+  botConnected: boolean
+  botUsername: string | null
+  opsRecipientCount: number
+  teamWithTelegram: number
+  teamTotal: number
+}
+
+export function NotificationsDashboard() {
+  const [loading, setLoading] = useState(true)
+  const [setup, setSetup] = useState<NotificationSetup | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/admin/notifications/registry', { cache: 'no-store', credentials: 'include' })
+        const data = await res.json().catch(() => null)
+        if (!cancelled && res.ok && data?.ok && data.setup) {
+          setSetup(data.setup as NotificationSetup)
+        } else if (!cancelled) {
+          setSetup(null)
+        }
+      } catch {
+        if (!cancelled) setSetup(null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <div className="space-y-3 pt-1">
+      <div className={rowClass}>
+        <span className={labelClass}>бот</span>
+        <span className={valueClass}>
+          {loading ? '…' : setup?.botConnected ? setup.botUsername ? `@${setup.botUsername}` : 'подключен' : 'не настроен'}
+        </span>
+      </div>
+      <div className={rowClass}>
+        <span className={labelClass}>получатели ops</span>
+        <span className={valueClass}>
+          {loading ? '…' : `${setup?.opsRecipientCount ?? 0} · tg у ${setup?.teamWithTelegram ?? 0}/${setup?.teamTotal ?? 0}`}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href="/admin/qr"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+        >
+          бот и QR
+        </Link>
+        <Link
+          href="/admin/notifications"
+          prefetch={false}
+          scroll={false}
+          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          каталог событий
+        </Link>
+        <Link
+          href="/admin/team"
+          prefetch={false}
+          scroll={false}
+          className="col-span-2 flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+        >
+          команда и Telegram
+        </Link>
+      </div>
     </div>
   )
 }

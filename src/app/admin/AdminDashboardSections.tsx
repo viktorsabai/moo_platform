@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { formatPrice } from '@/lib/utils'
 import { AdminSectionCard } from './AdminSectionCard'
 import type { DashboardData } from './AdminSectionDashboards'
 import {
@@ -12,7 +13,9 @@ import {
   BannersDashboard,
   ServiceLeadsDashboard,
   SubscriptionLeadsDashboard,
-  SubscriptionsDashboard,
+  SubscribersDashboard,
+  SubscriptionPlansDashboard,
+  NotificationsDashboard,
 } from './AdminSectionDashboards'
 
 export type AdminSection = {
@@ -47,6 +50,12 @@ const emptyDashboardData: DashboardData = {
   teamMembers: [],
   stats: { ordersToday: 0, ordersWeek: 0, revenueToday: 0, revenueWeek: 0 },
   activeOrdersCount: 0,
+  pendingOrdersCount: 0,
+  pendingSubscriptionsCount: 0,
+  inboxPendingTotal: 0,
+  hotGuestsCount: 0,
+  activeCampaignsCount: 0,
+  newSubscriptionRequestLeads: 0,
   newServiceLeadsCount: 0,
   visitsCount: 0,
   visitorsCount: 0,
@@ -141,10 +150,14 @@ export function AdminDashboardSections({
           return <BannersDashboard data={dashboardData} />
         case 'leads':
           return <ServiceLeadsDashboard />
-        case 'subscriptions':
-          return <SubscriptionsDashboard data={dashboardData} />
+        case 'subscribers':
+          return <SubscribersDashboard data={dashboardData} />
+        case 'subscription-plans':
+          return <SubscriptionPlansDashboard data={dashboardData} />
         case 'subscription-leads':
           return <SubscriptionLeadsDashboard />
+        case 'notifications':
+          return <NotificationsDashboard />
         case 'visits':
           return (
             <div className="space-y-3 pt-2">
@@ -184,14 +197,30 @@ export function AdminDashboardSections({
                   последние гости появятся здесь после новых заходов
                 </div>
               )}
-              <Link
-                href="/admin/visits"
-                prefetch={false}
-                scroll={false}
-                className="flex h-10 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-5 text-[14px] font-semibold text-white transition active:opacity-90"
-              >
-                открыть детали
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                {(dashboardData.hotGuestsCount ?? 0) > 0 ? (
+                  <Link
+                    href="/admin/visits?focus=HOT"
+                    prefetch={false}
+                    scroll={false}
+                    className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
+                  >
+                    горячие ({dashboardData.hotGuestsCount})
+                  </Link>
+                ) : null}
+                <Link
+                  href="/admin/visits"
+                  prefetch={false}
+                  scroll={false}
+                  className={`flex h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold transition active:opacity-90 ${
+                    (dashboardData.hotGuestsCount ?? 0) > 0
+                      ? 'border border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--text)]'
+                      : 'bg-[color:var(--primary)] text-white'
+                  }`}
+                >
+                  все гости
+                </Link>
+              </div>
             </div>
           )
         default:
@@ -209,18 +238,24 @@ export function AdminDashboardSections({
           {dashboardData.restaurantName}
         </div>
         <div className="mt-4 grid grid-cols-3 divide-x divide-[color:var(--stroke)] rounded-[20px] border border-[color:var(--stroke)] bg-[color:var(--surface)]">
-          <div className="px-3 py-3">
-            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">{dashboardData.menuItemsCount ?? dashboardData.dishesCount}</div>
-            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">позиций</div>
-          </div>
-          <div className="px-3 py-3">
-            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">{dashboardData.activeOrdersCount ?? dashboardData.stats.ordersToday}</div>
-            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">заказов</div>
-          </div>
-          <div className="px-3 py-3">
-            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">{dashboardData.newServiceLeadsCount ?? 0}</div>
-            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">заявок</div>
-          </div>
+          <Link href="#inbox" prefetch={false} className="px-3 py-3 transition active:opacity-90">
+            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">
+              {dashboardData.inboxPendingTotal ?? 0}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">входящих</div>
+          </Link>
+          <Link href="/admin/visits?focus=HOT" prefetch={false} className="px-3 py-3 transition active:opacity-90">
+            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">
+              {dashboardData.hotGuestsCount ?? 0}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">горячих гостей</div>
+          </Link>
+          <Link href="/admin/orders" prefetch={false} className="px-3 py-3 transition active:opacity-90">
+            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">
+              {formatPrice(dashboardData.stats.revenueToday)}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">выручка сегодня</div>
+          </Link>
         </div>
       </section>
 

@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { AdminDashboardSections } from '@/app/admin/AdminDashboardSections'
+import { AdminWelcomeBanner } from '@/app/admin/AdminWelcomeBanner'
 import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
+import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
 import { Card } from '@/components/ui/Card'
 
 const ARCHIVE_CATEGORY_SLUG = '__archive'
@@ -62,12 +64,14 @@ export default async function AdminHomePage() {
     subscriptionPlansCount: number
     subscriptionsCount: number
     activeOrdersCount: number
+    pendingOrdersCount: number
+    pendingSubscriptionsCount: number
     ordersToday: number
     ordersWeek: number
     revenueToday: number
     revenueWeek: number
     newServiceLeadsCount: number
-    inactiveBannersCount: number
+    activeCampaignsCount: number
     visitsCount: number
     newVisitsCount: number
     newVisitorsCount: number
@@ -122,7 +126,7 @@ export default async function AdminHomePage() {
          (SELECT COALESCE(SUM("totalAmount"), 0)::float FROM "Order" WHERE "restaurantId" = $1 AND "createdAt" >= date_trunc('day', now())) AS "revenueToday",
          (SELECT COALESCE(SUM("totalAmount"), 0)::float FROM "Order" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '7 days') AS "revenueWeek",
          (SELECT COUNT(*)::int FROM "ServiceLead" WHERE "restaurantId" = $1 AND "status" = 'NEW') AS "newServiceLeadsCount",
-         (SELECT COUNT(*)::int FROM "HomeBanner" WHERE "restaurantId" = $1 AND "isActive" = false) AS "inactiveBannersCount",
+         (SELECT COUNT(*)::int FROM "Campaign" WHERE "restaurantId" = $1 AND "status" = 'ACTIVE' AND "visibility" = 'PUBLIC') AS "activeCampaignsCount",
          (SELECT COUNT(*) FILTER (WHERE "type" = 'VIEW_PAGE')::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '7 days') AS "visitsCount",
          (SELECT COUNT(*) FILTER (WHERE "type" = 'VIEW_PAGE')::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '24 hours') AS "newVisitsCount",
          (SELECT COUNT(DISTINCT COALESCE("userId", "telegramId"))::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '24 hours' AND "type" = 'VIEW_PAGE' AND COALESCE("userId", "telegramId") IS NOT NULL) AS "newVisitorsCount",
@@ -193,7 +197,7 @@ export default async function AdminHomePage() {
     ? Number((settled[4].value?.[0] as any)?.n ?? 0)
     : 0
   const newServiceLeadsCount = Number(counts?.newServiceLeadsCount ?? 0)
-  const inactiveBannersCount = Number(counts?.inactiveBannersCount ?? 0)
+  const activeCampaignsCount = Number(counts?.activeCampaignsCount ?? 0)
   const activityStats = {
     views: Number(counts?.visitsCount ?? 0),
     newViews: Number(counts?.newVisitsCount ?? 0),
@@ -202,6 +206,13 @@ export default async function AdminHomePage() {
     carts: Number(counts?.cartEventsCount ?? 0),
   }
   const recentActivityEvents = settled[5].status === 'fulfilled' ? settled[5].value : []
+  const hotGuestsCount = countHotGuestsFromActivity(recentActivityEvents)
+  const inboxTotal = inboxPendingTotal({
+    pendingOrders: pendingOrdersCount,
+    pendingSubscriptions: pendingSubscriptionsCount,
+    newServiceLeads: newServiceLeadsCount,
+    newSubscriptionRequestLeads: newLeadsCount,
+  })
 
   // Never block owner cabinet on a transient DB read failure for restaurant row.
   // We already have trusted context with restaurantId, so render degraded dashboard instead of hard error screen.
@@ -272,6 +283,12 @@ export default async function AdminHomePage() {
       revenueWeek: Number(stats?.revenueWeek ?? 0),
     },
     activeOrdersCount,
+    pendingOrdersCount,
+    pendingSubscriptionsCount,
+    inboxPendingTotal: inboxTotal,
+    hotGuestsCount,
+    activeCampaignsCount,
+    newSubscriptionRequestLeads: newLeadsCount,
     newServiceLeadsCount,
     visitsCount: Number(activityStats.views ?? 0),
     newVisitsCount: Number(activityStats.newViews ?? 0),
@@ -291,16 +308,54 @@ export default async function AdminHomePage() {
 
   const sectionsBase = [
     {
+      group: 'venue' as const,
+      id: 'venue',
+      title: 'Профиль и режим',
+      hint: settings?.subscriptionEnabled
+        ? 'часы · доставка · приём заказов'
+        : 'часы · доставка · оплата',
+      href: '/admin/venue',
+      summary: 'Название, часы работы, пауза приёма, доставка и оплата.',
+      linkLabel: 'Все настройки заведения',
+      icon: 'venue' as const,
+    },
+    {
+      group: 'venue' as const,
+      id: 'notifications',
+      title: 'Бот и уведомления',
+      hint: 'Telegram · команда · события',
+      href: '/admin/notifications',
+      summary: 'Подключение бота, получатели ops и каталог Telegram-событий.',
+      linkLabel: 'Каталог уведомлений',
+      icon: 'platform' as const,
+    },
+    {
+      group: 'venue' as const,
+      id: 'team',
+      title: 'Команда',
+      hint: teamCount > 1 ? `${teamCount} участников` : 'сотрудники',
+      href: '/admin/team',
+      summary: 'Роли и Telegram — без привязки уведомления в чат не придут.',
+      linkLabel: 'Управление командой',
+      icon: 'team' as const,
+    },
+    {
       group: 'showcase' as const,
       id: 'banners',
       title: 'Главная',
-      hint: 'баннеры и акции',
+      hint:
+        activeCampaignsCount > 0
+          ? `${activeCampaignsCount} активных акций`
+          : bannersCount > 0
+            ? `${bannersCount} баннеров`
+            : 'баннеры и промокоды',
       href: '/admin/banners',
-      summary: 'Баннеры и акции на главной.',
+      summary: 'Баннеры на главной и публичные промокампании.',
       linkLabel: 'Перейти к деталям',
       icon: 'banners' as const,
-      badgeCount: inactiveBannersCount,
-      badgeLabel: `выключенных баннеров: ${inactiveBannersCount}`,
+      badgeCount: activeCampaignsCount,
+      badgeLabel: `активных акций: ${activeCampaignsCount}`,
+      badgeTone: 'info' as const,
     },
     {
       group: 'showcase' as const,
@@ -328,61 +383,43 @@ export default async function AdminHomePage() {
       summary: 'Список заказов, статусы и выручка.',
       linkLabel: 'Перейти к деталям',
       icon: 'orders' as const,
-      badgeCount: pendingOrdersCount > 0 ? pendingOrdersCount : activeOrdersCount,
-      badgeLabel:
-        pendingOrdersCount > 0
-          ? `новых заказов: ${pendingOrdersCount}`
-          : `активных заказов: ${activeOrdersCount}`,
-      badgeTone: pendingOrdersCount > 0 ? ('alert' as const) : ('info' as const),
-    },
-    {
-      group: 'operations' as const,
-      id: 'delivery',
-      title: 'Доставка',
-      hint: 'зоны, стоимость, расписание',
-      href: '/admin/venue?section=delivery',
-      summary: 'Настройте условия доставки, адреса, стоимость и расписание.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'venue' as const,
-    },
-    {
-      group: 'operations' as const,
-      id: 'payments',
-      title: 'Оплата',
-      hint: 'способы, статусы, условия',
-      href: '/admin/venue?section=payments',
-      summary: 'Настройки оплаты и базовые условия для заказов.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'orders' as const,
     },
     {
       group: 'subscriptions' as const,
-      id: 'subscriptions',
-      title: 'Подписки',
+      id: 'subscribers',
+      title: 'Подписчики',
       hint: pendingSubscriptionsCount > 0
         ? `${pendingSubscriptionsCount} на подтверждении`
-        : settings?.subscriptionEnabled
-          ? 'планы и доставки'
-          : 'выключены в настройках',
-      href: pendingSubscriptionsCount > 0 ? '/admin/subscriptions/clients' : '/admin/subscriptions',
-      summary: 'Шаблоны планов подписки и регулярные доставки.',
-      linkLabel: pendingSubscriptionsCount > 0 ? 'Открыть заявки' : 'Перейти к деталям',
+        : subscriptionsCount > 0
+          ? `${subscriptionsCount} подписок`
+          : 'CRM и сводка на кухню',
+      href: '/admin/subscriptions/clients',
+      summary: 'Клиенты с подписками: подтверждения, доставки, заказ на кухню.',
+      linkLabel: 'Открыть подписчиков',
       icon: 'subscriptions' as const,
-      badgeCount: pendingSubscriptionsCount,
-      badgeLabel: `на подтверждении: ${pendingSubscriptionsCount}`,
-      badgeTone: 'alert' as const,
+    },
+    {
+      group: 'subscriptions' as const,
+      id: 'subscription-plans',
+      title: 'Планы подписки',
+      hint: settings?.subscriptionEnabled
+        ? `${subscriptionPlansCount} шаблонов`
+        : 'выключены в каталоге',
+      href: '/admin/subscriptions',
+      summary: 'Конструктор планов и экономика рационов.',
+      linkLabel: 'Конструктор планов',
+      icon: 'subscriptions' as const,
     },
     {
       group: 'subscriptions' as const,
       id: 'subscription-leads',
-      title: 'Лиды подписки',
-      hint: 'заявки "Хочу подписку"',
+      title: 'Запросы «хочу подписку»',
+      hint: newLeadsCount > 0 ? `${newLeadsCount} новых` : 'до оформления плана',
       href: '/admin/subscription-leads',
-      summary: 'Входящие лиды по подписке и статусы обработки.',
-      linkLabel: 'Перейти к деталям',
+      summary:
+        'До оформления плана: гость нажал «хочу подписку». Отличается от «Подписчиков», где уже есть заявка PENDING или ACTIVE.',
+      linkLabel: 'Открыть запросы',
       icon: 'leads' as const,
-      badgeCount: newLeadsCount,
-      badgeLabel: `новых лидов: ${newLeadsCount}`,
     },
     {
       group: 'requests' as const,
@@ -393,8 +430,6 @@ export default async function AdminHomePage() {
       summary: 'Входящие заявки с главной: кейтеринг, банкеты, корпоративы и особые запросы.',
       linkLabel: 'Перейти к заявкам',
       icon: 'leads' as const,
-      badgeCount: newServiceLeadsCount,
-      badgeLabel: `новых заявок: ${newServiceLeadsCount}`,
     },
     {
       group: 'analytics' as const,
@@ -413,33 +448,14 @@ export default async function AdminHomePage() {
       badgeLabel: `новых посещений за 24 часа: ${Number(activityStats.newViews ?? 0)}`,
       badgeTone: 'info' as const,
     },
-    {
-      group: 'venue' as const,
-      id: 'venue',
-      title: 'Настройки заведения',
-      hint: 'профиль, часы, статус',
-      href: '/admin/venue',
-      summary: 'Бот, часы работы, условия доставки и опции каталогов.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'venue' as const,
-    },
-    {
-      group: 'venue' as const,
-      id: 'team',
-      title: 'Команда',
-      hint: teamCount > 1 ? `${teamCount} участников` : 'сотрудники',
-      href: '/admin/team',
-      summary: 'Сотрудники заведения: роли и доступ.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'team' as const,
-    },
   ]
 
   const sections = sectionsBase
 
   return (
     <main className="ui-container ui-screen !pb-20 min-w-0 max-w-full overflow-x-hidden">
-      <AdminOwnerInbox />
+      <AdminWelcomeBanner />
+      <AdminOwnerInbox subscriptionRequestLeads={newLeadsCount} />
       <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
     </main>
   )

@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { buildWebAppUrl, escapeHtml, sendTelegramMessage } from '@/lib/telegram'
-import { formatNotificationMessage, notifySubscriptionCreatedToOwner } from '@/lib/notifications'
-import { formatPrice, getNearestEventLabel } from '@/lib/utils'
+import {
+  notifySubscriptionCreatedToCustomer,
+  notifySubscriptionCreatedToOwner,
+} from '@/lib/notifications'
+import { getNearestEventLabel } from '@/lib/utils'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import { getPlanRules, validateSubscriptionItemsAgainstPlan } from '@/lib/subscription-plan-rules'
 import { parseMealSlot } from '@/lib/subscription-meal-slots'
@@ -403,50 +405,9 @@ export async function POST(request: Request) {
   }
 
 
-  const notifySummary = formatSubscriptionItemsNotifySummary(
-    rawItems.map((it: any) => ({
-      name: it.name,
-      quantity: it.quantity,
-      mealSlot: it.mealSlot,
-      dayOfWeek: it.dayOfWeek,
-    }))
-  )
-  const bulletLines = notifySummary
-    .split('\n')
-    .filter(Boolean)
-    .slice(0, 6)
-    .map((line) => `• ${escapeHtml(line)}`)
   const nextDeliveryLabel = nextDelivery && !Number.isNaN(nextDelivery.getTime())
     ? getNearestEventLabel(nextDelivery, deliveryTime)
     : undefined
-  const msg = formatNotificationMessage({
-    emoji: '📋',
-    title: 'Заявка на подписку отправлена',
-    metricsLine: `«${escapeHtml(name)}» · ${escapeHtml(formatPrice(price))}`,
-    bulletLines: bulletLines.length ? bulletLines : undefined,
-    closingPhrase: 'Заведение подтвердит рацион — мы напишем в Telegram.',
-  })
-
-  const botToken = await prisma.botIntegration.findFirst({
-    where: { restaurantId },
-    select: { botToken: true },
-  })
-
-  sendTelegramMessage(
-    String(telegramId),
-    {
-      text: msg,
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Открыть эту подписку', web_app: { url: buildWebAppUrl(`/subscriptions/${subscription.id}`) } }],
-          [{ text: 'Мои подписки', web_app: { url: buildWebAppUrl('/subscriptions') } }],
-          [{ text: 'Открыть mini app', web_app: { url: buildWebAppUrl('/') } }],
-        ],
-      },
-    },
-    botToken?.botToken
-  ).catch(() => {})
 
   const userName = authUser.name ?? 'Клиент'
   const itemsSummary = formatSubscriptionItemsNotifySummary(
@@ -457,6 +418,15 @@ export async function POST(request: Request) {
       dayOfWeek: it.dayOfWeek,
     }))
   )
+  void notifySubscriptionCreatedToCustomer({
+    restaurantId,
+    subscriptionId: subscription.id,
+    subscriptionName: name,
+    price,
+    itemsSummary,
+    customerTelegramId: telegramId ? String(telegramId) : null,
+  }).catch(() => {})
+
   void notifySubscriptionCreatedToOwner({
     restaurantId,
     subscriptionId: subscription.id,

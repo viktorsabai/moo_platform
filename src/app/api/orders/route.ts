@@ -23,6 +23,7 @@ import {
   methodsAvailableForConsumer,
 } from '@/lib/payment-methods'
 import { evaluateCampaign, giftDishIdFromPayload, parseCampaignCode, pickBestCampaign } from '@/lib/campaigns'
+import { computeGuestDeliveryFee, resolveDeliveryQuote } from '@/lib/delivery-quote'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
     const totalAmountRaw = Number(body?.totalAmount ?? 0)
     const totalAmount = Number.isFinite(totalAmountRaw) ? totalAmountRaw : 0
     const paymentIntentId = typeof body?.paymentIntentId === 'string' ? body.paymentIntentId.trim() : null
-    const deliveryFee = Math.max(0, Number(body?.deliveryFee ?? 0))
+    let deliveryFee = Math.max(0, Number(body?.deliveryFee ?? 0))
     const deliveryTime = body?.deliveryTime ? new Date(String(body.deliveryTime)) : undefined
     const address = body?.address || {}
     const notes = typeof body?.notes === 'string' ? body.notes.trim() : ''
@@ -168,16 +169,64 @@ export async function POST(request: Request) {
     if (!trustedItems.length) {
       return NextResponse.json({ error: 'корзина пуста или товары недоступны' }, { status: 400 })
     }
+    let trustedDeliveryFee = 0
     if (!isPickupOrder) {
       await ensureMvpTables()
-      const zoneRows = await prisma.$queryRawUnsafe<Array<{ count: number }>>(
-        `SELECT COUNT(*)::int AS count FROM "DeliveryZone" WHERE "restaurantId"=$1 AND "isActive"=TRUE`,
-        restaurantId
-      )
+      const street = String(address.street || address.address || '').trim()
+      if (!street) {
+        return NextResponse.json({ error: 'укажите адрес доставки' }, { status: 400 })
+      }
+      const [zoneRows, zones, appSettingsRow] = await Promise.all([
+        prisma.$queryRawUnsafe<Array<{ count: number }>>(
+          `SELECT COUNT(*)::int AS count FROM "DeliveryZone" WHERE "restaurantId"=$1 AND "isActive"=TRUE`,
+          restaurantId
+        ),
+        prisma.$queryRawUnsafe<
+          Array<{
+            id: string
+            name: string
+            polygonJson: string | null
+            keywords: string[] | null
+            zipCodes: string[] | null
+            deliveryFee: number
+            minOrderAmount: number
+            deliveryWindowMin: number
+            sortOrder: number
+          }>
+        >(
+          `SELECT "id","name","polygonJson","keywords","zipCodes","deliveryFee","minOrderAmount","deliveryWindowMin","sortOrder"
+           FROM "DeliveryZone"
+           WHERE "restaurantId"=$1 AND "isActive"=TRUE
+           ORDER BY "sortOrder" ASC, "createdAt" ASC`,
+          restaurantId
+        ),
+        prisma.appSettings.findUnique({
+          where: { restaurantId },
+          select: { deliveryFee: true, freeDeliveryFrom: true },
+        }),
+      ])
       const activeZones = Math.max(0, Number(zoneRows?.[0]?.count ?? 0))
       if (activeZones === 0) {
         return NextResponse.json({ error: 'доставка недоступна — выберите самовывоз' }, { status: 400 })
       }
+      const quote = resolveDeliveryQuote(zones, {
+        address: street,
+        city: String(address.city || ''),
+        zipCode: String(address.zipCode || ''),
+        lat: Number(address.lat ?? NaN),
+        lng: Number(address.lng ?? NaN),
+        subtotal,
+      })
+      if (!quote.matched) {
+        return NextResponse.json({ error: quote.message }, { status: 400 })
+      }
+      trustedDeliveryFee = computeGuestDeliveryFee({
+        subtotal,
+        quote,
+        fallbackDeliveryFee: Math.max(0, Number(appSettingsRow?.deliveryFee ?? 0)),
+        fallbackFreeDeliveryFrom: Math.max(0, Number(appSettingsRow?.freeDeliveryFrom ?? 0)),
+      })
+      deliveryFee = trustedDeliveryFee
     }
     const userOrdersCount = await prisma.order.count({ where: { userId, restaurantId } })
     let campaignApply:

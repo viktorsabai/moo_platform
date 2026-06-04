@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
-import { escapeHtml, sendTelegramMessage } from '@/lib/telegram'
+import { broadcastPublicCampaign } from '@/lib/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,43 +36,7 @@ async function maybeBroadcastPublicCampaign(opts: {
   campaignCode?: string | null
   validTo?: Date | null
 }) {
-  const [orderUsers, favUsers] = await Promise.all([
-    prisma.user.findMany({
-      where: {
-        telegramId: { not: null },
-        orders: {
-          some: {
-            restaurantId: opts.restaurantId,
-          },
-        },
-      },
-      select: { telegramId: true },
-      take: 5000,
-    }),
-    prisma.user.findMany({
-      where: {
-        telegramId: { not: null },
-        favoriteDishes: {
-          some: { restaurantId: opts.restaurantId },
-        },
-      },
-      select: { telegramId: true },
-      take: 5000,
-    }),
-  ])
-  const chatIds = new Set<string>()
-  for (const u of [...orderUsers, ...favUsers]) {
-    const t = String(u.telegramId || '').trim()
-    if (t) chatIds.add(t)
-  }
-  const expiresLine = opts.validTo
-    ? `\nДействует до: <b>${escapeHtml(opts.validTo.toLocaleString('ru-RU'))}</b>`
-    : ''
-  const codeLine = opts.campaignCode ? `\nПромокод: <code>${escapeHtml(opts.campaignCode)}</code>` : ''
-  const text = `🎁 Новая акция: <b>${escapeHtml(opts.campaignName)}</b>${codeLine}${expiresLine}`
-  await Promise.all(
-    [...chatIds].map((chatId) => sendTelegramMessage(chatId, { text, parse_mode: 'HTML' }).catch(() => null))
-  )
+  await broadcastPublicCampaign(opts)
 }
 
 export async function GET() {

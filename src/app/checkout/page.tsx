@@ -14,6 +14,8 @@ import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { loadDeliveryProfile, saveDeliveryProfile } from '@/lib/delivery-profile'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { computeRubTotal, isQrSlug } from '@/lib/payment-methods'
+import { useGuestDelivery } from '@/hooks/useGuestDelivery'
+import { GuestDeliveryPreview } from '@/components/delivery/GuestDeliveryPreview'
 
 type PaymentOptionRow = {
   slug: string
@@ -37,6 +39,7 @@ export default function CheckoutPage() {
   const items = useMemo(() => getHydratedItems() as any[], [getHydratedItems, cartRevision])
   const cartRestaurantId = useCartStore((state) => state.restaurantId)
   const getTotal = useCartStore((state) => state.getTotal)
+  const subtotal = getTotal()
   const clearCart = useCartStore((state) => state.clearCart)
   const setOrders = useOrderStore((state) => state.setOrders)
   const cartCount = useCartStore((state) => state.getItemCount())
@@ -102,68 +105,22 @@ export default function CheckoutPage() {
     giftDishId?: string
   }>({ validating: false, ok: false, discountAmount: 0 })
 
-  const [appSettings, setAppSettings] = useState<{
-    deliveryFee: number
-    freeDeliveryFrom: number
-    paymentOptions: PaymentOptionRow[]
-    stripeConfigured: boolean
-    activeDeliveryZonesCount: number | null
-  }>({
-    deliveryFee: 100,
-    freeDeliveryFrom: 500,
-    paymentOptions: [{ slug: 'CASH', title: 'Наличные курьеру' }],
-    stripeConfigured: false,
-    activeDeliveryZonesCount: null,
+  const guestDelivery = useGuestDelivery({
+    subtotal,
+    restaurantHeaders: restaurantContextHeaders,
+    fetchQuote: deliveryMethod === 'DELIVERY',
+    address:
+      deliveryMethod === 'DELIVERY' && formData.address.trim()
+        ? {
+            address: formData.address,
+            city: formData.city,
+            zipCode: formData.zipCode,
+            lat: formData.lat,
+            lng: formData.lng,
+          }
+        : null,
   })
-  const [deliveryQuote, setDeliveryQuote] = useState<{
-    matched: boolean
-    reason?: string
-    message?: string
-    zone?: {
-      id: string
-      name: string
-      deliveryFee: number
-      minOrderAmount: number
-      deliveryWindowMin: number
-      minOrderSatisfied: boolean
-      missingForMinOrder: number
-    }
-  } | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const res = await fetch('/api/settings', {
-          cache: 'no-store',
-          credentials: 'include',
-          headers: { ...restaurantContextHeaders },
-        })
-        const data = await res.json().catch(() => null)
-        if (!res.ok || !data?.ok || cancelled) return
-        const opts = Array.isArray(data.settings?.paymentOptions) ? data.settings.paymentOptions : []
-        const zc = data.settings?.activeDeliveryZonesCount
-        let activeDeliveryZonesCount: number | null = null
-        if (zc !== undefined && zc !== null) {
-          const n = Math.trunc(Number(zc))
-          activeDeliveryZonesCount = Number.isFinite(n) ? Math.max(0, n) : null
-        }
-        setAppSettings({
-          deliveryFee: Number(data.settings?.deliveryFee ?? 100),
-          freeDeliveryFrom: Number(data.settings?.freeDeliveryFrom ?? 500),
-          paymentOptions: opts.length ? opts : [{ slug: 'CASH', title: 'Наличные курьеру' }],
-          stripeConfigured: Boolean(data.settings?.stripeConfigured),
-          activeDeliveryZonesCount,
-        })
-      } catch {
-        // ignore
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [restaurantContextHeaders])
+  const appSettings = guestDelivery.settings
 
   useEffect(() => {
     const slugs = appSettings.paymentOptions.map((p) => p.slug)
@@ -308,26 +265,9 @@ export default function CheckoutPage() {
     if (isAddressSheetOpen) setAddressSheetNoDeliveryExplainer(false)
   }, [isAddressSheetOpen])
 
-  const subtotal = getTotal()
-  const outOfZone =
-    deliveryMethod === 'DELIVERY' && Boolean(formData.address.trim()) && deliveryQuote?.matched === false
-  const zoneFee = deliveryQuote?.zone?.deliveryFee
-  const zoneFreeFrom = deliveryQuote?.zone?.minOrderAmount
-  const zoneFreeReached =
-    typeof zoneFreeFrom === 'number' && Number.isFinite(zoneFreeFrom)
-      ? subtotal >= zoneFreeFrom
-      : false
-  const deliveryQuoteRejected =
-    deliveryMethod === 'DELIVERY' && deliveryQuote != null && deliveryQuote.matched === false
-  const deliveryFee = deliveryMethod === 'PICKUP'
-    ? 0
-    : deliveryQuoteRejected
-      ? 0
-      : typeof zoneFee === 'number'
-        ? (zoneFreeReached ? 0 : zoneFee)
-        : subtotal >= appSettings.freeDeliveryFrom
-          ? 0
-          : appSettings.deliveryFee
+  const deliveryQuote = guestDelivery.quote
+  const outOfZone = deliveryMethod === 'DELIVERY' && guestDelivery.outOfZone
+  const deliveryFee = deliveryMethod === 'PICKUP' ? 0 : guestDelivery.estimatedDeliveryFee
   const totalBeforePromo = subtotal + deliveryFee
   const total = promoState.ok && typeof promoState.totalAfter === 'number' ? promoState.totalAfter : totalBeforePromo
   const deliveryEtaMin = deliveryQuote?.matched && deliveryQuote?.zone?.deliveryWindowMin
@@ -432,49 +372,6 @@ export default function CheckoutPage() {
       cancelled = true
     }
   }, [items])
-
-  useEffect(() => {
-    const addr = formData.address.trim()
-    if (deliveryMethod !== 'DELIVERY' || !addr) {
-      setDeliveryQuote(null)
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      try {
-        const q = new URLSearchParams({
-          address: formData.address,
-          city: formData.city,
-          zipCode: formData.zipCode,
-          subtotal: String(subtotal),
-          lat: formData.lat,
-          lng: formData.lng,
-        })
-        const res = await fetch(`/api/delivery/quote?${q.toString()}`, {
-          cache: 'no-store',
-          credentials: 'include',
-          headers: { ...telegramInitHeaderRecord(), ...restaurantContextHeaders } as HeadersInit,
-        })
-        const data = await res.json().catch(() => null)
-        if (!cancelled && data?.ok) setDeliveryQuote(data)
-      } catch {
-        if (!cancelled) setDeliveryQuote(null)
-      }
-    }, 250)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [
-    deliveryMethod,
-    formData.address,
-    formData.city,
-    formData.zipCode,
-    formData.lat,
-    formData.lng,
-    subtotal,
-    restaurantContextHeaders,
-  ])
 
   useEffect(() => {
     let cancelled = false
@@ -602,8 +499,8 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (deliveryMethod === 'DELIVERY' && deliveryQuote && !deliveryQuote.matched) {
-      toast.error(deliveryQuote.message || 'Адрес вне зоны доставки')
+    if (deliveryMethod === 'DELIVERY' && (!deliveryQuote || !deliveryQuote.matched)) {
+      toast.error(deliveryQuote?.message || 'Укажите адрес в зоне доставки')
       setIsSubmitting(false)
       return
     }
@@ -728,6 +625,9 @@ export default function CheckoutPage() {
             city: formData.city,
             zipCode: formData.zipCode || '',
             country: 'Thailand',
+            ...(formData.lat && formData.lng
+              ? { lat: Number(formData.lat), lng: Number(formData.lng) }
+              : {}),
           },
           notes: [deliveryMethod === 'PICKUP' ? 'Самовывоз' : '', formData.notes || ''].filter(Boolean).join(' · ') || undefined,
           items: lineItems.map((i) => ({
@@ -845,7 +745,11 @@ export default function CheckoutPage() {
     formData.name.trim() &&
     (deliveryMethod === 'PICKUP' || formData.address.trim())
   )
-  const canSubmit = baseFieldsFilled && !outOfZone && !isSubmitting
+  const quotePending =
+    deliveryMethod === 'DELIVERY' && Boolean(formData.address.trim()) && guestDelivery.quoteLoading
+  const deliveryNeedsMatch =
+    deliveryMethod === 'DELIVERY' && Boolean(formData.address.trim()) && !guestDelivery.quoteLoading && deliveryQuote?.matched !== true
+  const canSubmit = baseFieldsFilled && !outOfZone && !quotePending && !deliveryNeedsMatch && !isSubmitting
   const selectedPay = appSettings.paymentOptions.find((p) => p.slug === paymentOptionSlug)
   const paymentLabel = selectedPay?.title || paymentOptionSlug
   const rubPreview =
@@ -912,27 +816,14 @@ export default function CheckoutPage() {
             <span className="ui-muted shrink-0 pt-0.5">адрес</span>
             <span className="ui-body min-w-0 flex-1 whitespace-pre-line text-right text-[14px] leading-snug">{deliveryLabel}</span>
           </button>
-          {deliveryEtaMin && deliveryMethod === 'DELIVERY' ? (
-            <div className="ui-muted pt-2">доставка ~ {deliveryEtaMin} мин</div>
-          ) : null}
           {deliveryMethod === 'DELIVERY' ? (
-            <div className="mt-2 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">стоимость доставки</span>
-                <span
-                  className={`text-[14px] font-extrabold ${
-                    outOfZone ? 'text-[color:var(--muted)]' : deliveryFee > 0 ? 'text-[color:var(--text)]' : 'text-emerald-700'
-                  }`}
-                >
-                  {outOfZone ? 'недоступна' : deliveryFee > 0 ? formatPrice(deliveryFee) : 'бесплатно'}
-                </span>
-              </div>
-              {typeof zoneFreeFrom === 'number' && Number.isFinite(zoneFreeFrom) && zoneFreeFrom > 0 ? (
-                <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-                  {zoneFreeReached
-                    ? `порог ${formatPrice(zoneFreeFrom)} достигнут`
-                    : `бесплатно от ${formatPrice(zoneFreeFrom)}`}
-                </div>
+            <div className="mt-2">
+              <GuestDeliveryPreview delivery={guestDelivery} subtotal={subtotal} showZonesHint={false} />
+              {deliveryEtaMin ? (
+                <div className="ui-muted mt-1 text-[11px]">ориентир ~ {deliveryEtaMin} мин</div>
+              ) : null}
+              {quotePending ? (
+                <div className="ui-muted mt-1 text-[11px]">проверяем адрес…</div>
               ) : null}
             </div>
           ) : null}

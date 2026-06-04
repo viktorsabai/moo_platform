@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import {
+  notifySubscriptionDeliveryDeliveredToCustomer,
+  notifySubscriptionKitchenOrderToOwner,
+} from '@/lib/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +34,7 @@ export async function PATCH(
       include: {
         subscription: {
           include: {
-            user: { select: { id: true, name: true } },
+            user: { select: { id: true, name: true, telegramId: true } },
             items: { include: { dish: { select: { id: true, name: true, price: true } } } },
           },
         },
@@ -57,6 +61,15 @@ export async function PATCH(
         where: { id },
         data: { status: 'DELIVERED', deliveredAt: new Date() },
       })
+      const sub = delivery.subscription
+      void notifySubscriptionDeliveryDeliveredToCustomer({
+        restaurantId: ctx.restaurantId,
+        subscriptionId: sub.id,
+        subscriptionName: sub.name,
+        deliveryId: id,
+        scheduledDate: new Date(delivery.scheduledDate),
+        customerTelegramId: sub.user?.telegramId ?? null,
+      }).catch((err) => console.error('[deliveries:mark_delivered:notify]', err))
       return NextResponse.json({ ok: true, status: 'DELIVERED' })
     }
 
@@ -143,6 +156,16 @@ export async function PATCH(
 
         return created
       })
+
+      void notifySubscriptionKitchenOrderToOwner({
+        restaurantId: ctx.restaurantId,
+        orderId: order.id,
+        subscriptionId: sub.id,
+        subscriptionName: sub.name,
+        clientName,
+        mealNote,
+        scheduledDate: scheduled,
+      }).catch((err) => console.error('[deliveries:create_kitchen_order:notify]', err))
 
       return NextResponse.json({ ok: true, orderId: order.id, status: 'CONFIRMED' })
     }

@@ -1,13 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { useVenue } from '@/lib/venue-context'
-import { PhuketDistrictSvgPicker } from '@/components/admin/PhuketDistrictSvgPicker'
+import { AdminDeliveryConfig } from '@/components/admin/AdminDeliveryConfig'
 import { AdminPaymentMethods } from '@/components/admin/AdminPaymentMethods'
-import { PHUKET_DISTRICTS_GEOJSON } from '@/lib/phuket-districts'
+import { DISTRICTS } from '@/lib/delivery-zone-helpers'
 
 type Settings = {
   menuEnabled: boolean
@@ -25,49 +25,21 @@ type RestaurantInfo = {
   name: string
   address?: string | null
 }
-type DeliveryZone = {
-  id: string
-  name: string
-  polygonJson?: string | null
-  keywords?: string[] | null
-  zipCodes?: string[] | null
-  deliveryFee: number
-  minOrderAmount: number
-  deliveryWindowMin: number
-  isActive: boolean
-  sortOrder: number
-}
-
-const DISTRICTS = PHUKET_DISTRICTS_GEOJSON.features.map((f) => ({
-  id: String(f.id),
-  name: String(f.properties.name),
-}))
-
-const DISTRICT_GEOMETRY_BY_ID: Record<
-  string,
-  { type: 'Polygon'; coordinates: readonly (readonly (readonly [number, number])[])[] }
-> =
-  Object.fromEntries(
-    PHUKET_DISTRICTS_GEOJSON.features.map((f) => [
-      String(f.id),
-      f.geometry as { type: 'Polygon'; coordinates: readonly (readonly (readonly [number, number])[])[] },
-    ])
-  )
-
 export default function AdminVenuePage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchVenue } = useVenue()
+
+  useEffect(() => {
+    if (String(searchParams?.get('section') || '').toLowerCase() === 'bot') {
+      router.replace('/admin/qr')
+    }
+  }, [searchParams, router])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [restaurant, setRestaurant] = useState<RestaurantInfo | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [zones, setZones] = useState<DeliveryZone[]>([])
-  const [selectedDistrictId, setSelectedDistrictId] = useState<string>(DISTRICTS[0].id)
-  const [selectedDistrictIds, setSelectedDistrictIds] = useState<string[]>([])
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
-  const [isZoneSheetOpen, setIsZoneSheetOpen] = useState(false)
-  const [zoneSavingId, setZoneSavingId] = useState<string | null>(null)
   const [nameForm, setNameForm] = useState('')
   const [addressForm, setAddressForm] = useState('')
   const [settingsForm, setSettingsForm] = useState<Settings>({
@@ -109,10 +81,9 @@ export default function AdminVenuePage() {
     setLoading(true)
     setError(null)
     try {
-      const [rRes, sRes, zRes] = await Promise.all([
+      const [rRes, sRes] = await Promise.all([
         fetch('/api/restaurant', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/settings', { cache: 'no-store', credentials: 'include' }),
-        fetch('/api/admin/delivery-zones', { cache: 'no-store', credentials: 'include' }),
       ])
       const r = await rRes.json().catch(() => null)
       const s = await sRes.json().catch(() => null)
@@ -145,10 +116,6 @@ export default function AdminVenuePage() {
         })
       } else if (!sRes.ok && s?.error) {
         setError(s.error)
-      }
-      const zData = await zRes.json().catch(() => null)
-      if (zRes.ok && zData?.ok && Array.isArray(zData.zones)) {
-        setZones(zData.zones)
       }
     } catch {
       setError('не удалось загрузить')
@@ -223,35 +190,6 @@ export default function AdminVenuePage() {
     }
   }
 
-  async function saveZone(zone: DeliveryZone) {
-    setZoneSavingId(zone.id)
-    try {
-      const fallbackKeywords = (zone.keywords && zone.keywords.length > 0)
-        ? zone.keywords
-        : String(zone.name || '')
-            .split(',')
-            .map((x) => x.trim())
-            .filter(Boolean)
-      const res = await fetch('/api/admin/delivery-zones', {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          ...zone,
-          keywords: fallbackKeywords,
-        }),
-      })
-      const data = await res.json().catch(() => null)
-      if (!res.ok || !data?.ok) {
-        toast.error(data?.error || 'Не удалось сохранить зону')
-        return
-      }
-      toast.success('Зона сохранена')
-    } finally {
-      setZoneSavingId(null)
-    }
-  }
-
   useEffect(() => {
     load()
   }, [])
@@ -278,229 +216,11 @@ export default function AdminVenuePage() {
     }
   }, [])
 
-  function getZoneDistrictId(zone: DeliveryZone): string | null {
-    if (Array.isArray(zone.keywords)) {
-      const districtKeyword = zone.keywords.find((k) => String(k).startsWith('district:'))
-      if (districtKeyword) return String(districtKeyword).replace('district:', '')
-    }
-    const byName = DISTRICTS.find((d) => String(d.name).toLowerCase() === String(zone.name || '').toLowerCase())
-    return byName?.id || null
-  }
-
-  const selectedDistrict = useMemo(
-    () => DISTRICTS.find((d) => d.id === selectedDistrictId) ?? DISTRICTS[0],
-    [selectedDistrictId]
-  )
-  const zoneByDistrictId = useMemo(() => {
-    const map = new Map<string, DeliveryZone>()
-    zones.forEach((zone) => {
-      const districtId = getZoneDistrictId(zone)
-      if (districtId) map.set(districtId, zone)
-    })
-    return map
-  }, [zones])
-  const configuredDistrictIds = useMemo(
-    () => Array.from(zoneByDistrictId.keys()),
-    [zoneByDistrictId]
-  )
-  const inactiveDistrictIds = useMemo(
-    () => Array.from(zoneByDistrictId.entries()).filter(([, zone]) => !zone.isActive).map(([districtId]) => districtId),
-    [zoneByDistrictId]
-  )
-  const districtPriceById = useMemo<Record<string, number>>(() => {
-    const map: Record<string, number> = {}
-    for (const district of DISTRICTS) {
-      const zone = zoneByDistrictId.get(district.id)
-      map[district.id] = Number(zone?.deliveryFee ?? settingsForm.deliveryFee ?? 0)
-    }
-    return map
-  }, [zoneByDistrictId, settingsForm.deliveryFee])
-
-  function buildDistrictDraftZone(districtId: string): DeliveryZone {
-    const district = DISTRICTS.find((d) => d.id === districtId) ?? DISTRICTS[0]
-    return {
-      id: `draft_${district.id}`,
-      name: district.name,
-      polygonJson: JSON.stringify(DISTRICT_GEOMETRY_BY_ID[district.id] ?? null),
-      keywords: [district.name, district.id, `district:${district.id}`],
-      zipCodes: [],
-      deliveryFee: settingsForm.deliveryFee,
-      minOrderAmount: settingsForm.freeDeliveryFrom,
-      deliveryWindowMin: 60,
-      isActive: true,
-      sortOrder: zones.length,
-    }
-  }
-
-  function ensureZoneDraftForDistrict(districtId: string): DeliveryZone {
-    const existing = zoneByDistrictId.get(districtId)
-    if (existing) return existing
-    const draft = buildDistrictDraftZone(districtId)
-    setZones((prev) => {
-      if (prev.some((z) => getZoneDistrictId(z) === districtId)) return prev
-      return [...prev, draft]
-    })
-    return draft
-  }
-
-  useEffect(() => {
-    ensureZoneDraftForDistrict(selectedDistrict.id)
-    // keep selected district editable immediately
-  }, [selectedDistrict.id, settingsForm.deliveryFee, settingsForm.freeDeliveryFrom])
-  const selectedZone = useMemo(() => {
-    const byDistrict = zoneByDistrictId.get(selectedDistrict.id)
-    if (byDistrict) return byDistrict
-    return {
-      id: `virtual_${selectedDistrict.id}`,
-      name: selectedDistrict.name,
-      polygonJson: JSON.stringify(DISTRICT_GEOMETRY_BY_ID[selectedDistrict.id] ?? null),
-      keywords: [selectedDistrict.name, selectedDistrict.id, `district:${selectedDistrict.id}`],
-      zipCodes: [],
-      deliveryFee: settingsForm.deliveryFee,
-      minOrderAmount: settingsForm.freeDeliveryFrom,
-      deliveryWindowMin: 60,
-      isActive: true,
-      sortOrder: 0,
-    } as DeliveryZone
-  }, [zoneByDistrictId, selectedDistrict, settingsForm.deliveryFee, settingsForm.freeDeliveryFrom])
-
-  function openDistrictSheet(districtId: string) {
-    setSelectedDistrictId(districtId)
-    ensureZoneDraftForDistrict(districtId)
-    setIsZoneSheetOpen(true)
-  }
-
-  function onDistrictTap(districtId: string) {
-    if (isMultiSelectMode) {
-      ensureZoneDraftForDistrict(districtId)
-      setSelectedDistrictIds((prev) =>
-        prev.includes(districtId) ? prev.filter((id) => id !== districtId) : [...prev, districtId]
-      )
-      return
-    }
-    setSelectedDistrictIds([])
-    openDistrictSheet(districtId)
-  }
-
-  function updateZoneDraftByDistrictId(
-    districtId: string,
-    patch: Partial<Pick<DeliveryZone, 'deliveryFee' | 'minOrderAmount' | 'isActive'>>
-  ) {
-    setZones((prev) => {
-      const targetId = prev.find((z) => getZoneDistrictId(z) === districtId)?.id
-      if (targetId) {
-        return prev.map((z) => (z.id === targetId ? { ...z, ...patch } : z))
-      }
-      const draft = { ...buildDistrictDraftZone(districtId), ...patch }
-      return [...prev, draft]
-    })
-  }
-  const savedDistrictZone = useMemo(
-    () => {
-      const zone = zoneByDistrictId.get(selectedDistrict.id)
-      if (!zone) return null
-      return String(zone.id).startsWith('draft_') ? null : zone
-    },
-    [zoneByDistrictId, selectedDistrict.id]
-  )
-
-  async function saveSelectedDistrictRules() {
-    const existing = zoneByDistrictId.get(selectedDistrict.id) || null
-    if (existing && !String(existing.id).startsWith('draft_')) {
-      await saveZone({
-        ...selectedZone,
-        id: existing.id,
-        name: selectedDistrict.name,
-        polygonJson: JSON.stringify(DISTRICT_GEOMETRY_BY_ID[selectedDistrict.id] ?? null),
-      })
-      return
-    }
-    setZoneSavingId('new')
-    try {
-      const res = await fetch('/api/admin/delivery-zones', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          name: selectedDistrict.name,
-          polygonJson: JSON.stringify(DISTRICT_GEOMETRY_BY_ID[selectedDistrict.id] ?? null),
-          keywords: [selectedDistrict.name, selectedDistrict.id, `district:${selectedDistrict.id}`],
-          deliveryFee: selectedZone.deliveryFee,
-          minOrderAmount: selectedZone.minOrderAmount,
-          deliveryWindowMin: selectedZone.deliveryWindowMin,
-        }),
-      })
-      const data = await res.json().catch(() => null)
-      if (!res.ok || !data?.ok) {
-        toast.error(data?.error || 'Не удалось сохранить район')
-        return
-      }
-      await load()
-      setIsZoneSheetOpen(false)
-      toast.success('Район сохранен')
-    } finally {
-      setZoneSavingId(null)
-    }
-  }
-
-  async function saveMultipleDistrictRules() {
-    if (!selectedDistrictIds.length) {
-      toast.error('Выберите хотя бы один район')
-      return
-    }
-    setZoneSavingId('bulk')
-    try {
-      for (const districtId of selectedDistrictIds) {
-        const district = DISTRICTS.find((d) => d.id === districtId)
-        if (!district) continue
-        const zone = zoneByDistrictId.get(districtId) || ensureZoneDraftForDistrict(districtId)
-        const existing = zoneByDistrictId.get(districtId) || null
-        if (existing && !String(existing.id).startsWith('draft_')) {
-          await saveZone({
-            ...zone,
-            id: existing.id,
-            name: district.name,
-            polygonJson: JSON.stringify(DISTRICT_GEOMETRY_BY_ID[district.id] ?? null),
-          })
-          continue
-        }
-        const res = await fetch('/api/admin/delivery-zones', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            name: district.name,
-            polygonJson: JSON.stringify(DISTRICT_GEOMETRY_BY_ID[district.id] ?? null),
-            keywords: [district.name, district.id, `district:${district.id}`],
-            deliveryFee: zone.deliveryFee,
-            minOrderAmount: zone.minOrderAmount,
-            deliveryWindowMin: zone.deliveryWindowMin,
-          }),
-        })
-        const data = await res.json().catch(() => null)
-        if (!res.ok || !data?.ok) {
-          toast.error(data?.error || `Не удалось сохранить район ${district.name}`)
-          return
-        }
-      }
-      await load()
-      setIsZoneSheetOpen(false)
-      toast.success(`Применено к ${selectedDistrictIds.length} районам`)
-    } finally {
-      setZoneSavingId(null)
-    }
-  }
-
   const cardClass = 'ui-surface-card'
   const cardRadius = { borderRadius: 'var(--radius-large)' } as const
   const section = String(searchParams?.get('section') || '').toLowerCase()
   const showDelivery = section !== 'payments'
   const showPayments = section !== 'delivery'
-  const activeSheetDistrictId = isMultiSelectMode
-    ? (selectedDistrictIds[0] || selectedDistrictId)
-    : selectedDistrictId
-  const activeSheetDistrict = DISTRICTS.find((d) => d.id === activeSheetDistrictId) ?? selectedDistrict
-  const activeSheetZone = zoneByDistrictId.get(activeSheetDistrict.id) ?? buildDistrictDraftZone(activeSheetDistrict.id)
 
   if (loading && !settings) {
     return (
@@ -544,135 +264,15 @@ export default function AdminVenuePage() {
       </div>
 
       {showDelivery ? (
-      <div id="delivery" className={`${cardClass}`} style={cardRadius}>
-        <h2 className="ui-h2 mb-1 text-[14px]">зоны доставки</h2>
-        <p className="ui-muted mb-3 text-[12px]">тап по району → редактирование внизу → готово</p>
-        <div className="space-y-3 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[12px] font-semibold text-[color:var(--muted)]">карта районов</div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsMultiSelectMode((v) => {
-                  if (v) setSelectedDistrictIds([])
-                  return !v
-                })
-              }}
-              className={isMultiSelectMode
-                ? 'btn btn-primary rounded-full px-3 py-1.5 text-[11px] font-semibold'
-                : 'btn btn-soft rounded-full px-3 py-1.5 text-[11px] font-semibold'}
-            >
-              {isMultiSelectMode ? 'множественный выбор: вкл' : 'выбрать несколько'}
-            </button>
-          </div>
-          <PhuketDistrictSvgPicker
-            districts={DISTRICTS as any}
-            selectedDistrictId={selectedDistrictId}
-            selectedDistrictIds={selectedDistrictIds}
-            onSelectDistrict={onDistrictTap}
-            configuredDistrictIds={configuredDistrictIds}
-            inactiveDistrictIds={inactiveDistrictIds}
-            priceByDistrictId={districtPriceById}
+        <div className={cardClass} style={cardRadius}>
+          <AdminDeliveryConfig
+            defaultDeliveryFee={settingsForm.deliveryFee}
+            freeDeliveryFrom={settingsForm.freeDeliveryFrom}
             homeDistrictId={homeDistrictId}
+            onDefaultsChange={(deliveryFee, freeDeliveryFrom) =>
+              setSettingsForm((prev) => ({ ...prev, deliveryFee, freeDeliveryFrom }))
+            }
           />
-          <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2">
-            <div className="text-[12px] font-semibold text-[color:var(--text)]">
-              {isMultiSelectMode
-                ? selectedDistrictIds.length > 0
-                  ? `выбрано районов: ${selectedDistrictIds.length}`
-                  : 'выберите районы на карте'
-                : `выбран район: ${selectedDistrict.name}`}
-            </div>
-            <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
-              {isMultiSelectMode
-                ? 'для пакетного редактирования отметьте несколько районов и нажмите кнопку ниже'
-                : savedDistrictZone
-                  ? selectedZone.isActive
-                    ? 'активен · нажмите район чтобы открыть настройки'
-                    : 'выключен · включите район, если нужна доставка'
-                  : 'новый район · нажмите район чтобы задать правила'}
-            </div>
-            {homeDistrictId === selectedDistrict.id ? (
-              <div className="mt-1 text-[11px] font-semibold text-[color:var(--accent-strong)]">домашний район ресторана</div>
-            ) : null}
-          </div>
-          {isMultiSelectMode ? (
-            <button
-              type="button"
-              disabled={selectedDistrictIds.length === 0}
-              onClick={() => setIsZoneSheetOpen(true)}
-              className="btn btn-primary w-full rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-50"
-            >
-              редактировать выбранные районы
-            </button>
-          ) : null}
-        </div>
-      </div>
-      ) : null}
-
-      {isZoneSheetOpen ? (
-        <div className="fixed inset-0 z-[220] bg-black/35">
-          <button
-            type="button"
-            className="h-full w-full"
-            onClick={() => setIsZoneSheetOpen(false)}
-            aria-label="close zone sheet"
-          />
-          <div className="absolute inset-x-0 bottom-0 max-h-[78dvh] overflow-y-auto rounded-t-2xl bg-[color:var(--surface-strong)] p-4 pb-[calc(env(safe-area-inset-bottom)+14px)]">
-            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[color:var(--stroke-strong)]" />
-            <div className="text-[18px] font-semibold text-[color:var(--text)]">
-              {isMultiSelectMode ? `настройка районов (${selectedDistrictIds.length})` : `редактирование ${activeSheetDistrict.name}`}
-            </div>
-            <div className="mt-3 space-y-2">
-              <div>
-                <div className="mb-1 text-[11px] font-semibold text-[color:var(--muted)]">цена доставки</div>
-                <input
-                  className="input input--pill"
-                  value={String(activeSheetZone.deliveryFee)}
-                  inputMode="numeric"
-                  onChange={(e) => {
-                    const n = Math.max(0, Number(e.target.value || 0))
-                    const targets = isMultiSelectMode ? selectedDistrictIds : [activeSheetDistrict.id]
-                    targets.forEach((districtId) => updateZoneDraftByDistrictId(districtId, { deliveryFee: n }))
-                  }}
-                  placeholder="например 100"
-                />
-              </div>
-              <div>
-                <div className="mb-1 text-[11px] font-semibold text-[color:var(--muted)]">бесплатно от</div>
-                <input
-                  className="input input--pill"
-                  value={String(activeSheetZone.minOrderAmount)}
-                  inputMode="numeric"
-                  onChange={(e) => {
-                    const n = Math.max(0, Number(e.target.value || 0))
-                    const targets = isMultiSelectMode ? selectedDistrictIds : [activeSheetDistrict.id]
-                    targets.forEach((districtId) => updateZoneDraftByDistrictId(districtId, { minOrderAmount: n }))
-                  }}
-                  placeholder="например 500"
-                />
-              </div>
-              <label className="inline-flex items-center gap-2 text-[12px] font-semibold text-[color:var(--text)]">
-                <input
-                  type="checkbox"
-                  checked={activeSheetZone.isActive}
-                  onChange={(e) => {
-                    const targets = isMultiSelectMode ? selectedDistrictIds : [activeSheetDistrict.id]
-                    targets.forEach((districtId) => updateZoneDraftByDistrictId(districtId, { isActive: e.target.checked }))
-                  }}
-                />
-                район активен
-              </label>
-            </div>
-            <button
-              type="button"
-              onClick={isMultiSelectMode ? saveMultipleDistrictRules : saveSelectedDistrictRules}
-              disabled={zoneSavingId !== null || (isMultiSelectMode && selectedDistrictIds.length === 0)}
-              className="btn btn-primary mt-4 w-full rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-50"
-            >
-              {zoneSavingId ? 'сохраняем…' : 'готово'}
-            </button>
-          </div>
         </div>
       ) : null}
 

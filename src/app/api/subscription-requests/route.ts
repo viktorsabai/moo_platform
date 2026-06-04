@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import { ensureMvpTables, newId } from '@/lib/mvp-db'
-import { notifySubscriptionRequestToOps } from '@/lib/notifications'
+import { notifySubscriptionRequestToCustomer, notifySubscriptionRequestToOps } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
-import { sendTelegramMessage } from '@/lib/telegram'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
 
 export const runtime = 'nodejs'
@@ -43,13 +42,11 @@ export async function POST(request: Request) {
     // Подтверждаем клиенту, что запрос принят (если есть telegramId).
     let customerAckSent = false
     if (customerTelegramId) {
-      const ack = await sendTelegramMessage(
+      const ack = await notifySubscriptionRequestToCustomer({
+        restaurantId,
         customerTelegramId,
-        {
-          text: '✅ Запрос на подписку отправлен. Команда заведения получила его и свяжется с вами в Telegram.',
-        }
-      ).catch(() => ({ ok: false as const }))
-      customerAckSent = Boolean((ack as any)?.ok)
+      }).catch(() => ({ ok: false as const }))
+      customerAckSent = ack.ok
     }
 
     // В serverless важно дождаться отправок до ответа, иначе сообщения могут не уйти.

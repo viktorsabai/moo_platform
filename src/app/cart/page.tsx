@@ -1,13 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { useCartStore } from '@/store/cart-store'
 import { CartRecommendations } from '@/features/cart/components/CartRecommendations'
 import { InlineCounter } from '@/components/ui/InlineCounter'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
+import { GuestDeliveryPreview } from '@/components/delivery/GuestDeliveryPreview'
+import { useGuestDelivery } from '@/hooks/useGuestDelivery'
+import { useVenue } from '@/lib/venue-context'
+import { useMemo } from 'react'
 
 export type CartItemModel = {
   id: string
@@ -118,6 +122,12 @@ function toCartItemModel(raw: any, index: number): CartItemModel {
 }
 
 export default function CartPage() {
+  const { restaurantId } = useVenue()
+  const restaurantContextHeaders = useMemo((): HeadersInit => {
+    const rid = String(restaurantId || '').trim()
+    return rid && rid !== 'default' ? { 'x-ufo-restaurant': rid } : {}
+  }, [restaurantId])
+
   const getHydratedItems = useCartStore((s) => s.getHydratedItems)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const removeItem = useCartStore((s) => s.removeItem)
@@ -223,6 +233,11 @@ export default function CartPage() {
 
   const subtotal = Math.max(0, coerceNumber(getTotal?.()))
   const totalQty = list.reduce((sum, it) => sum + (it.quantity || 0), 0)
+  const guestDelivery = useGuestDelivery({
+    subtotal,
+    restaurantHeaders: restaurantContextHeaders,
+    fetchQuote: true,
+  })
 
   const cardClass = 'ui-surface-card'
   const cardRadius = { borderRadius: 'var(--radius-large)' } as const
@@ -343,6 +358,10 @@ export default function CartPage() {
           <CartRecommendations title="ещё к заказу" kinds={['dish']} />
           <CartRecommendations title="из магазина" kinds={['store']} />
 
+          <div className={`${cardClass} mb-3`} style={cardRadius}>
+            <GuestDeliveryPreview delivery={guestDelivery} subtotal={subtotal} />
+          </div>
+
           {/* Above bottom nav (z-100): same bottom offset as StickyCartBar (+10px) so taps hit CTA, not tabs */}
           <div
             className="pointer-events-none fixed bottom-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+10px)] left-1/2 z-[115] w-[min(520px,92%)] max-w-full -translate-x-1/2"
@@ -351,8 +370,23 @@ export default function CartPage() {
             <div className="pointer-events-auto ui-sticky-sheet overflow-hidden">
               <div className="flex items-center justify-between gap-4 p-4">
                 <div className="min-w-0">
-                  <div className="ui-muted text-[12px]">итого</div>
-                  <div className="ui-h1 mt-0.5 tabular-nums text-[18px]">{formatPrice(subtotal)}</div>
+                  <div className="ui-muted text-[12px]">
+                    {guestDelivery.deliveryAvailable && guestDelivery.estimatedDeliveryFee > 0
+                      ? 'с доставкой'
+                      : 'итого'}
+                  </div>
+                  <div className="ui-h1 mt-0.5 tabular-nums text-[18px]">
+                    {formatPrice(
+                      guestDelivery.deliveryAvailable && !guestDelivery.outOfZone
+                        ? guestDelivery.estimatedTotal
+                        : subtotal
+                    )}
+                  </div>
+                  {guestDelivery.deliveryAvailable && guestDelivery.estimatedDeliveryFee > 0 ? (
+                    <div className="ui-muted mt-0.5 text-[10px]">
+                      товары {formatPrice(subtotal)} + доставка {formatPrice(guestDelivery.estimatedDeliveryFee)}
+                    </div>
+                  ) : null}
                 </div>
                 <Link
                   href="/checkout"

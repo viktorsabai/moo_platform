@@ -514,10 +514,248 @@ export async function notifySubscriptionCreatedToOwner(params: {
       },
       botToken
     )
-    if (!sent) {
+    if (!sent.ok) {
       console.error('[notifySubscriptionCreatedToOwner] Telegram send failed', { restaurantId, subscriptionId, chatId })
     }
   }
+}
+
+/** Уведомление клиенту: заявка на подписку отправлена. */
+export async function notifySubscriptionCreatedToCustomer(params: {
+  restaurantId: string
+  subscriptionId: string
+  subscriptionName: string
+  price: number
+  itemsSummary: string
+  customerTelegramId: string | null
+}): Promise<void> {
+  const { restaurantId, subscriptionId, subscriptionName, price, itemsSummary, customerTelegramId } = params
+  if (!customerTelegramId) return
+  const botToken = await getBotToken(restaurantId)
+  if (!botToken) return
+
+  const bulletLines = itemsSummary
+    .split('\n')
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((line) => `• ${escapeHtml(line.startsWith('•') || line.startsWith('-') ? line.replace(/^[•-]\s*/, '') : line)}`)
+
+  const text = formatNotificationMessage({
+    emoji: '📋',
+    title: 'Заявка на подписку отправлена',
+    metricsLine: `«${escapeHtml(subscriptionName)}» · ${escapeHtml(formatPrice(price))}`,
+    bulletLines: bulletLines.length ? bulletLines : undefined,
+    closingPhrase: 'Заведение подтвердит рацион — мы напишем в Telegram.',
+  })
+
+  await sendTelegramMessage(
+    customerTelegramId,
+    {
+      text,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'Открыть эту подписку', web_app: { url: buildWebAppUrl(`/subscriptions/${subscriptionId}`) } }],
+          [{ text: 'Мои подписки', web_app: { url: buildWebAppUrl('/subscriptions') } }],
+          [{ text: 'Открыть mini app', web_app: { url: buildWebAppUrl('/') } }],
+        ],
+      },
+    },
+    botToken
+  )
+}
+
+/** Уведомление клиенту: запрос «Хочу подписку» принят. */
+export async function notifySubscriptionRequestToCustomer(params: {
+  restaurantId: string
+  customerTelegramId: string | null
+}): Promise<{ ok: boolean }> {
+  const { restaurantId, customerTelegramId } = params
+  if (!customerTelegramId) return { ok: false }
+  const botToken = await getBotToken(restaurantId)
+  if (!botToken) return { ok: false }
+
+  const text = formatNotificationMessage({
+    emoji: '✅',
+    title: 'Запрос на подписку отправлен',
+    closingPhrase: 'Команда заведения получила его и свяжется с вами в Telegram.',
+  })
+
+  const sent = await sendTelegramMessage(
+    customerTelegramId,
+    {
+      text,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: 'Подписки', web_app: { url: buildWebAppUrl('/subscriptions') } }]],
+      },
+    },
+    botToken
+  )
+  return { ok: sent.ok }
+}
+
+/** Уведомление команде: заказ на кухню из подписки. */
+export async function notifySubscriptionKitchenOrderToOwner(params: {
+  restaurantId: string
+  orderId: string
+  subscriptionId: string
+  subscriptionName: string
+  clientName: string
+  mealNote: string
+  scheduledDate: Date
+}): Promise<void> {
+  const { restaurantId, orderId, subscriptionId, subscriptionName, clientName, mealNote, scheduledDate } = params
+  const ownerIds = await getOpsTelegramIds(restaurantId)
+  const botToken = await getBotToken(restaurantId)
+  if (!botToken || ownerIds.length === 0) return
+
+  const shortOrderId = orderId.slice(-8)
+  const dateLabel = scheduledDate.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  const text = formatNotificationMessage({
+    emoji: '🍳',
+    title: `Заказ на кухню #${escapeHtml(shortOrderId)}`,
+    metricsLine: `${escapeHtml(clientName)} · «${escapeHtml(subscriptionName)}»`,
+    bulletLines: [`• ${escapeHtml(mealNote)}`, `• Доставка: ${escapeHtml(dateLabel)}`],
+    closingPhrase: 'Заказ создан из подписки — откройте в разделе «Заказы».',
+  })
+
+  for (const chatId of ownerIds) {
+    const sent = await sendTelegramMessage(
+      chatId,
+      {
+        text,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Открыть заказ', web_app: { url: buildWebAppUrl(`/admin/orders`) } }],
+            [
+              {
+                text: 'Подписчики',
+                web_app: { url: buildWebAppUrl(`/admin/subscriptions/clients?subscriptionId=${subscriptionId}`) },
+              },
+            ],
+          ],
+        },
+      },
+      botToken
+    )
+    if (!sent.ok) {
+      console.error('[notifySubscriptionKitchenOrderToOwner] failed', { restaurantId, orderId, chatId })
+    }
+  }
+}
+
+/** Рассылка гостям при публикации публичной акции. */
+export async function broadcastPublicCampaign(opts: {
+  restaurantId: string
+  campaignName: string
+  campaignCode?: string | null
+  validTo?: Date | null
+}): Promise<{ recipientCount: number }> {
+  const botToken = await getBotToken(opts.restaurantId)
+  if (!botToken) return { recipientCount: 0 }
+
+  const [orderUsers, favUsers] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        telegramId: { not: null },
+        orders: { some: { restaurantId: opts.restaurantId } },
+      },
+      select: { telegramId: true },
+      take: 5000,
+    }),
+    prisma.user.findMany({
+      where: {
+        telegramId: { not: null },
+        favoriteDishes: { some: { restaurantId: opts.restaurantId } },
+      },
+      select: { telegramId: true },
+      take: 5000,
+    }),
+  ])
+
+  const chatIds = new Set<string>()
+  for (const u of [...orderUsers, ...favUsers]) {
+    const t = String(u.telegramId || '').trim()
+    if (t) chatIds.add(t)
+  }
+
+  const expiresLine = opts.validTo
+    ? `\nДействует до: <b>${escapeHtml(opts.validTo.toLocaleString('ru-RU'))}</b>`
+    : ''
+  const codeLine = opts.campaignCode ? `\nПромокод: <code>${escapeHtml(opts.campaignCode)}</code>` : ''
+  const text = `<b>🎁 Новая акция: ${escapeHtml(opts.campaignName)}</b>${codeLine}${expiresLine}\n\n<i>Откройте меню и примените промокод при оформлении.</i>`
+
+  await Promise.all(
+    [...chatIds].map((chatId) =>
+      sendTelegramMessage(
+        chatId,
+        {
+          text,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[{ text: 'Открыть меню', web_app: { url: buildWebAppUrl('/menu') } }]],
+          },
+        },
+        botToken
+      ).catch(() => null)
+    )
+  )
+
+  return { recipientCount: chatIds.size }
+}
+
+/** Уведомление клиенту: доставка по подписке выполнена. */
+export async function notifySubscriptionDeliveryDeliveredToCustomer(params: {
+  restaurantId: string
+  subscriptionId: string
+  subscriptionName: string
+  deliveryId: string
+  scheduledDate: Date
+  customerTelegramId: string | null
+}): Promise<OrderTelegramNotifyResult> {
+  const { restaurantId, subscriptionId, subscriptionName, deliveryId, scheduledDate, customerTelegramId } = params
+  if (!customerTelegramId) return 'skipped_no_recipient'
+  const botToken = await getBotToken(restaurantId)
+  if (!botToken) return 'skipped_no_token'
+
+  const dayLabel = scheduledDate.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  })
+  const text = formatNotificationMessage({
+    emoji: '✅',
+    title: 'Доставка по подписке',
+    metricsLine: `«${escapeHtml(subscriptionName)}» · ${escapeHtml(dayLabel)}`,
+    closingPhrase: 'Рацион доставлен. Приятного аппетита!',
+  })
+
+  const sent = await sendTelegramMessage(
+    customerTelegramId,
+    {
+      text,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'Моя подписка', web_app: { url: buildWebAppUrl(`/subscriptions/${subscriptionId}`) } }],
+          [{ text: 'Мои подписки', web_app: { url: buildWebAppUrl('/subscriptions') } }],
+        ],
+      },
+    },
+    botToken
+  )
+  if (!sent.ok) {
+    console.error('[notifySubscriptionDeliveryDeliveredToCustomer] failed', { subscriptionId, deliveryId, sent })
+    return 'failed'
+  }
+  return 'sent'
 }
 
 /** Уведомление клиенту: статус подписки изменился. */
