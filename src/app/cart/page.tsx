@@ -11,7 +11,6 @@ import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { GuestDeliveryPreview } from '@/components/delivery/GuestDeliveryPreview'
 import { useGuestDelivery } from '@/hooks/useGuestDelivery'
 import { useVenue } from '@/lib/venue-context'
-import { useMemo } from 'react'
 
 export type CartItemModel = {
   id: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import Link from 'next/link'
@@ -27,7 +27,7 @@ const STATUS_OPTIONS: { value: StatusFilterKey; label: string }[] = [
   { value: 'draft', label: 'черновик' },
 ]
 
-export default function SubscriptionsPage() {
+function SubscriptionsPageContent() {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -255,5 +255,19 @@ export default function SubscriptionsPage() {
         </>
       )}
     </main>
+  )
+}
+
+export default function SubscriptionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="ui-container ui-screen">
+          <div className="ui-muted p-4 text-[13px]">загрузка…</div>
+        </main>
+      }
+    >
+      <SubscriptionsPageContent />
+    </Suspense>
   )
 }
