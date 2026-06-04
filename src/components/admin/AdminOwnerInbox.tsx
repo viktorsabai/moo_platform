@@ -99,10 +99,10 @@ export function AdminOwnerInbox() {
           : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)]'
       )}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-amber-200/60 px-4 py-3">
+      <div className="flex items-start justify-between gap-3 border-b border-[color:var(--stroke)] px-4 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <IconCrown className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+            <IconCrown className="h-4 w-4 shrink-0 text-[color:var(--primary)]" aria-hidden />
             <h2 className="text-[14px] font-bold text-[color:var(--text)]">
               {hasUnseen
                 ? `входящие · ${displayNew.length} ${hasNewSnapshot ? 'новых' : 'непросмотренных'}`
