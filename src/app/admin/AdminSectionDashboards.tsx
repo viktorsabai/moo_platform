@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { formatPrice } from '@/lib/utils'
+import { AdminQuickToggle } from '@/components/admin/AdminQuickToggle'
+import { AdminSectionOpenLink } from '@/components/admin/AdminSectionOpenLink'
 import { IconPencil } from '@/components/ui/icons'
 import { useVenue } from '@/lib/venue-context'
 
@@ -124,7 +126,6 @@ export function VenueDashboard({ data }: { data: DashboardData }) {
   const [nameSaving, setNameSaving] = useState(false)
   const [override, setOverride] = useState<boolean | null>(s?.isOpenOverride ?? null)
   const [pauseSaving, setPauseSaving] = useState(false)
-  const [paymentEnabledCount, setPaymentEnabledCount] = useState<number | null>(null)
   const displayName = venueName ?? data.restaurantName
   const paused = override === false
   const acceptingLabel = paused ? 'приём на паузе' : data.isOpenNow ? 'принимаем заказы' : 'вне часов работы'
@@ -137,29 +138,9 @@ export function VenueDashboard({ data }: { data: DashboardData }) {
     setOverride(s?.isOpenOverride ?? null)
   }, [s?.isOpenOverride])
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch('/api/admin/settings', { cache: 'no-store', credentials: 'include' })
-        const json = await res.json().catch(() => null)
-        if (cancelled || !res.ok || !json?.ok) return
-        const rows = Array.isArray(json.settings?.paymentMethodsJson)
-          ? json.settings.paymentMethodsJson
-          : []
-        const n = rows.filter((r: { enabled?: boolean }) => Boolean(r?.enabled)).length
-        setPaymentEnabledCount(n)
-      } catch {
-        if (!cancelled) setPaymentEnabledCount(null)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  async function toggleAccepting() {
-    const next = paused ? null : false
+  async function setAccepting(accepting: boolean) {
+    const next = accepting ? null : false
+    if ((accepting && !paused) || (!accepting && paused)) return
     setPauseSaving(true)
     try {
       const res = await fetch('/api/admin/settings', {
@@ -265,56 +246,24 @@ export function VenueDashboard({ data }: { data: DashboardData }) {
               <span className={valueClass}>
                 {s.openTime}–{s.closeTime}
               </span>
-              <IconPencil className="h-3.5 w-3.5 text-[color:var(--muted)]" aria-hidden />
             </Link>
-          </div>
-          <div className={rowClass}>
-            <span className={labelClass}>режим</span>
-            <span className={valueClass}>{acceptingLabel}</span>
           </div>
           <div className={rowClass}>
             <span className={labelClass}>доставка</span>
             <span className={valueClass}>
-              {formatPrice(s.deliveryFee)} · бесплатно от {formatPrice(s.freeDeliveryFrom)}
-            </span>
-          </div>
-          <div className={rowClass}>
-            <span className={labelClass}>оплата</span>
-            <span className={valueClass}>
-              {paymentEnabledCount == null ? '…' : `${paymentEnabledCount} способов включено`}
+              {formatPrice(s.deliveryFee)} · от {formatPrice(s.freeDeliveryFrom)}
             </span>
           </div>
         </>
       )}
-      <div className="grid grid-cols-2 gap-2 pt-1">
-        <QuickPrimaryButton onClick={toggleAccepting} disabled={pauseSaving}>
-          {pauseSaving ? '…' : paused ? 'возобновить прием' : 'пауза приема'}
-        </QuickPrimaryButton>
-        <Link
-          href="/admin/venue?section=delivery"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          доставка
-        </Link>
-        <Link
-          href="/admin/venue?section=payments"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          оплата
-        </Link>
-        <Link
-          href="/admin/venue"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          все настройки
-        </Link>
-      </div>
+      <AdminQuickToggle
+        label="Принимаем заказы"
+        hint={acceptingLabel}
+        checked={!paused}
+        disabled={pauseSaving}
+        onChange={(next) => void setAccepting(next)}
+      />
+      <AdminSectionOpenLink href="/admin/venue" label="Настройки заведения" />
     </div>
   )
 }
@@ -359,50 +308,33 @@ export function MenuStoreDashboard({ data }: { data: DashboardData }) {
         <div className="rounded-xl bg-black/[0.04] p-3" style={{ borderRadius: 'var(--radius-medium)' }}>
           <div className={labelClass}>готовые блюда</div>
           <div className="mt-0.5 text-[15px] font-bold tabular-nums">{data.dishesCount}</div>
-          <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">{data.menuCategoriesCount} кат.</div>
         </div>
         <div className="rounded-xl bg-black/[0.04] p-3" style={{ borderRadius: 'var(--radius-medium)' }}>
           <div className={labelClass}>магазин</div>
           <div className="mt-0.5 text-[15px] font-bold tabular-nums">{data.storeProductsCount}</div>
-          <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">{data.storeCategoriesCount} кат.</div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <QuickGhostButton
-          onClick={() => toggleCatalog('menuEnabled', !menuEnabled)}
-          disabled={saving !== null}
-        >
-          {saving === 'menu' ? '…' : menuEnabled ? 'пауза меню' : 'включить меню'}
-        </QuickGhostButton>
-        <QuickGhostButton
-          onClick={() => toggleCatalog('storeEnabled', !storeEnabled)}
-          disabled={saving !== null}
-        >
-          {saving === 'store' ? '…' : storeEnabled ? 'пауза магазин' : 'включить магазин'}
-        </QuickGhostButton>
-        <QuickGhostButton
-          onClick={() => toggleCatalog('subscriptionEnabled', !subscriptionEnabled)}
-          disabled={saving !== null}
-        >
-          {saving === 'subscription' ? '…' : subscriptionEnabled ? 'пауза подписки' : 'включить подписки'}
-        </QuickGhostButton>
-        <Link
-          href="/admin/subscriptions/clients"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          подписчики
-        </Link>
-      </div>
-      <Link
-        href="/admin/store"
-        prefetch={false}
-        scroll={false}
-        className="mt-2 flex h-10 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-5 text-[14px] font-semibold text-white transition active:opacity-90"
-      >
-        Перейти к деталям
-      </Link>
+      <AdminQuickToggle
+        label="Меню"
+        hint={`${data.dishesCount} блюд · ${data.menuCategoriesCount} кат.`}
+        checked={menuEnabled}
+        disabled={saving !== null}
+        onChange={(next) => void toggleCatalog('menuEnabled', next)}
+      />
+      <AdminQuickToggle
+        label="Магазин"
+        hint={`${data.storeProductsCount} товаров`}
+        checked={storeEnabled}
+        disabled={saving !== null}
+        onChange={(next) => void toggleCatalog('storeEnabled', next)}
+      />
+      <AdminQuickToggle
+        label="Подписки в каталоге"
+        checked={subscriptionEnabled}
+        disabled={saving !== null}
+        onChange={(next) => void toggleCatalog('subscriptionEnabled', next)}
+      />
+      <AdminSectionOpenLink href="/admin/store" label="Редактировать меню" />
     </div>
   )
 }
@@ -435,22 +367,14 @@ export function TeamDashboard({ data }: { data: DashboardData }) {
           </li>
         ))}
       </ul>
-      <Link
-        href="/admin/team"
-        prefetch={false}
-        scroll={false}
-        className="flex h-10 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-      >
-        управление командой
-      </Link>
+      <AdminSectionOpenLink href="/admin/team" label="Команда" />
     </div>
   )
 }
 
 export function OrdersDashboard({ data }: { data: DashboardData }) {
   const stats = data.stats ?? { ordersToday: 0, ordersWeek: 0, revenueToday: 0, revenueWeek: 0 }
-  const { ordersToday, ordersWeek, revenueToday, revenueWeek } = stats
-  const todayPct = ordersWeek > 0 ? Math.min(100, (ordersToday / ordersWeek) * 100) : 0
+  const { ordersToday, ordersWeek, revenueToday } = stats
   const pendingNew = data.pendingOrdersCount ?? 0
   const active = data.activeOrdersCount ?? 0
 
@@ -463,38 +387,17 @@ export function OrdersDashboard({ data }: { data: DashboardData }) {
           <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--muted)]">{formatPrice(revenueToday)}</div>
         </div>
         <div className="rounded-xl bg-black/[0.04] p-3" style={{ borderRadius: 'var(--radius-medium)' }}>
-          <div className={labelClass}>за неделю</div>
-          <div className="mt-0.5 text-[15px] font-bold tabular-nums">{ordersWeek}</div>
-          <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--muted)]">{formatPrice(revenueWeek)}</div>
+          <div className={labelClass}>новые / в работе</div>
+          <div className="mt-0.5 text-[15px] font-bold tabular-nums">
+            {pendingNew} / {active}
+          </div>
+          <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--muted)]">за неделю {ordersWeek}</div>
         </div>
       </div>
-      <div>
-        <div className="h-2 rounded-full bg-[color:var(--accent)]/30" style={{ borderRadius: 'var(--radius-pill)' }}>
-          <div
-            className="h-full rounded-full bg-[color:var(--accent)] transition-[width] duration-300"
-            style={{ borderRadius: 'var(--radius-pill)', width: `${todayPct}%` }}
-          />
-        </div>
-        <div className="ui-muted mt-1 text-[10px]">сегодня / неделя</div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          href="/admin/orders"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          {pendingNew > 0 ? `новые: ${pendingNew}` : 'все заказы'}
-        </Link>
-        <Link
-          href="/admin/orders"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          {active > 0 ? `в работе: ${active}` : 'очередь'}
-        </Link>
-      </div>
+      <AdminSectionOpenLink
+        href="/admin/orders"
+        label={pendingNew > 0 ? `Заказы · ${pendingNew} новых` : 'Все заказы'}
+      />
     </div>
   )
 }
@@ -557,19 +460,14 @@ export function BannersDashboard({ data }: { data: DashboardData }) {
         <span className={labelClass}>активных акций</span>
         <span className={valueClass}>{campaignsActive}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <QuickGhostButton onClick={toggleAllBanners} disabled={busy}>
-          {busy ? '…' : displayCount > 0 ? 'скрыть все' : 'включить баннеры'}
-        </QuickGhostButton>
-        <Link
-          href="/admin/banners"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          баннеры и акции
-        </Link>
-      </div>
+      <AdminQuickToggle
+        label="Баннеры на главной"
+        hint={`${displayCount} активных · ${campaignsActive} акций`}
+        checked={displayCount > 0}
+        disabled={busy}
+        onChange={() => void toggleAllBanners()}
+      />
+      <AdminSectionOpenLink href="/admin/banners" label="Баннеры и акции" />
     </div>
   )
 }
@@ -648,19 +546,10 @@ export function SubscriptionLeadsDashboard() {
         <span className={labelClass}>в работе</span>
         <span className={valueClass}>{loading ? '…' : stats.inProgress}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <QuickPrimaryButton onClick={takeNewestLead} disabled={busy || loading}>
-          {busy ? '…' : 'взять лид'}
-        </QuickPrimaryButton>
-        <Link
-          href="/admin/subscription-leads"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          детали
-        </Link>
-      </div>
+      <QuickPrimaryButton onClick={takeNewestLead} disabled={busy || loading}>
+        {busy ? '…' : stats.newCount > 0 ? 'Взять в работу' : 'Нет новых'}
+      </QuickPrimaryButton>
+      <AdminSectionOpenLink href="/admin/subscription-leads" label="Все запросы" />
     </div>
   )
 }
@@ -739,19 +628,10 @@ export function ServiceLeadsDashboard() {
         <span className={labelClass}>в работе</span>
         <span className={valueClass}>{loading ? '…' : stats.inProgress}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <QuickPrimaryButton onClick={takeNewestLead} disabled={busy || loading}>
-          {busy ? '…' : 'взять заявку'}
-        </QuickPrimaryButton>
-        <Link
-          href="/admin/leads"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          детали
-        </Link>
-      </div>
+      <QuickPrimaryButton onClick={takeNewestLead} disabled={busy || loading}>
+        {busy ? '…' : stats.newCount > 0 ? 'Взять заявку' : 'Нет новых'}
+      </QuickPrimaryButton>
+      <AdminSectionOpenLink href="/admin/leads" label="Кейтеринг" />
     </div>
   )
 }
@@ -770,24 +650,10 @@ export function SubscribersDashboard({ data }: { data: DashboardData }) {
         <span className={labelClass}>всего подписок</span>
         <span className={valueClass}>{total}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          href="/admin/subscriptions/clients"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          {pending > 0 ? 'подтвердить' : 'подписчики'}
-        </Link>
-        <Link
-          href="/admin/subscriptions/clients"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          сводка на кухню
-        </Link>
-      </div>
+      <AdminSectionOpenLink
+        href="/admin/subscriptions/clients"
+        label={pending > 0 ? `Подтвердить · ${pending}` : 'CRM подписчиков'}
+      />
     </div>
   )
 }
@@ -798,31 +664,14 @@ export function SubscriptionPlansDashboard({ data }: { data: DashboardData }) {
   return (
     <div className="space-y-3 pt-1">
       <div className={rowClass}>
-        <span className={labelClass}>шаблонов планов</span>
+        <span className={labelClass}>шаблонов</span>
         <span className={valueClass}>{data.subscriptionPlansCount}</span>
       </div>
       <div className={rowClass}>
         <span className={labelClass}>раздел в приложении</span>
         <span className={valueClass}>{enabled ? 'включен' : 'выключен'}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          href="/admin/subscriptions"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          конструктор планов
-        </Link>
-        <Link
-          href="/admin/store"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          меню для рационов
-        </Link>
-      </div>
+      <AdminSectionOpenLink href="/admin/subscriptions" label="Конструктор планов" />
     </div>
   )
 }
@@ -876,32 +725,8 @@ export function NotificationsDashboard() {
           {loading ? '…' : `${setup?.opsRecipientCount ?? 0} · tg у ${setup?.teamWithTelegram ?? 0}/${setup?.teamTotal ?? 0}`}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          href="/admin/qr"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-        >
-          бот и QR
-        </Link>
-        <Link
-          href="/admin/notifications"
-          prefetch={false}
-          scroll={false}
-          className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          каталог событий
-        </Link>
-        <Link
-          href="/admin/team"
-          prefetch={false}
-          scroll={false}
-          className="col-span-2 flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
-        >
-          команда и Telegram
-        </Link>
-      </div>
+      <AdminSectionOpenLink href="/admin/qr" label="Настроить бота и QR" />
+      <AdminSectionOpenLink href="/admin/notifications" label="Каталог уведомлений" />
     </div>
   )
 }

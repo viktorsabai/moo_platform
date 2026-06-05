@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { formatPrice } from '@/lib/utils'
+import { AdminSectionOpenLink } from '@/components/admin/AdminSectionOpenLink'
 import { AdminSectionCard } from './AdminSectionCard'
 import type { DashboardData } from './AdminSectionDashboards'
 import {
@@ -129,10 +129,10 @@ export function AdminDashboardSections({
   const groups = [
     { id: 'venue', title: 'заведение' },
     { id: 'showcase', title: 'витрина' },
-    { id: 'operations', title: 'операции' },
+    { id: 'operations', title: 'заказы' },
     { id: 'subscriptions', title: 'подписки' },
-    { id: 'requests', title: 'кейтеринг' },
-    { id: 'analytics', title: 'аналитика' },
+    { id: 'requests', title: 'заявки' },
+    { id: 'analytics', title: 'статистика' },
   ] as const
 
   function renderExpandedContent(sectionId: string) {
@@ -198,29 +198,24 @@ export function AdminDashboardSections({
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2">
-                {(dashboardData.hotGuestsCount ?? 0) > 0 ? (
-                  <Link
-                    href="/admin/visits?focus=HOT"
-                    prefetch={false}
-                    scroll={false}
-                    className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
-                  >
-                    горячие ({dashboardData.hotGuestsCount})
-                  </Link>
-                ) : null}
+                <Link
+                  href="/admin/visits?focus=HOT"
+                  prefetch={false}
+                  scroll={false}
+                  className="flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-85"
+                >
+                  горячие · {dashboardData.hotGuestsCount ?? 0}
+                </Link>
                 <Link
                   href="/admin/visits"
                   prefetch={false}
                   scroll={false}
-                  className={`flex h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold transition active:opacity-90 ${
-                    (dashboardData.hotGuestsCount ?? 0) > 0
-                      ? 'border border-[color:var(--stroke)] bg-[color:var(--surface)] text-[color:var(--text)]'
-                      : 'bg-[color:var(--primary)] text-white'
-                  }`}
+                  className="flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white transition active:opacity-90"
                 >
                   все гости
                 </Link>
               </div>
+              <AdminSectionOpenLink href="/admin/visits" label="Аналитика посещений" />
             </div>
           )
         default:
@@ -233,32 +228,6 @@ export function AdminDashboardSections({
 
   return (
     <div className="space-y-4">
-      <section className="ui-surface-card overflow-hidden p-4" style={{ borderRadius: 'var(--radius-large)' }}>
-        <div className="text-[24px] font-extrabold leading-none tracking-[-0.04em] text-[color:var(--text)]">
-          {dashboardData.restaurantName}
-        </div>
-        <div className="mt-4 grid grid-cols-3 divide-x divide-[color:var(--stroke)] rounded-[20px] border border-[color:var(--stroke)] bg-[color:var(--surface)]">
-          <Link href="#inbox" prefetch={false} className="px-3 py-3 transition active:opacity-90">
-            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">
-              {dashboardData.inboxPendingTotal ?? 0}
-            </div>
-            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">входящих</div>
-          </Link>
-          <Link href="/admin/visits?focus=HOT" prefetch={false} className="px-3 py-3 transition active:opacity-90">
-            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">
-              {dashboardData.hotGuestsCount ?? 0}
-            </div>
-            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">горячих гостей</div>
-          </Link>
-          <Link href="/admin/orders" prefetch={false} className="px-3 py-3 transition active:opacity-90">
-            <div className="text-[19px] font-extrabold leading-none text-[color:var(--text)]">
-              {formatPrice(dashboardData.stats.revenueToday)}
-            </div>
-            <div className="mt-1 text-[11px] font-semibold text-[color:var(--muted)]">выручка сегодня</div>
-          </Link>
-        </div>
-      </section>
-
       {groups.map((group) => {
         const list = sections.filter((s) => s.group === group.id)
         if (list.length === 0) return null

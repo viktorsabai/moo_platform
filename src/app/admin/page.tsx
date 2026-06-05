@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { AdminDashboardSections } from '@/app/admin/AdminDashboardSections'
-import { AdminWelcomeBanner } from '@/app/admin/AdminWelcomeBanner'
 import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
 import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
 import { Card } from '@/components/ui/Card'
@@ -306,27 +305,27 @@ export default async function AdminHomePage() {
     })),
   }
 
+  const isOpenNow = computeIsOpenNow()
+
   const sectionsBase = [
     {
       group: 'venue' as const,
       id: 'venue',
       title: 'Профиль и режим',
-      hint: settings?.subscriptionEnabled
-        ? 'часы · доставка · приём заказов'
-        : 'часы · доставка · оплата',
+      hint: isOpenNow ? 'принимаем заказы' : 'на паузе или вне часов',
       href: '/admin/venue',
-      summary: 'Название, часы работы, пауза приёма, доставка и оплата.',
-      linkLabel: 'Все настройки заведения',
+      summary: 'Название, часы, пауза, доставка.',
+      linkLabel: 'Настройки заведения',
       icon: 'venue' as const,
     },
     {
       group: 'venue' as const,
       id: 'notifications',
-      title: 'Бот и уведомления',
-      hint: 'Telegram · команда · события',
-      href: '/admin/notifications',
-      summary: 'Подключение бота, получатели ops и каталог Telegram-событий.',
-      linkLabel: 'Каталог уведомлений',
+      title: 'Telegram',
+      hint: 'бот · уведомления · QR',
+      href: '/admin/qr',
+      summary: 'Подключение бота и кто получает алерты.',
+      linkLabel: 'Бот и QR',
       icon: 'platform' as const,
     },
     {
@@ -454,8 +453,10 @@ export default async function AdminHomePage() {
 
   return (
     <main className="ui-container ui-screen !pb-20 min-w-0 max-w-full overflow-x-hidden">
-      <AdminWelcomeBanner />
-      <AdminOwnerInbox subscriptionRequestLeads={newLeadsCount} />
+      <AdminOwnerInbox
+        subscriptionRequestLeads={newLeadsCount}
+        restaurantName={dashboardData.restaurantName}
+      />
       <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
     </main>
   )
