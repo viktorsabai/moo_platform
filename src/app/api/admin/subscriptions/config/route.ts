@@ -185,7 +185,29 @@ export async function POST(request: Request) {
       ownerPriceOverride: body?.ownerPriceOverride != null ? Number(body.ownerPriceOverride) : config.ownerPriceOverride ?? null,
     })
 
-    return NextResponse.json({ ok: true, quote })
+    const periodCost = Number((quote.perDeliveryCost * quote.deliveriesInPeriod).toFixed(2))
+    const marginStatus = quote.ownerMargin < 0
+      ? 'LOSS'
+      : quote.ownerMarginPercent < Number(commerce.minMarginPercent ?? 0)
+        ? 'BELOW_MIN_MARGIN'
+        : quote.missingCostCount > 0
+          ? 'INCOMPLETE_COSTS'
+          : 'HEALTHY'
+    const warnings: string[] = []
+    if (quote.missingCostCount > 0) warnings.push(`Не задана себестоимость для ${quote.missingCostCount} позиций`)
+    if (quote.ownerMargin < 0) warnings.push('План убыточен при текущей цене')
+    else if (quote.ownerMarginPercent < Number(commerce.minMarginPercent ?? 0)) warnings.push('Маржа ниже минимального порога')
+
+    return NextResponse.json({
+      ok: true,
+      quote,
+      economics: {
+        periodCost,
+        periodContribution: quote.ownerMargin,
+        marginStatus,
+        warnings,
+      },
+    })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })

@@ -25,6 +25,12 @@ type QuotePreview = {
   ownerMargin: number
   ownerMarginPercent: number
   missingCostCount: number
+  economics?: {
+    periodCost: number
+    periodContribution: number
+    marginStatus: 'LOSS' | 'BELOW_MIN_MARGIN' | 'INCOMPLETE_COSTS' | 'HEALTHY'
+    warnings: string[]
+  }
 }
 
 export function AdminSubscriptionCatalog() {
@@ -90,7 +96,7 @@ export function AdminSubscriptionCatalog() {
           }),
         })
         const data = await res.json().catch(() => null)
-        if (res.ok && data?.ok && data.quote) setQuote(data.quote)
+        if (res.ok && data?.ok && data.quote) setQuote({ ...data.quote, economics: data.economics })
       } catch {
         setQuote(null)
       }
@@ -381,6 +387,18 @@ export function AdminSubscriptionCatalog() {
               Рекомендуемая: {formatPrice(quote.recommendedPrice)}
               {quote.missingCostCount > 0 ? ` · ${quote.missingCostCount} поз. без себестоимости` : ''}
             </p>
+            {quote.economics ? (
+              <>
+                <p className="mt-1 text-[12px] text-[color:var(--muted)]">
+                  Себестоимость периода: <strong>{formatPrice(quote.economics.periodCost)}</strong> · contribution: <strong>{formatPrice(quote.economics.periodContribution)}</strong>
+                </p>
+                {quote.economics.warnings.length > 0 ? (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[12px] text-amber-950">
+                    {quote.economics.warnings.join(' · ')}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
           </div>
         ) : null}
         <label className="mt-4 block text-[12px]">
