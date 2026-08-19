@@ -497,8 +497,8 @@ export default function CheckoutPage() {
     }
   }, [promoCode, promoCampaignId, subtotal, deliveryFee, items, restaurantContextHeaders])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
 
     if (deliveryMethod === 'DELIVERY' && (!deliveryQuote || !deliveryQuote.matched)) {
       toast.error(deliveryQuote?.message || 'Укажите адрес в зоне доставки')
@@ -1309,17 +1309,7 @@ export default function CheckoutPage() {
               setIsAddressSheetOpen(true)
               return
             }
-            try {
-              const el = document.getElementById('checkout-form') as HTMLFormElement | null
-              if (!el) return
-              if (typeof (el as any).requestSubmit === 'function') {
-                ;(el as any).requestSubmit()
-                return
-              }
-              el.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-            } catch {
-              // ignore
-            }
+            void handleSubmit()
           }}
           className="pointer-events-auto btn btn-primary h-12 w-full text-[16px]"
           style={{ borderRadius: 'var(--radius-pill)' }}
