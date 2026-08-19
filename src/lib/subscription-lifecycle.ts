@@ -47,6 +47,53 @@ export async function activatePendingSubscription(subscriptionId: string, restau
   return sub
 }
 
+export async function pauseActiveSubscription(subscriptionId: string, restaurantId: string) {
+  const sub = await prisma.subscription.findFirst({
+    where: { id: subscriptionId, restaurantId, status: 'ACTIVE' },
+    select: { id: true },
+  })
+  if (!sub) throw new Error('Подписка не найдена или не активна')
+  await prisma.$transaction([
+    prisma.subscription.update({ where: { id: subscriptionId }, data: { status: 'PAUSED' } }),
+    prisma.subscriptionDelivery.updateMany({
+      where: { subscriptionId, status: 'SCHEDULED', scheduledDate: { gt: new Date() } },
+      data: { status: 'SKIPPED' },
+    }),
+  ])
+}
+
+export async function resumePausedSubscription(subscriptionId: string, restaurantId: string) {
+  const sub = await prisma.subscription.findFirst({
+    where: { id: subscriptionId, restaurantId, status: 'PAUSED' },
+    select: { id: true, deliveryDays: true, startDate: true, nextDelivery: true, periodDays: true },
+  })
+  if (!sub) throw new Error('Подписка не найдена или не приостановлена')
+  const scheduledCount = await prisma.subscriptionDelivery.count({
+    where: { subscriptionId, status: 'SCHEDULED', scheduledDate: { gte: new Date() } },
+  })
+  const startFrom = sub.nextDelivery && sub.nextDelivery > new Date() ? sub.nextDelivery : new Date()
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: { status: 'ACTIVE', nextDelivery: startFrom },
+  })
+  if (scheduledCount === 0) await scheduleDeliveriesForSubscription(subscriptionId, sub.deliveryDays, startFrom, sub.periodDays)
+}
+
+export async function cancelSubscription(subscriptionId: string, restaurantId: string) {
+  const sub = await prisma.subscription.findFirst({
+    where: { id: subscriptionId, restaurantId, status: { in: ['ACTIVE', 'PAUSED', 'PENDING'] } },
+    select: { id: true },
+  })
+  if (!sub) throw new Error('Подписка не найдена или уже завершена')
+  await prisma.$transaction([
+    prisma.subscription.update({ where: { id: subscriptionId }, data: { status: 'CANCELLED', endDate: new Date() } }),
+    prisma.subscriptionDelivery.updateMany({
+      where: { subscriptionId, status: { in: ['SCHEDULED', 'CONFIRMED'] }, scheduledDate: { gt: new Date() } },
+      data: { status: 'CANCELLED' },
+    }),
+  ])
+}
+
 export async function rejectPendingSubscription(subscriptionId: string, restaurantId: string) {
   const sub = await prisma.subscription.findFirst({
     where: { id: subscriptionId, restaurantId, status: 'PENDING' },

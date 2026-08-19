@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import {
   notifySubscriptionCreatedToOwner,
+  notifySubscriptionStatusChangedToCustomer,
+  notifySubscriptionStatusChangedToOwner,
 } from '@/lib/notifications'
 import { canEditSubscription } from '@/lib/subscription-rules'
 import { getPlanRules, validateSubscriptionItemsAgainstPlan } from '@/lib/subscription-plan-rules'
@@ -14,6 +16,7 @@ import { formatTelegramContact } from '@/lib/telegram-contact'
 import { getNearestEventLabel } from '@/lib/utils'
 import { computeSubscriptionQuoteForRestaurant } from '@/lib/subscription-quote-server'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
+import { cancelSubscription, pauseActiveSubscription, resumePausedSubscription } from '@/lib/subscription-lifecycle'
 import { validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
 
 export const runtime = 'nodejs'
@@ -114,6 +117,38 @@ export async function PATCH(
   }
   const sub = result.subscription as any
   const body = await request.json().catch(() => ({}))
+  const action = typeof (body as any)?.action === 'string' ? String((body as any).action).trim().toLowerCase() : ''
+  if (action === 'pause' || action === 'resume' || action === 'cancel') {
+    if (action === 'pause' && sub.status !== 'ACTIVE') return NextResponse.json({ ok: false, error: 'Пауза доступна только для активной подписки' }, { status: 400 })
+    if (action === 'resume' && sub.status !== 'PAUSED') return NextResponse.json({ ok: false, error: 'Возобновление доступно только для приостановленной подписки' }, { status: 400 })
+    try {
+      if (action === 'pause') await pauseActiveSubscription(id, result.restaurantId)
+      if (action === 'resume') await resumePausedSubscription(id, result.restaurantId)
+      if (action === 'cancel') await cancelSubscription(id, result.restaurantId)
+      const nextStatus = action === 'pause' ? 'PAUSED' : action === 'resume' ? 'ACTIVE' : 'CANCELLED'
+      const current = await prisma.subscription.findFirst({
+        where: { id, userId: result.userId, restaurantId: result.restaurantId },
+        select: { name: true, user: { select: { telegramId: true, name: true, telegramFirstName: true } } },
+      })
+      await notifySubscriptionStatusChangedToCustomer({
+        restaurantId: result.restaurantId,
+        subscriptionId: id,
+        subscriptionName: current?.name ?? 'Подписка',
+        status: nextStatus,
+        customerTelegramId: current?.user?.telegramId ?? null,
+      }).catch(() => {})
+      await notifySubscriptionStatusChangedToOwner({
+        restaurantId: result.restaurantId,
+        subscriptionId: id,
+        subscriptionName: current?.name ?? 'Подписка',
+        status: nextStatus,
+        userName: current?.user?.name ?? current?.user?.telegramFirstName ?? 'Клиент',
+      }).catch(() => {})
+      return NextResponse.json({ ok: true, status: nextStatus })
+    } catch (error: any) {
+      return NextResponse.json({ ok: false, error: String(error?.message || 'Не удалось изменить подписку') }, { status: 400 })
+    }
+  }
   const update: Record<string, unknown> = {}
   const isPendingOrDraft = sub.status === 'PENDING' || sub.status === 'DRAFT'
   let shouldRenotifyOwner = false
@@ -143,8 +178,8 @@ export async function PATCH(
   const status = typeof body?.status === 'string' ? String(body.status).toUpperCase() : ''
   if (status) {
     return NextResponse.json(
-      { ok: false, error: 'Статус подписки меняет только заведение. Дождитесь подтверждения или откройте поддержку.' },
-      { status: 403 }
+      { ok: false, error: 'Используйте action: pause | resume | cancel.' },
+      { status: 400 }
     )
   }
 

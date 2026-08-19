@@ -16,26 +16,34 @@ const weekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   const [isLoading, setIsLoading] = useState(false)
 
-  const handlePause = async () => {
+  const runAction = async (action: 'pause' | 'resume' | 'cancel') => {
     setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    toast.success('Подписка приостановлена')
-    setIsLoading(false)
+    try {
+      const res = await fetch(`/api/subscriptions/${encodeURIComponent(subscription.id)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) {
+        toast.error(data?.error || 'Не удалось изменить подписку')
+        return
+      }
+      toast.success(action === 'pause' ? 'Подписка приостановлена' : action === 'resume' ? 'Подписка возобновлена' : 'Подписка отменена')
+      window.location.reload()
+    } catch {
+      toast.error('Ошибка сети')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleResume = async () => {
-    setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    toast.success('Подписка возобновлена')
-    setIsLoading(false)
-  }
-
+  const handlePause = () => runAction('pause')
+  const handleResume = () => runAction('resume')
   const handleCancel = async () => {
     if (!confirm('Вы уверены, что хотите отменить подписку?')) return
-    setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    toast.success('Подписка отменена')
-    setIsLoading(false)
+    await runAction('cancel')
   }
 
   const statusConfig = {
