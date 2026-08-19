@@ -53,6 +53,16 @@ export default function AdminVenuePage() {
     isOpenOverride: null,
   })
   const [homeDistrictId, setHomeDistrictId] = useState<string | null>(null)
+  const isSettingsDirty = Boolean(settings && JSON.stringify(settingsForm) !== JSON.stringify({
+    menuEnabled: settings.menuEnabled,
+    storeEnabled: settings.storeEnabled,
+    subscriptionEnabled: settings.subscriptionEnabled,
+    deliveryFee: Number(settings.deliveryFee ?? 100),
+    freeDeliveryFrom: Number(settings.freeDeliveryFrom ?? 500),
+    openTime: settings.openTime,
+    closeTime: settings.closeTime,
+    isOpenOverride: settings.isOpenOverride,
+  }))
 
   function detectDistrictByAddressText(address: string): { id: string; name: string } | null {
     const normalized = String(address || '').toLowerCase()
@@ -195,6 +205,22 @@ export default function AdminVenuePage() {
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !isSettingsDirty) return
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isSettingsDirty])
+
+  const settingsReadinessWarning = settingsForm.openTime >= settingsForm.closeTime && settingsForm.openTime !== settingsForm.closeTime
+    ? 'Проверьте часы работы: переход через полночь поддерживается, но убедитесь, что это намеренно.'
+    : settingsForm.deliveryFee < 0 || settingsForm.freeDeliveryFrom < 0
+      ? 'Стоимость доставки и порог бесплатной доставки не могут быть отрицательными.'
+      : null
+
+  useEffect(() => {
     if (homeDistrictId) return
     const byAddress = detectDistrictByAddressText(addressForm)
     if (byAddress) setHomeDistrictId(byAddress.id)
@@ -291,10 +317,15 @@ export default function AdminVenuePage() {
           .
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
+          {settingsReadinessWarning ? (
+            <div className="mb-3 rounded-[16px] border border-amber-200 bg-amber-50/90 px-3 py-2 text-[12px] font-medium text-amber-900">
+              {settingsReadinessWarning}
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => saveAll()}
-            disabled={loading}
+            disabled={loading || Boolean(settingsReadinessWarning && settingsReadinessWarning.includes('не могут'))}
             className="btn btn-primary rounded-full px-4 py-2.5 text-[13px] font-semibold transition active:opacity-90 disabled:opacity-50"
             style={{ borderRadius: 'var(--radius-pill)' }}
           >
