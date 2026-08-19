@@ -4,6 +4,7 @@ import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-c
 import { AdminDashboardSections } from '@/app/admin/AdminDashboardSections'
 import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
 import { OwnerCopilotPanel } from '@/components/admin/OwnerCopilotPanel'
+import { OwnerCommandCenter } from '@/components/admin/OwnerCommandCenter'
 import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
 import { Card } from '@/components/ui/Card'
 
@@ -454,12 +455,18 @@ export default async function AdminHomePage() {
 
   return (
     <main className="ui-container ui-screen !pb-20 min-w-0 max-w-full overflow-x-hidden">
-      <AdminOwnerInbox
-        subscriptionRequestLeads={newLeadsCount}
-        restaurantName={dashboardData.restaurantName}
-      />
-      <OwnerCopilotPanel />
-      <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
+      <OwnerCommandCenter data={dashboardData} />
+      <details className="mt-5 rounded-[24px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4">
+        <summary className="cursor-pointer list-none text-[13px] font-extrabold text-[color:var(--text)] [&::-webkit-details-marker]:hidden">входящие и полный каталог разделов</summary>
+        <div className="mt-4 space-y-4">
+          <AdminOwnerInbox
+            subscriptionRequestLeads={newLeadsCount}
+            restaurantName={dashboardData.restaurantName}
+          />
+          <OwnerCopilotPanel />
+          <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
+        </div>
+      </details>
     </main>
   )
 }
