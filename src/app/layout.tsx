@@ -6,6 +6,7 @@ import Script from 'next/script'
 import BottomNavbar from '@/components/bottom-navbar'
 import { StickyCartBar } from '@/components/StickyCartBar'
 import { ScrollToTopOnRoute } from '@/components/ScrollToTopOnRoute'
+import { TestBuildBanner } from '@/components/TestBuildBanner'
 import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -79,6 +80,7 @@ export default async function RootLayout({
             }}
           >
             <HeaderCompact />
+            <TestBuildBanner />
 
             <main
               className="ufo-main"
