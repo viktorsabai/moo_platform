@@ -8,7 +8,7 @@ import {
   notifySubscriptionStatusChangedToCustomer,
   notifySubscriptionStatusChangedToOwner,
 } from '@/lib/notifications'
-import { canEditSubscription } from '@/lib/subscription-rules'
+import { canEditDelivery, canEditSubscription } from '@/lib/subscription-rules'
 import { getPlanRules, validateSubscriptionItemsAgainstPlan } from '@/lib/subscription-plan-rules'
 import { parseMealSlot } from '@/lib/subscription-meal-slots'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
@@ -118,6 +118,36 @@ export async function PATCH(
   const sub = result.subscription as any
   const body = await request.json().catch(() => ({}))
   const action = typeof (body as any)?.action === 'string' ? String((body as any).action).trim().toLowerCase() : ''
+  if (action === 'skip_delivery' || action === 'reschedule_delivery') {
+    const deliveryId = typeof (body as any)?.deliveryId === 'string' ? String((body as any).deliveryId).trim() : ''
+    if (!deliveryId) return NextResponse.json({ ok: false, error: 'deliveryId required' }, { status: 400 })
+    const delivery = await prisma.subscriptionDelivery.findFirst({
+      where: { id: deliveryId, subscriptionId: id },
+      select: { id: true, status: true, scheduledDate: true, orderId: true },
+    })
+    if (!delivery) return NextResponse.json({ ok: false, error: 'доставка не найдена' }, { status: 404 })
+    if (!canEditDelivery(delivery, new Date())) {
+      return NextResponse.json({ ok: false, error: 'Изменения недоступны: прошёл cutoff (12ч до доставки).' }, { status: 403 })
+    }
+    if (action === 'skip_delivery') {
+      await prisma.subscriptionDelivery.update({ where: { id: delivery.id }, data: { status: 'SKIPPED' } })
+      return NextResponse.json({ ok: true, action, deliveryId: delivery.id, status: 'SKIPPED' })
+    }
+    const nextDate = new Date(String((body as any)?.scheduledDate || ''))
+    if (Number.isNaN(nextDate.getTime()) || nextDate <= new Date()) {
+      return NextResponse.json({ ok: false, error: 'Укажите будущую дату доставки' }, { status: 400 })
+    }
+    const duplicate = await prisma.subscriptionDelivery.findFirst({
+      where: { subscriptionId: id, scheduledDate: nextDate, status: { notIn: ['SKIPPED', 'CANCELLED'] } },
+      select: { id: true },
+    })
+    if (duplicate && duplicate.id !== delivery.id) {
+      return NextResponse.json({ ok: false, error: 'На эту дату уже есть доставка' }, { status: 409 })
+    }
+    await prisma.subscriptionDelivery.update({ where: { id: delivery.id }, data: { scheduledDate: nextDate } })
+    return NextResponse.json({ ok: true, action, deliveryId: delivery.id, status: delivery.status, scheduledDate: nextDate.toISOString() })
+  }
+
   if (action === 'pause' || action === 'resume' || action === 'cancel') {
     if (action === 'pause' && sub.status !== 'ACTIVE') return NextResponse.json({ ok: false, error: 'Пауза доступна только для активной подписки' }, { status: 400 })
     if (action === 'resume' && sub.status !== 'PAUSED') return NextResponse.json({ ok: false, error: 'Возобновление доступно только для приостановленной подписки' }, { status: 400 })
