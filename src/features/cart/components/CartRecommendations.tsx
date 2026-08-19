@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useCartStore } from '@/store/cart-store'
 import { useVenue } from '@/lib/venue-context'
 import type { Dish } from '@/types'
@@ -42,6 +43,7 @@ export function CartRecommendations({ title = 'ещё к заказу', kinds = 
   const [menuDishes, setMenuDishes] = useState<Dish[]>([])
   const [storeProducts, setStoreProducts] = useState<StoreProduct[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [addedKey, setAddedKey] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -157,6 +159,7 @@ export function CartRecommendations({ title = 'ещё к заказу', kinds = 
   if (!recommendations.length) return null
 
   const handleAdd = (rec: any) => {
+    const key = `${rec.kind}:${rec.kind === 'store' ? rec.variantId : rec.id}`
     if (rec.kind === 'store') {
       addItem(
         {
@@ -171,6 +174,9 @@ export function CartRecommendations({ title = 'ещё к заказу', kinds = 
         },
         restaurantId
       )
+      setAddedKey(key)
+      toast.success('добавлено к заказу', { duration: 1800 })
+      window.setTimeout(() => setAddedKey((current) => (current === key ? null : current)), 1800)
       return
     }
     addItem(
@@ -184,6 +190,9 @@ export function CartRecommendations({ title = 'ещё к заказу', kinds = 
       },
       restaurantId
     )
+    setAddedKey(key)
+    toast.success('добавлено к заказу', { duration: 1800 })
+    window.setTimeout(() => setAddedKey((current) => (current === key ? null : current)), 1800)
   }
 
   return (
@@ -200,6 +209,8 @@ export function CartRecommendations({ title = 'ещё к заказу', kinds = 
       >
         {recommendations.map((rec) => {
           const src = String(rec.image || '').trim()
+          const recKey = `${rec.kind}:${rec.kind === 'store' ? rec.variantId : rec.id}`
+          const isAdded = addedKey === recKey
           return (
             <article
               key={`${rec.kind}:${rec.id}${rec.kind === 'store' ? `:${rec.variantId}` : ''}`}
@@ -213,10 +224,10 @@ export function CartRecommendations({ title = 'ещё к заказу', kinds = 
                 <button
                   type="button"
                   onClick={() => handleAdd(rec)}
-                  className="absolute bottom-1.5 right-1.5 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--bottom-bg)]/95 text-[color:var(--text)] shadow-sm backdrop-blur-sm transition active:scale-95"
-                  aria-label={`добавить ${rec.name}`}
+                  className={cn('absolute bottom-1.5 right-1.5 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--bottom-bg)]/95 shadow-sm backdrop-blur-sm transition active:scale-95', isAdded ? 'text-[color:var(--accent)]' : 'text-[color:var(--text)]')}
+                  aria-label={`${isAdded ? 'добавлено' : 'добавить'} ${rec.name}`}
                 >
-                  <IconPlus className="h-4 w-4" />
+                  {isAdded ? '✓' : <IconPlus className="h-4 w-4" />}
                 </button>
               </div>
               <div className="min-h-[3.5rem] p-2 pt-1.5">

@@ -245,8 +245,9 @@ export default function AdminVenuePage() {
   const cardClass = 'ui-surface-card'
   const cardRadius = { borderRadius: 'var(--radius-large)' } as const
   const section = String(searchParams?.get('section') || '').toLowerCase()
-  const showDelivery = section !== 'payments'
-  const showPayments = section !== 'delivery'
+  const showDelivery = section === 'delivery'
+  const showPayments = section === 'payments'
+  const showOverview = !showDelivery && !showPayments
 
   if (loading && !settings) {
     return (
@@ -260,8 +261,33 @@ export default function AdminVenuePage() {
 
   return (
     <main className="ui-container ui-screen min-w-0 max-w-full overflow-x-hidden">
+      {showOverview ? (
+        <section className={`${cardClass} mb-3`} style={cardRadius}>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--muted)]">быстрые настройки</p>
+          <h1 className="mt-1 text-[20px] font-extrabold">заведение</h1>
+          <p className="mt-1 text-[13px] leading-relaxed text-[color:var(--muted)]">Выберите рабочую область. Детали открываются отдельно, поэтому здесь ничего не дублируется.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Link href="/admin/venue?section=delivery" prefetch={false} className="rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-3 transition active:scale-[0.99]">
+              <span className="text-[15px] font-extrabold">доставка</span>
+              <span className="mt-1 block text-[12px] text-[color:var(--muted)]">тарифы, зоны и бесплатная доставка</span>
+              <span className="mt-3 block text-[12px] font-bold">открыть →</span>
+            </Link>
+            <Link href="/admin/venue?section=payments" prefetch={false} className="rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-3 transition active:scale-[0.99]">
+              <span className="text-[15px] font-extrabold">оплата</span>
+              <span className="mt-1 block text-[12px] text-[color:var(--muted)]">наличные, QR и online payment</span>
+              <span className="mt-3 block text-[12px] font-bold">открыть →</span>
+            </Link>
+          </div>
+          <Link href="/admin/settings" prefetch={false} className="mt-3 block rounded-[18px] border border-dashed border-[color:var(--stroke)] p-3 text-[13px] font-bold">детальные настройки заведения →</Link>
+        </section>
+      ) : null}
+      {!showOverview ? (
       <div className={`${cardClass} mb-3`} style={cardRadius}>
-        <div className="flex gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <Link href="/admin/venue" prefetch={false} className="text-[12px] font-bold text-[color:var(--muted)]">← быстрые настройки</Link>
+          <span className="text-[12px] font-extrabold">{showDelivery ? 'доставка' : 'оплата'}</span>
+        </div>
+        <div className="mt-3 flex gap-2">
           <Link
             href="/admin/venue?section=delivery"
             prefetch={false}
@@ -288,6 +314,7 @@ export default function AdminVenuePage() {
           </Link>
         </div>
       </div>
+      ) : null}
 
       {showDelivery ? (
         <div className={cardClass} style={cardRadius}>
