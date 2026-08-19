@@ -156,16 +156,20 @@ function SubscriptionDetailCard({
   onDelete,
   onApprove,
   onReject,
+  onLifecycleAction,
   onDeliveryAction,
   deliveryBusyId,
+  lifecycleBusy,
 }: {
   sub: SubRow
   highlighted?: boolean
   onDelete: (id: string) => void
   onApprove?: (id: string) => void
   onReject?: (id: string) => void
+  onLifecycleAction?: (id: string, action: 'pause' | 'resume' | 'cancel') => void
   onDeliveryAction: (deliveryId: string, action: 'start_prep' | 'create_kitchen_order' | 'mark_delivered') => void
   deliveryBusyId: string | null
+  lifecycleBusy: boolean
 }) {
   const upcoming = (sub.deliveries ?? [])
     .filter((d) => d.status !== 'CANCELLED' && d.status !== 'DELIVERED')
@@ -216,6 +220,28 @@ function SubscriptionDetailCard({
           </button>
         ) : null}
       </div>
+
+      {sub.status === 'ACTIVE' && onLifecycleAction ? (
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={lifecycleBusy} onClick={() => onLifecycleAction(sub.id, 'pause')} className="rounded-full border border-[color:var(--stroke)] px-3 py-2 text-[12px] font-semibold disabled:opacity-40">
+            пауза
+          </button>
+          <button type="button" disabled={lifecycleBusy} onClick={() => onLifecycleAction(sub.id, 'cancel')} className="rounded-full border border-rose-200 px-3 py-2 text-[12px] font-semibold text-rose-700 disabled:opacity-40">
+            отменить
+          </button>
+        </div>
+      ) : null}
+      {sub.status === 'PAUSED' && onLifecycleAction ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={lifecycleBusy} onClick={() => onLifecycleAction(sub.id, 'resume')} className="rounded-full bg-[color:var(--primary)] px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-40">
+            возобновить
+          </button>
+          <button type="button" disabled={lifecycleBusy} onClick={() => onLifecycleAction(sub.id, 'cancel')} className="rounded-full border border-rose-200 px-3 py-2 text-[12px] font-semibold text-rose-700 disabled:opacity-40">
+            отменить
+          </button>
+        </div>
+      ) : null}
 
       {sub.status === 'PENDING' && onApprove && onReject ? (
         <div className="mt-3 flex gap-2">
@@ -305,6 +331,7 @@ export function AdminSubscriptionClientsPanel({
   const [search, setSearch] = useState('')
   const [expandedSubId, setExpandedSubId] = useState<string | null>(null)
   const [deliveryBusyId, setDeliveryBusyId] = useState<string | null>(null)
+  const [subscriptionActionBusyId, setSubscriptionActionBusyId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -392,6 +419,31 @@ export function AdminSubscriptionClientsPanel({
       toast.success(action === 'approve' ? 'Подписка активирована' : 'Заявка отклонена')
       await load()
     } else toast.error(data?.error || 'Ошибка')
+  }
+
+  async function subscriptionLifecycleAction(id: string, action: 'pause' | 'resume' | 'cancel') {
+    const labels = { pause: 'приостановить подписку?', resume: 'возобновить подписку?', cancel: 'отменить подписку?' }
+    if (!confirm(labels[action])) return
+    setSubscriptionActionBusyId(id)
+    try {
+      const res = await fetch(`/api/admin/subscriptions/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) {
+        toast.error(data?.error || 'Не удалось изменить подписку')
+        return
+      }
+      toast.success(action === 'pause' ? 'Подписка приостановлена' : action === 'resume' ? 'Подписка возобновлена' : 'Подписка отменена')
+      await load()
+    } catch {
+      toast.error('Ошибка сети')
+    } finally {
+      setSubscriptionActionBusyId(null)
+    }
   }
 
   async function deliveryAction(
@@ -699,8 +751,10 @@ export function AdminSubscriptionClientsPanel({
                             onDelete={deleteSub}
                             onApprove={s.status === 'PENDING' ? (id) => reviewSub(id, 'approve') : undefined}
                             onReject={s.status === 'PENDING' ? (id) => reviewSub(id, 'reject') : undefined}
+                            onLifecycleAction={subscriptionLifecycleAction}
                             onDeliveryAction={deliveryAction}
                             deliveryBusyId={deliveryBusyId}
+                            lifecycleBusy={subscriptionActionBusyId === s.id}
                           />
                         </div>
                       ) : null}
