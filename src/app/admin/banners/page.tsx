@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { BannerPreviewCard } from '@/components/ui/BannerPreviewCard'
 import { AdminCampaigns } from '@/components/admin/AdminCampaigns'
+import { AdminCampaignContributionPanel } from '@/components/admin/AdminCampaignContributionPanel'
 
 type BannerType = 'chip' | 'reel'
 type BannerTargetType = 'menu' | 'menu_category' | 'lead' | 'subscriptions' | 'orders' | 'custom'
@@ -729,7 +730,12 @@ export default function AdminBannersPage() {
       )}
         </>
       ) : null}
-      {section === 'campaigns' ? <AdminCampaigns /> : null}
+      {section === 'campaigns' ? (
+        <>
+          <AdminCampaignContributionPanel />
+          <AdminCampaigns />
+        </>
+      ) : null}
     </main>
   )
 }
