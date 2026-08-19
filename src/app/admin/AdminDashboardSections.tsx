@@ -226,8 +226,54 @@ export function AdminDashboardSections({
     }
   }
 
+  const readinessTasks = [
+    !dashboardData.settings?.menuEnabled
+      ? { label: 'Опубликовать меню', hint: 'гость не увидит каталог', href: '/admin/venue', tone: 'alert' as const }
+      : null,
+    (dashboardData.dishesCount ?? 0) === 0
+      ? { label: 'Добавить первое блюдо', hint: 'без позиций нельзя принимать заказ', href: '/admin/store', tone: 'alert' as const }
+      : null,
+    (dashboardData.pendingOrdersCount ?? 0) > 0
+      ? { label: `Разобрать новые заказы · ${dashboardData.pendingOrdersCount}`, hint: 'ожидают подтверждения', href: '/admin/orders', tone: 'alert' as const }
+      : null,
+    (dashboardData.pendingSubscriptionsCount ?? 0) > 0
+      ? { label: `Подтвердить подписки · ${dashboardData.pendingSubscriptionsCount}`, hint: 'нужна реакция владельца', href: '/admin/subscriptions/clients', tone: 'alert' as const }
+      : null,
+    (dashboardData.newServiceLeadsCount ?? 0) + (dashboardData.newSubscriptionRequestLeads ?? 0) > 0
+      ? { label: 'Ответить на новые заявки', hint: 'лиды и запросы гостей', href: '/admin/leads', tone: 'info' as const }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; hint: string; href: string; tone: 'alert' | 'info' }>
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <section className="rounded-[24px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--muted)]">сегодня</p>
+            <h2 className="mt-1 text-[20px] font-extrabold tracking-[-0.03em] text-[color:var(--text)]">
+              {readinessTasks.length > 0 ? 'что требует внимания' : 'всё под контролем'}
+            </h2>
+          </div>
+          <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: readinessTasks.length > 0 ? 'color-mix(in srgb, #f59e0b 14%, transparent)' : 'color-mix(in srgb, var(--accent) 14%, transparent)', color: readinessTasks.length > 0 ? '#a16207' : 'var(--accent)' }}>
+            {readinessTasks.length > 0 ? `${readinessTasks.length} задач` : 'готово'}
+          </span>
+        </div>
+        {readinessTasks.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {readinessTasks.slice(0, 4).map((task) => (
+              <Link key={task.href + task.label} href={task.href} prefetch={false} scroll={false} className="flex items-center justify-between gap-3 rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 transition active:opacity-80">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-bold text-[color:var(--text)]">{task.label}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-medium text-[color:var(--muted)]">{task.hint}</p>
+                </div>
+                <span className="shrink-0 text-[16px] text-[color:var(--muted)]">›</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-[12px] font-medium text-[color:var(--muted)]">Каталог, заказы и входящие задачи не требуют срочной реакции.</p>
+        )}
+      </section>
       {groups.map((group) => {
         const list = sections.filter((s) => s.group === group.id)
         if (list.length === 0) return null
