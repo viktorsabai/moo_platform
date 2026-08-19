@@ -852,11 +852,12 @@ export async function notifySubscriptionRequestToOps(params: {
   userName: string
   customerTelegramId: string | null
   note?: string
-}) {
+}): Promise<{ ok: boolean; sentCount: number; failedCount: number; reason?: 'no_token' | 'no_recipients' }> {
   const { restaurantId, userName, customerTelegramId, note } = params
   const teamIds = await getOpsTelegramIds(restaurantId)
   const botToken = await getBotToken(restaurantId)
-  if (!botToken || teamIds.length === 0) return
+  if (!botToken) return { ok: false, sentCount: 0, failedCount: 0, reason: 'no_token' }
+  if (teamIds.length === 0) return { ok: false, sentCount: 0, failedCount: 0, reason: 'no_recipients' }
 
   const text = formatNotificationMessage({
     emoji: '📩',
@@ -866,21 +867,34 @@ export async function notifySubscriptionRequestToOps(params: {
     closingPhrase: 'Пользователь хочет подключить рационы, свяжитесь с ним в Telegram.',
   })
 
+  let sentCount = 0
+  let failedCount = 0
   for (const chatId of teamIds) {
-    await sendTelegramMessage(
-      chatId,
-      {
-        text,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Клиенты и заявки', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } }],
-          ],
+    try {
+      const sent = await sendTelegramMessage(
+        chatId,
+        {
+          text,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: 'Клиенты и заявки', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } }],
+            ],
+          },
         },
-      },
-      botToken
-    )
+        botToken
+      )
+      if (sent.ok) sentCount++
+      else {
+        failedCount++
+        console.error('[notifySubscriptionRequestToOps] Telegram send failed', { restaurantId, chatId, sent })
+      }
+    } catch (error) {
+      failedCount++
+      console.error('[notifySubscriptionRequestToOps] Telegram send exception', { restaurantId, chatId, error: String(error) })
+    }
   }
+  return { ok: sentCount > 0 && failedCount === 0, sentCount, failedCount }
 }
 
 export async function notifyServiceLeadCreatedToOps(params: {

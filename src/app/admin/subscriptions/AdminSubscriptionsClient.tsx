@@ -670,8 +670,15 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
     loadClientSubscriptions()
   }, [])
 
-  const canCreate = Boolean(newPlan.name.trim())
-
+    const canCreate = Boolean(newPlan.name.trim())
+  const planSetupSteps = [
+    { label: 'выберите основу', done: Boolean(newPlanPresetSlug || newPlan.name.trim()) },
+    { label: 'задайте цену', done: newPlan.price > 0 },
+    { label: 'проверьте дни и блюда', done: newPlanMinDays > 0 && newPlanMaxDays >= newPlanMinDays && newPlanMinDishes > 0 && newPlanMaxDishes >= newPlanMinDishes },
+    { label: 'создайте план', done: canCreate },
+  ]
+  const completedPlanSteps = planSetupSteps.filter((step) => step.done).length
+  const nextPlanStep = planSetupSteps.find((step) => !step.done)?.label
   function applyPreset(slug: 'standard' | 'fit' | 'family') {
     const preset = getDefaultPlanBySlug(slug)
     if (!preset) return
@@ -841,6 +848,16 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                     </button>
                   ))}
                 </div>
+                <div className="mb-3 rounded-[22px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><div className="text-[14px] font-extrabold text-[color:var(--text)]">соберём план по шагам</div><div className="mt-1 text-[12px] font-medium text-[color:var(--muted)]">Сначала основа, затем цена и правила доставки. Ничего не публикуется до нажатия «добавить».</div></div>
+                    <div className="shrink-0 rounded-full bg-[color:var(--primary)]/10 px-2.5 py-1 text-[11px] font-extrabold text-[color:var(--primary)]">{completedPlanSteps}/4</div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {planSetupSteps.map((step, index) => <div key={step.label} className={cn('rounded-[14px] px-2.5 py-2 text-[11px] font-bold', step.done ? 'bg-emerald-50 text-emerald-800' : 'bg-[color:var(--surface-strong)] text-[color:var(--muted)]')}><span className="mr-1.5">{step.done ? '✓' : index + 1}</span>{step.label}</div>)}
+                  </div>
+                  {nextPlanStep ? <div className="mt-3 rounded-[14px] bg-[color:var(--surface-strong)] px-3 py-2.5 text-[12px] font-semibold text-[color:var(--text)]">Следующий шаг: <span className="font-extrabold">{nextPlanStep}</span></div> : <div className="mt-3 rounded-[14px] bg-emerald-50 px-3 py-2.5 text-[12px] font-semibold text-emerald-900">План заполнен. Проверьте значения и нажмите «добавить».</div>}
+                </div>
                 <div className="flex flex-wrap gap-4 rounded-xl border p-4" style={{ borderColor: 'var(--stroke)', borderRadius: 'var(--radius-large)' }}>
                   <input
                     type="text"
@@ -940,8 +957,9 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                   ) : null}
                 </div>
                 <details className="mt-4 rounded-xl border p-3" style={{ borderColor: 'var(--stroke)' }}>
-                  <summary className="cursor-pointer select-none text-[12px] font-semibold" style={{ color: 'var(--text)' }}>
-                    Свои лимиты и категории <span className="font-normal text-[color:var(--muted)]">(если не из пресета)</span>
+                                      <summary className="cursor-pointer select-none text-[12px] font-semibold" style={{ color: 'var(--text)' }}>
+                    Настроить дни, блюда и категории <span className="font-normal text-[color:var(--muted)]">(если нужно изменить пресет)</span>
+
                   </summary>
                   <div className="mt-3 flex flex-wrap gap-4 border-t pt-3" style={{ borderColor: 'var(--stroke)' }}>
                     <div className="flex items-center gap-2">

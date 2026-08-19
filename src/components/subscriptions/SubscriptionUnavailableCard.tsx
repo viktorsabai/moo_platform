@@ -33,8 +33,10 @@ export function SubscriptionUnavailableCard({ className }: { className?: string 
         return
       }
       setDone(true)
-      setInlineStatus(data?.warning || 'Готово.')
-      toast.success('Запрос отправлен владельцу')
+      const warning = typeof data?.warning === 'string' && data.warning.trim() ? data.warning : null
+      setInlineStatus(warning || 'Заявка сохранена. Команда увидит её в ЛК.')
+      if (warning) toast.error(warning)
+      else toast.success('Запрос отправлен владельцу')
     } catch {
       toast.error('Ошибка сети')
       setInlineStatus('Проверьте интернет и повторите.')

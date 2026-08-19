@@ -685,10 +685,17 @@ export default function CheckoutPage() {
           const message = 'Меню обновилось. Проверьте изменившиеся позиции и повторите заказ.'
           setSubmitError(message)
           toast.error(message)
-        } else {
-          const message = data?.code === 'PAYMENT_METHOD_UNAVAILABLE'
-            ? 'Этот способ оплаты сейчас недоступен. Выберите другой способ оплаты.'
-            : data?.code === 'PAYMENT_INTENT_REQUIRED'
+                  } else {
+            const message = data?.code === 'ADDRESS_INVALID'
+              ? 'Проверьте адрес и город. Корзина сохранена, заказ можно повторить.'
+              : data?.code === 'DATA_CHANGED'
+                ? 'Меню изменилось. Обновите корзину — выбранные позиции сохранятся.'
+                : data?.code === 'ORDER_CREATE_FAILED'
+                  ? 'Заказ не создался, но корзина сохранена. Обновите экран и попробуйте ещё раз.'
+                  : data?.code === 'PAYMENT_METHOD_UNAVAILABLE'
+              ? 'Этот способ оплаты сейчас недоступен. Выберите другой способ оплаты.'
+              : data?.code === 'PAYMENT_INTENT_REQUIRED'
+
               ? 'Платёж не подтверждён. Вернитесь к выбору оплаты и повторите попытку.'
               : data?.code === 'PAYMENT_AMOUNT_MISMATCH'
                 ? 'Итог заказа изменился. Обновите корзину и проверьте сумму перед повтором.'

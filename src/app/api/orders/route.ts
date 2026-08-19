@@ -646,10 +646,16 @@ export async function POST(request: Request) {
     ).catch(() => {})
 
     return NextResponse.json({ ok: true, orderId: order.id })
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'ошибка при создании заказа' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    const rawMessage = String(error?.message || '')
+    const code = String(error?.code || '')
+    console.error('[orders/create] failed', { code, message: rawMessage.slice(0, 240) })
+    if (code === 'P2003') {
+      return NextResponse.json({ ok: false, code: 'ADDRESS_INVALID', error: 'Не удалось сохранить адрес доставки. Проверьте город и адрес, затем повторите.' }, { status: 409 })
+    }
+    if (code === 'P2025') {
+      return NextResponse.json({ ok: false, code: 'DATA_CHANGED', error: 'Данные меню изменились. Обновите корзину и повторите заказ.' }, { status: 409 })
+    }
+    return NextResponse.json({ ok: false, code: 'ORDER_CREATE_FAILED', error: 'Заказ не создан. Корзина сохранена — обновите данные и попробуйте ещё раз.' }, { status: 500 })
   }
 }

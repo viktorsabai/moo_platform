@@ -50,19 +50,28 @@ export async function POST(request: Request) {
     }
 
     // В serverless важно дождаться отправок до ответа, иначе сообщения могут не уйти.
-    const notifyRes = await notifySubscriptionRequestToOps({
+    const notifyResult = await notifySubscriptionRequestToOps({
       restaurantId,
       userName,
       customerTelegramId,
       note: note || undefined,
-    }).then(() => true).catch(() => false)
+    }).catch(() => ({ ok: false, sentCount: 0, failedCount: 1 as number, reason: undefined }))
+
+    const warning = notifyResult.ok
+      ? null
+      : notifyResult.reason === 'no_token'
+        ? 'Заявка сохранена, но Telegram-бот заведения не подключён. Владелец увидит её в ЛК.'
+        : notifyResult.reason === 'no_recipients'
+          ? 'Заявка сохранена, но у команды нет Telegram-получателя. Владелец увидит её в ЛК.'
+          : 'Заявка сохранена, но Telegram-сообщение не доставлено. Владелец увидит её в ЛК.'
 
     return NextResponse.json({
       ok: true,
       id,
       customerAckSent,
-      opsNotified: notifyRes,
-      warning: notifyRes ? null : 'Команда пока не получила уведомление. Проверьте Telegram-привязку сотрудников.',
+      opsNotified: notifyResult.ok,
+      delivery: { sentCount: notifyResult.sentCount, failedCount: notifyResult.failedCount },
+      warning,
     })
   } catch (e: any) {
     return NextResponse.json(
