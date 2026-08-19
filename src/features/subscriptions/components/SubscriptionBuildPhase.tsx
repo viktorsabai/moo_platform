@@ -127,6 +127,16 @@ export function SubscriptionBuildPhase({
         <PageHeader title="рацион" subtitle="день → приёмы → блюда" compact className="min-w-0 flex-1" />
       </div>
 
+      <div className="mb-3 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5">
+        <div className="flex items-center gap-2 text-[11px] font-bold">
+          <span className="rounded-full bg-[color:var(--text)] px-2 py-1 text-[color:var(--surface)]">1 · рацион</span>
+          <span className="h-px flex-1 bg-[color:var(--stroke)]" />
+          <span className="text-[color:var(--muted)]">2 · подтверждение</span>
+        </div>
+        <p className="mt-2 text-[12px] font-medium text-[color:var(--muted)]">
+          {allComplete ? 'Рацион готов — переходите к периоду и доставке.' : 'Сначала выберите дни, приёмы пищи и блюда для каждого выбранного дня.'}
+        </p>
+      </div>
       <SubscriptionFlowProgress step="build" onStep={(s) => s === 'pay' && allComplete && onOpenPay?.()} payEnabled={allComplete} />
 
       <SubscriptionDayMealNest

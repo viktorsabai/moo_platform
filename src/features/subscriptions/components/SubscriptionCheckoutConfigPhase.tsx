@@ -97,6 +97,14 @@ export function SubscriptionCheckoutConfigPhase({
         </button>
         <PageHeader title="оформление" subtitle="период и доставка" compact className="min-w-0 flex-1" />
       </div>
+      <div className="mb-3 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5">
+        <div className="flex items-center gap-2 text-[11px] font-bold">
+          <button type="button" onClick={onBack} className="rounded-full border border-[color:var(--stroke)] px-2 py-1 text-[color:var(--muted)]">1 · рацион</button>
+          <span className="h-px flex-1 bg-[color:var(--stroke)]" />
+          <span className="rounded-full bg-[color:var(--text)] px-2 py-1 text-[color:var(--surface)]">2 · подтверждение</span>
+        </div>
+        <p className="mt-2 text-[12px] font-medium text-[color:var(--muted)]">Проверьте период, дни доставки, имя и сумму. Затем нажмите кнопку оформления внизу.</p>
+      </div>
 
       <SubscriptionFlowProgress step="pay" onStep={(s) => s === 'build' && onGoBuild?.()} payEnabled />
 
