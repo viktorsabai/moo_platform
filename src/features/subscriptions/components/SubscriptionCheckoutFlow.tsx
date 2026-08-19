@@ -53,6 +53,7 @@ export function SubscriptionCheckoutFlow() {
   const draftHydratedRef = useRef(false)
 
   const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'build')
+  const [buildStep, setBuildStep] = useState<'days' | 'dishes'>(resumeId ? 'dishes' : 'days')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -775,6 +776,8 @@ export function SubscriptionCheckoutFlow() {
         onCopyToAllWeek={copyActiveDayToAllWeek}
         onCopyFromPrevDay={copyFromPreviousDay}
         onClearDay={clearActiveDay}
+        buildStep={buildStep}
+        onBuildStep={setBuildStep}
         onContinue={goToCheckout}
         onOpenPay={goToCheckout}
       />
@@ -830,8 +833,8 @@ export function SubscriptionCheckoutFlow() {
       submitError={submitError}
       minDays={minDays}
       daysLocked
-      onBack={() => setPhase('build')}
-      onGoBuild={() => setPhase('build')}
+      onBack={() => { setBuildStep('dishes'); setPhase('build') }}
+      onGoBuild={() => { setBuildStep('dishes'); setPhase('build') }}
       onPeriodDays={setPeriodDays}
       onPersonCount={(delta) =>
         setPersonCount((n) => Math.max(subConfig.minPersons, Math.min(subConfig.maxPersons, n + delta)))
@@ -839,7 +842,7 @@ export function SubscriptionCheckoutFlow() {
       onStartDate={setStartDate}
       onDeliveryTime={setDeliveryTime}
       onName={setName}
-      onEditRation={() => setPhase('build')}
+      onEditRation={() => { setBuildStep('dishes'); setPhase('build') }}
       onSubmit={() => void submit()}
       />
     </>

@@ -1114,6 +1114,21 @@ export function SubscriptionWizard() {
   }
 
   const cardClass = 'ui-surface-card'
+  const isReviewStep = step === SubscriptionWizardStep.ReviewAndConfirm
+  const stepLabel = step === SubscriptionWizardStep.SelectPlan
+    ? 'цель и формат'
+    : step === SubscriptionWizardStep.SelectDays
+      ? 'дни доставки'
+      : step === SubscriptionWizardStep.AdjustDishesWithinLimits
+        ? 'блюда по дням'
+        : 'проверка и подтверждение'
+  const primaryStepLabel = isReviewStep
+    ? (isCreating ? (isEditMode ? 'сохраняем…' : 'отправляем…') : isEditMode ? 'сохранить подписку' : 'подтвердить рацион')
+    : step === SubscriptionWizardStep.SelectPlan
+      ? 'выбрать дни'
+      : step === SubscriptionWizardStep.SelectDays
+        ? 'перейти к блюдам'
+        : 'проверить рацион'
   const summaryBarStep = isUnifiedCreate
     ? selectedCount > 0
       ? SubscriptionWizardStep.AdjustDishesWithinLimits
@@ -1183,8 +1198,16 @@ export function SubscriptionWizard() {
           <span className="ui-muted shrink-0 text-[12px] font-medium">редактирование</span>
         </div>
       ) : null}
-      {isEditMode ? (
-        <div
+      <div className="mb-3 flex items-center justify-between gap-3 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-[color:var(--muted)]">шаг {currentStepIndex + 1} из {WIZARD_STEPS_ORDER.length}</p>
+          <p className="mt-0.5 text-[14px] font-extrabold text-[color:var(--text)]">{stepLabel}</p>
+        </div>
+        {currentStepIndex > 0 ? (
+          <button type="button" onClick={goBack} className="rounded-full border border-[color:var(--stroke)] px-3 py-2 text-[11px] font-extrabold text-[color:var(--text)]">назад</button>
+        ) : null}
+      </div>
+      <div
           className="mb-4 h-1 w-full shrink-0 overflow-hidden rounded-full bg-black/[0.06]"
           style={{ borderRadius: 'var(--radius-pill)' }}
         >
@@ -1196,10 +1219,9 @@ export function SubscriptionWizard() {
             }}
           />
         </div>
-      ) : null}
 
       {/* Step 1: режим + (если есть) готовые тарифы */}
-      {(isUnifiedCreate || step === SubscriptionWizardStep.SelectPlan) && (
+      {(step === SubscriptionWizardStep.SelectPlan) && (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <details open className={`${cardClass} group`}>
             <summary className="cursor-pointer list-none text-[14px] font-extrabold text-[color:var(--text)] [&::-webkit-details-marker]:hidden">
@@ -1379,7 +1401,7 @@ export function SubscriptionWizard() {
       )}
 
       {/* Step 2: расписание — блок как в чекауте */}
-      {(isEditMode || hasPlans || buildMode === 'custom') && (isUnifiedCreate || step === SubscriptionWizardStep.SelectDays) && (
+      {(isEditMode || hasPlans || buildMode === 'custom') && (step === SubscriptionWizardStep.SelectDays) && (
         <div className={cn('flex min-h-0 flex-1 flex-col gap-4', !isUnifiedCreate && 'pb-28')}>
           <details open className={cardClass}>
             <summary className="cursor-pointer list-none text-[14px] font-extrabold text-[color:var(--text)] [&::-webkit-details-marker]:hidden">
@@ -1531,7 +1553,7 @@ export function SubscriptionWizard() {
       )}
 
       {/* Step 3: блюда — превью как в корзине */}
-      {(isEditMode || hasPlans || buildMode === 'custom') && (isUnifiedCreate || step === SubscriptionWizardStep.AdjustDishesWithinLimits) && (
+      {(isEditMode || hasPlans || buildMode === 'custom') && (step === SubscriptionWizardStep.AdjustDishesWithinLimits) && (
         <div className={cn('flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto', !isUnifiedCreate && 'pb-28')}>
           {rationStripLines.length > 0 ? (
             <div className={cn(cardClass, 'space-y-2 py-3')}>
@@ -1804,7 +1826,7 @@ export function SubscriptionWizard() {
       )}
 
       {/* Резюме + имя + оформление (единая страница при создании или шаг подтверждения при правке) */}
-      {(isEditMode || hasPlans || buildMode === 'custom') && (isUnifiedCreate || step === SubscriptionWizardStep.ReviewAndConfirm) && (
+      {(isEditMode || hasPlans || buildMode === 'custom') && (step === SubscriptionWizardStep.ReviewAndConfirm) && (
         <>
           <div className={cn(!isUnifiedCreate && 'pb-28')}>
             <details open className={cardClass}>
@@ -1928,16 +1950,16 @@ export function SubscriptionWizard() {
           >
             <button
               type="button"
-              onClick={onCreate}
+              onClick={isReviewStep ? onCreate : goNext}
               disabled={
-                isCreating ||
-                subscriptionPrice.dishesPerDelivery === 0 ||
-                (!isEditMode && !subscriptionName.trim())
+                isReviewStep
+                  ? isCreating || subscriptionPrice.dishesPerDelivery === 0 || (!isEditMode && !subscriptionName.trim())
+                  : !canGoNext()
               }
               className="btn btn-primary w-full rounded-full py-4 text-[15px] font-semibold disabled:opacity-50"
               style={{ borderRadius: 'var(--radius-pill)' }}
             >
-              {isCreating ? (isEditMode ? 'сохраняем…' : 'оформляем…') : isEditMode ? 'сохранить состав' : 'оформить подписку'}
+              {primaryStepLabel}
             </button>
             {createError && (
               <div className="mt-2 text-center">

@@ -47,6 +47,8 @@ type Props = {
   onCopyFromPrevDay: () => void
   onClearDay: () => void
   onContinue: () => void
+  buildStep: 'days' | 'dishes'
+  onBuildStep: (step: 'days' | 'dishes') => void
   onOpenPay?: () => void
 }
 
@@ -82,6 +84,8 @@ export function SubscriptionBuildPhase({
   onCopyFromPrevDay,
   onClearDay,
   onContinue,
+  buildStep,
+  onBuildStep,
   onOpenPay,
 }: Props) {
   const daysOk = selectedDays.length >= minDays
@@ -129,16 +133,19 @@ export function SubscriptionBuildPhase({
 
       <div className="mb-3 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5">
         <div className="flex items-center gap-2 text-[11px] font-bold">
-          <span className="rounded-full bg-[color:var(--text)] px-2 py-1 text-[color:var(--surface)]">1 · рацион</span>
+          <span className={cn('rounded-full px-2 py-1', buildStep === 'days' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'bg-emerald-500/12 text-emerald-700 [html.dark_&]:text-emerald-300')}>1 · дни</span>
           <span className="h-px flex-1 bg-[color:var(--stroke)]" />
-          <span className="text-[color:var(--muted)]">2 · подтверждение</span>
+          <span className={cn('rounded-full px-2 py-1', buildStep === 'dishes' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'text-[color:var(--muted)]')}>2 · блюда</span>
+          <span className="h-px flex-1 bg-[color:var(--stroke)]" />
+          <span className="text-[color:var(--muted)]">3 · проверка</span>
         </div>
         <p className="mt-2 text-[12px] font-medium text-[color:var(--muted)]">
-          {allComplete ? 'Рацион готов — переходите к периоду и доставке.' : 'Сначала выберите дни, приёмы пищи и блюда для каждого выбранного дня.'}
+          {buildStep === 'days' ? 'Сначала выберите дни доставки и приёмы пищи.' : allComplete ? 'Рацион готов — проверьте состав и перейдите к стоимости.' : 'Добавьте блюда для каждого выбранного дня.'}
         </p>
       </div>
       <SubscriptionFlowProgress step="build" onStep={(s) => s === 'pay' && allComplete && onOpenPay?.()} payEnabled={allComplete} />
 
+      {buildStep === 'days' ? (
       <SubscriptionDayMealNest
         selectedDays={selectedDays}
         activeWizardDay={activeWizardDay}
@@ -168,8 +175,9 @@ export function SubscriptionBuildPhase({
         onCopyFromPrevDay={onCopyFromPrevDay}
         onClearDay={onClearDay}
       />
+      ) : null}
 
-      {daysOk && slotsForActiveDay.includes(activeSlot) ? (
+      {buildStep === 'dishes' && daysOk && slotsForActiveDay.includes(activeSlot) ? (
         <>
           <p className="mb-2 text-[13px] font-extrabold">
             {WEEKDAYS[activeWizardDay]} · {MEAL_SLOT_LABEL[activeSlot]}
@@ -273,11 +281,11 @@ export function SubscriptionBuildPhase({
           </div>
           <button
             type="button"
-            onClick={onContinue}
-            disabled={!allComplete}
+            onClick={() => buildStep === 'days' ? onBuildStep('dishes') : onContinue()}
+            disabled={buildStep === 'days' ? !daysOk : !allComplete}
             className="btn btn-primary h-10 shrink-0 rounded-full px-4 text-[13px] font-bold disabled:opacity-40"
           >
-            далее
+            {buildStep === 'days' ? 'перейти к блюдам' : 'проверить рацион'}
             <IconChevronUp className="ml-0.5 inline h-4 w-4 rotate-90" />
           </button>
         </div>
