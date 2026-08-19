@@ -273,6 +273,14 @@ export function AdminDashboardSections({
         ) : (
           <p className="mt-3 text-[12px] font-medium text-[color:var(--muted)]">Каталог, заказы и входящие задачи не требуют срочной реакции.</p>
         )}
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-[color:var(--stroke)] pt-3">
+          <a href="/" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-full bg-[color:var(--primary)] px-4 text-[12px] font-semibold text-white transition active:opacity-90">
+            открыть гостевой вид
+          </a>
+          <Link href="/admin/venue" prefetch={false} scroll={false} className="inline-flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[12px] font-semibold text-[color:var(--text)] transition active:opacity-85">
+            настройки публикации
+          </Link>
+        </div>
       </section>
       {groups.map((group) => {
         const list = sections.filter((s) => s.group === group.id)
