@@ -369,7 +369,7 @@ export async function POST(request: Request) {
     )
     if (Math.abs(trustedTotal - totalAmount) > 0.01) {
       return NextResponse.json(
-        { error: `amount mismatch: expected ${trustedTotal}, got ${Number(totalAmount.toFixed(2))}` },
+        { ok: false, code: 'PAYMENT_AMOUNT_MISMATCH', error: `amount mismatch: expected ${trustedTotal}, got ${Number(totalAmount.toFixed(2))}`, expectedAmount: trustedTotal, receivedAmount: Number(totalAmount.toFixed(2)) },
         { status: 400 }
       )
     }
@@ -386,12 +386,12 @@ export async function POST(request: Request) {
       .trim()
       .toUpperCase()
     if (!allowedSlugs.has(paymentOptionSlug)) {
-      return NextResponse.json({ error: 'способ оплаты недоступен' }, { status: 400 })
+      return NextResponse.json({ ok: false, code: 'PAYMENT_METHOD_UNAVAILABLE', error: 'способ оплаты недоступен', paymentOptionSlug }, { status: 400 })
     }
 
     const methodRow = mergedMethods.find((m) => m.slug === paymentOptionSlug)
     if (paymentOptionSlug === 'STRIPE' && !paymentIntentId) {
-      return NextResponse.json({ error: 'paymentIntentId required for STRIPE' }, { status: 400 })
+      return NextResponse.json({ ok: false, code: 'PAYMENT_INTENT_REQUIRED', error: 'Для Stripe требуется paymentIntentId.' }, { status: 400 })
     }
 
     let initialPaymentStatus: 'PENDING' | 'AWAITING_RECEIPT' = 'PENDING'
