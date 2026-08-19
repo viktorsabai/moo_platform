@@ -30,6 +30,20 @@ function parseOptionalUsageLimitPerUser(v: unknown): number | undefined {
   return n
 }
 
+function validateCampaignPeriod(validFrom: Date | null, validTo: Date | null) {
+  if (validFrom && validTo && validTo < validFrom) return 'Дата окончания не может быть раньше даты начала.'
+  return null
+}
+
+function validatePublicActivation(input: { status?: string; visibility?: string; kind?: string; code?: string | null; validFrom?: Date | null; validTo?: Date | null }) {
+  const periodError = validateCampaignPeriod(input.validFrom ?? null, input.validTo ?? null)
+  if (periodError) return periodError
+  if (input.status === 'ACTIVE' && input.visibility === 'PUBLIC' && input.kind === 'PROMOCODE' && !input.code) {
+    return 'Для публичной промокампании нужен промокод.'
+  }
+  return null
+}
+
 async function maybeBroadcastPublicCampaign(opts: {
   restaurantId: string
   campaignName: string
@@ -110,6 +124,15 @@ export async function POST(request: Request) {
     if (validTo && Number.isNaN(validTo.getTime())) {
       return NextResponse.json({ ok: false, error: 'некорректная дата «по»' }, { status: 400 })
     }
+    const activationError = validatePublicActivation({
+      status: body?.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT',
+      visibility: body?.visibility === 'HIDDEN' ? 'HIDDEN' : body?.visibility === 'ASSIGNED_ONLY' ? 'ASSIGNED_ONLY' : 'PUBLIC',
+      kind: body?.kind === 'AUTO' ? 'AUTO' : 'PROMOCODE',
+      code,
+      validFrom,
+      validTo,
+    })
+    if (activationError) return NextResponse.json({ ok: false, error: activationError }, { status: 400 })
 
     const created = await prisma.campaign.create({
       data: {
@@ -238,6 +261,15 @@ export async function PATCH(request: Request) {
     if (body?.validTo !== undefined) data.validTo = body.validTo ? new Date(String(body.validTo)) : null
     if (body?.metadataJson !== undefined) data.metadataJson = body.metadataJson ?? Prisma.JsonNull
     if (body?.notifyOnPublish !== undefined) data.notifyOnPublish = Boolean(body.notifyOnPublish)
+
+    const nextStatus = typeof data.status === 'string' ? data.status : existing.status
+    const nextVisibility = typeof data.visibility === 'string' ? data.visibility : existing.visibility
+    const nextKind = typeof data.kind === 'string' ? data.kind : existing.kind
+    const nextCode = data.code !== undefined ? (data.code as string | null) : existing.code
+    const nextValidFrom = data.validFrom !== undefined ? (data.validFrom as Date | null) : existing.validFrom
+    const nextValidTo = data.validTo !== undefined ? (data.validTo as Date | null) : existing.validTo
+    const activationError = validatePublicActivation({ status: nextStatus, visibility: nextVisibility, kind: nextKind, code: nextCode, validFrom: nextValidFrom, validTo: nextValidTo })
+    if (activationError) return NextResponse.json({ ok: false, error: activationError }, { status: 400 })
 
     const updated = await prisma.campaign.update({
       where: { id },
