@@ -9,6 +9,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Persistent webhook ledger for provider-level replay protection.
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String
+  eventType   String?
+  status      String    @default("RECEIVED")
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?   @db.Text
+
+  @@unique([provider, eventId])
+  @@index([provider, receivedAt])
+  @@index([status, receivedAt])
+}
+
 // Пользователь
 model User {
   id                String       @id @default(cuid())
@@ -566,7 +582,7 @@ model Order {
   paymentStatus       PaymentStatus @default(PENDING)
   paymentMethod       String?
   paymentOptionSlug   String?
-  fulfillmentMethod   String             @default("DELIVERY")
+  fulfillmentMethod   String        @default("DELIVERY")
   campaignId          String?
   campaignCode        String?
   discountAmount      Decimal?      @db.Decimal(10, 2)
