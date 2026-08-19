@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: moo
+      POSTGRES_USER: moo
+      POSTGRES_PASSWORD: moo
+    ports:
+      - "5433:5432"
+    volumes:
+      - moo_local_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moo -d moo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://moo:moo@db:5432/moo?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  moo_local_postgres:
+
