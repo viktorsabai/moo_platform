@@ -12,7 +12,7 @@ type Props = {
 
 const TABS: { id: SubscriptionHubTab; label: string }[] = [
   { id: 'overview', label: 'обзор' },
-  { id: 'list', label: 'мои' },
+  { id: 'list', label: 'мои планы' },
 ]
 
 export function SubscriptionHubTabs({ tab, onTab, listCount = 0 }: Props) {

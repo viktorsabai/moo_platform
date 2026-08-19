@@ -8,8 +8,6 @@ import { SUBSCRIPTION_STATUS_FILTERS, SUBSCRIPTION_STATUS_TO_FILTER } from '@/li
 import type { SubscriptionConfig } from '@/lib/subscription-config'
 import { periodLabel, defaultSubscriptionConfig } from '@/lib/subscription-config'
 import { formatGuestPeriodBadge } from '@/lib/subscription-offer-labels'
-import { SubscriptionHubBanners } from '@/features/subscriptions/components/SubscriptionHubBanners'
-import { SubscriptionHubDraftBanner } from '@/features/subscriptions/components/SubscriptionHubDraftBanner'
 
 const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'] as const
 
@@ -43,8 +41,6 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
   if (loading && subscriptions.length === 0) {
     return (
       <div className="space-y-3">
-        <SubscriptionHubDraftBanner />
-        <SubscriptionHubBanners />
         <div className="h-36 animate-pulse rounded-[var(--radius-large)] bg-[color:var(--stroke)]/40" />
         <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3].map((i) => (
@@ -58,8 +54,6 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
   if (!primary) {
     return (
       <div className="space-y-4">
-        <SubscriptionHubDraftBanner />
-        <SubscriptionHubBanners />
         <section className="rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-4">
           <p className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">статус</p>
           <p className="mt-1 text-[17px] font-extrabold leading-tight">нет подписки</p>
@@ -95,9 +89,11 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
   const personCount = (primary as Subscription & { personCount?: number }).personCount ?? 1
 
   return (
-    <div className="space-y-4">
-      <SubscriptionHubDraftBanner />
-      <SubscriptionHubBanners />
+    <div className="space-y-3">
+      <div className="px-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--muted)]">ваш план питания</p>
+        <p className="mt-1 text-[13px] font-semibold leading-snug text-[color:var(--muted)]">Здесь всё, что нужно для следующей доставки.</p>
+      </div>
       <section className="rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-4 shadow-[var(--shadow-soft)]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -105,7 +101,13 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
             <p className="mt-1 text-[18px] font-extrabold leading-tight capitalize">{nearest}</p>
             <p className="mt-2 truncate text-[14px] font-semibold">{primary.name}</p>
           </div>
-          <span className="shrink-0 rounded-full border border-[color:var(--stroke)] px-2.5 py-1 text-[11px] font-bold">
+          <span className={cn(
+            'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold',
+            filterKey === 'active' && 'bg-emerald-500/12 text-emerald-700 [html.dark_&]:text-emerald-300',
+            filterKey === 'pending' && 'bg-amber-500/14 text-amber-800 [html.dark_&]:text-amber-300',
+            filterKey === 'draft' && 'bg-violet-500/12 text-violet-700 [html.dark_&]:text-violet-300',
+            !['active', 'pending', 'draft'].includes(filterKey) && 'border border-[color:var(--stroke)] text-[color:var(--muted)]',
+          )}>
             {statusLabel}
           </span>
         </div>
@@ -152,6 +154,7 @@ export function SubscriptionHubOverview({ subscriptions, config, loading }: Prop
       </div>
 
       <section className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-3">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--muted)]">условия плана</p>
         <ul className="space-y-2 text-[13px]">
           <li className="flex justify-between gap-3">
             <span className="text-[color:var(--muted)]">период</span>
