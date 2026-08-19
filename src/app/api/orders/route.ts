@@ -47,6 +47,7 @@ export async function GET() {
       paymentStatus: true,
       paymentMethod: true,
       paymentOptionSlug: true,
+      fulfillmentMethod: true,
       campaignCode: true,
       discountAmount: true,
       discountDetailsJson: true,
@@ -109,8 +110,9 @@ export async function GET() {
     ok: true,
     orders: orders.map((o) => ({
       ...o,
-      totalAmount: Number(o.totalAmount),
-      discountAmount: o.discountAmount != null ? Number(o.discountAmount) : null,
+        totalAmount: Number(o.totalAmount),
+        fulfillmentMethod: o.fulfillmentMethod,
+        discountAmount: o.discountAmount != null ? Number(o.discountAmount) : null,
       paymentAmountRub: o.paymentAmountRub != null ? Number(o.paymentAmountRub) : null,
       itemsCount: Number.isFinite(o.itemsCount) && o.itemsCount > 0 ? o.itemsCount : o.items.length,
       items: (o.items ?? []).map((it: any) => ({
@@ -161,8 +163,9 @@ export async function POST(request: Request) {
     const notes = typeof body?.notes === 'string' ? body.notes.trim() : ''
     const promoCode = parseCampaignCode(body?.promoCode || body?.campaignCode)
     const promoCampaignId = typeof body?.campaignId === 'string' ? body.campaignId.trim() : ''
-    const fulfillmentRaw = String(body?.fulfillment ?? 'DELIVERY').toUpperCase()
-    const isPickupOrder = fulfillmentRaw === 'PICKUP'
+    const fulfillmentRaw = String(body?.fulfillment ?? body?.fulfillmentMethod ?? 'DELIVERY').toUpperCase()
+    const fulfillmentMethod = fulfillmentRaw === 'PICKUP' ? 'PICKUP' : 'DELIVERY'
+    const isPickupOrder = fulfillmentMethod === 'PICKUP'
     const items = Array.isArray(body?.items) ? body.items : []
 
     let { items: trustedItems, subtotal, changes: consistencyChanges } = await computeTrustedItemsAndSubtotal(restaurantId, items)
@@ -398,6 +401,7 @@ export async function POST(request: Request) {
       paymentStatus: initialPaymentStatus,
       paymentMethod: paymentOptionSlug,
       paymentOptionSlug,
+      fulfillmentMethod,
       ...(paymentIntentId ? { paymentIntentId } : {}),
       ...(paymentAmountRub ? { paymentAmountRub } : {}),
       ...(fxRubPerThb ? { fxRubPerThb } : {}),

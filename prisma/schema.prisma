@@ -566,6 +566,7 @@ model Order {
   paymentStatus       PaymentStatus @default(PENDING)
   paymentMethod       String?
   paymentOptionSlug   String?
+  fulfillmentMethod   String             @default("DELIVERY")
   campaignId          String?
   campaignCode        String?
   discountAmount      Decimal?      @db.Decimal(10, 2)
