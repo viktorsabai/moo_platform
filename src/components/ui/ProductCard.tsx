@@ -141,6 +141,7 @@ export function ProductCard({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>([])
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
+  const [justAdded, setJustAdded] = useState(false)
   const addItem = useCartStore((state) => state.addItem)
   const updateQuantity = useCartStore((state) => state.updateQuantity)
   const removeItem = useCartStore((state) => state.removeItem)
@@ -179,6 +180,11 @@ export function ProductCard({
         return item ? Number(item?.quantity ?? 0) : 0
       })()
 
+  const acknowledgeAdd = () => {
+    setJustAdded(true)
+    window.setTimeout(() => setJustAdded(false), 900)
+  }
+
   const handleAdd = () => {
     if (!canAddToCart) return
     if (hasModifiers) {
@@ -196,8 +202,10 @@ export function ProductCard({
         restaurantId
       )
       onAdded?.()
+      acknowledgeAdd()
     } else if (onAddToCart) {
       onAddToCart()
+      acknowledgeAdd()
     } else {
       addItem(
         {
@@ -210,6 +218,7 @@ export function ProductCard({
         },
         restaurantId
       )
+      acknowledgeAdd()
     }
   }
 
@@ -553,11 +562,16 @@ export function ProductCard({
                   handleAdd()
                 }}
                 disabled={!isAvailable || !canAddToCart}
-                className="btn btn-soft inline-flex h-8 min-w-[2.25rem] shrink-0 items-center justify-center rounded-full px-3 text-[15px] font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                className={cn(
+                  'btn btn-soft inline-flex h-8 min-w-[2.25rem] shrink-0 items-center justify-center rounded-full px-3 text-[15px] font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40',
+                  justAdded && 'animate-[ufo-cart-pop_180ms_ease-out] bg-[color:var(--accent)] text-white'
+                )}
                 style={{ borderRadius: 'var(--radius-pill)' }}
-                aria-label="Добавить в корзину"
+                aria-label={justAdded ? 'Добавлено в корзину' : 'Добавить в корзину'}
               >
-                +
+                <span className={cn('inline-flex transition-transform', justAdded && 'scale-110')} aria-hidden="true">
+                  {justAdded ? '✓' : '+'}
+                </span>
               </button>
             )}
           </div>
