@@ -23,6 +23,7 @@ import {
   storeMenuOrderHint,
 } from '@/lib/consumer-menu-orderable'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
+import { useContentSync } from '@/hooks/useContentSync'
 
 type StoreCategory = { id: string; name: string; slug: string; emoji?: string }
 type StoreVariant = { id: string; name: string; price: number; qty: number }
@@ -314,6 +315,8 @@ function MenuPageInner() {
   const [storeProducts, setStoreProducts] = useState<StoreProduct[]>([])
   const [storeLoading, setStoreLoading] = useState(false)
   const [foodRefreshing, setFoodRefreshing] = useState(false)
+  const [menuSyncTick, setMenuSyncTick] = useState(0)
+  const [menuSyncMessage, setMenuSyncMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const m = String(searchParams?.get('mode') || '').trim()
@@ -328,6 +331,14 @@ function MenuPageInner() {
     if (mode === 'food' && !menuEnabled && storeEnabled) setMode('store')
     else if (mode === 'store' && !storeEnabled && menuEnabled) setMode('food')
   }, [mode, menuEnabled, storeEnabled])
+
+  useContentSync({
+    onMenuChanged: () => {
+      setMenuSyncTick((tick) => tick + 1)
+      setMenuSyncMessage('Меню обновлено — цены и доступность актуальны')
+      window.setTimeout(() => setMenuSyncMessage(null), 4500)
+    },
+  })
 
   useEffect(() => {
     if (mode !== 'food' || venueLoading || !restaurantId) return
@@ -587,7 +598,7 @@ function MenuPageInner() {
       setFoodLoading(false)
       setFoodRefreshing(false)
     }
-  }, [mode, restaurantId, venueLoading, menuEnabled])
+  }, [mode, restaurantId, venueLoading, menuEnabled, menuSyncTick])
 
   useEffect(() => {
     if (mode !== 'store' || venueLoading || !restaurantId) return
@@ -1513,6 +1524,11 @@ function MenuPageInner() {
 
   return (
     <main className="ui-container ui-screen menu-page flex min-h-dvh flex-col">
+      {menuSyncMessage && (
+        <div className="mb-2 rounded-[16px] border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[12px] font-semibold text-emerald-900" role="status">
+          {menuSyncMessage}
+        </div>
+      )}
       <FilterBar
         ref={filterBarChipsRef}
         className="sticky top-0 z-30 mb-2 bg-[color:var(--surface)]/95 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--surface)]/85"

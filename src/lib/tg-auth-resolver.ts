@@ -37,7 +37,9 @@ function verifyTelegramInitData(initData: string, botToken: string): { tgUser: a
   const dataCheckString = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join('\n')
   const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest()
   const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex')
-  if (hmac !== hash) return null
+  const expected = Buffer.from(hmac, 'utf8')
+  const received = Buffer.from(hash, 'utf8')
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return null
   try {
     const tgUser = JSON.parse(params.get('user') || '')
     return { tgUser }

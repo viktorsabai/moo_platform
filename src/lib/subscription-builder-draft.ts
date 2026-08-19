@@ -3,6 +3,8 @@ import type { MealSlot } from '@/lib/subscription-meal-slots'
 export type SubscriptionBuilderDraft = {
   v: 1
   updatedAt: number
+  /** Версия guest-visible subscription catalog на момент сохранения draft. */
+  subscriptionVersion?: number
   phase: 'build' | 'checkout'
   selectedDays: number[]
   activeWizardDay: number

@@ -11,7 +11,12 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function itemsForDeliveryDay(
-  items: Array<{ quantity: number; dayOfWeek: number | null; dishId: string; dish: { name: string; price: unknown } | null }>,
+  items: Array<{
+    quantity: number
+    dayOfWeek: number | null
+    dishId: string
+    dish: { id: string; name: string; price: unknown } | null
+  }>,
   deliveryDate: Date
 ) {
   const dow = deliveryDate.getDay()

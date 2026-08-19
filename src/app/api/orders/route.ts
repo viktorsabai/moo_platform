@@ -165,7 +165,15 @@ export async function POST(request: Request) {
     const isPickupOrder = fulfillmentRaw === 'PICKUP'
     const items = Array.isArray(body?.items) ? body.items : []
 
-    let { items: trustedItems, subtotal } = await computeTrustedItemsAndSubtotal(restaurantId, items)
+    let { items: trustedItems, subtotal, changes: consistencyChanges } = await computeTrustedItemsAndSubtotal(restaurantId, items)
+    if (consistencyChanges.length > 0) {
+      return NextResponse.json({
+        ok: false,
+        code: 'STALE_CART',
+        error: 'Корзина изменилась. Обновите позиции перед оплатой.',
+        changes: consistencyChanges,
+      }, { status: 409 })
+    }
     if (!trustedItems.length) {
       return NextResponse.json({ error: 'корзина пуста или товары недоступны' }, { status: 400 })
     }

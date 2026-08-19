@@ -345,6 +345,13 @@ export function AdminMenuTab({ menuEnabled }: { menuEnabled: boolean }) {
   const [showHiddenOptionGroups, setShowHiddenOptionGroups] = useState(false)
   const [savingDishId, setSavingDishId] = useState<string | null>(null)
   const [savingDishStep, setSavingDishStep] = useState<string | null>(null)
+  const [syncNotice, setSyncNotice] = useState<{ text: string; version: number | null } | null>(null)
+
+  function showSyncConfirmation(data: any, text: string) {
+    const version = Number.isFinite(Number(data?.sync?.menuVersion)) ? Number(data.sync.menuVersion) : null
+    setSyncNotice({ text, version })
+    toast.success(version == null ? text : `${text} · опубликовано v${version}`)
+  }
 
   async function load(options?: { silent?: boolean; skipCache?: boolean }) {
     const silent = options?.silent === true
@@ -930,7 +937,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
         subscriptionEligible: true,
       }))
       await load()
-      toast.success('Блюдо создано')
+      showSyncConfirmation(data, 'Блюдо создано')
     } catch {
       setError('не удалось создать блюдо')
       toast.error('Ошибка при создании')
@@ -963,7 +970,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
       setNewOptionGroupDraft({ name: '', values: '' })
       await refreshMenuOptionsAndDishes()
       setOptionGroupMessage({ type: 'success', text: 'Опция создана' })
-      toast.success('Опция создана')
+      showSyncConfirmation(data, 'Опция создана')
     } catch {
       setOptionGroupMessage({ type: 'error', text: 'Ошибка сети или сервера' })
       toast.error('Ошибка создания опции')
@@ -990,7 +997,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
       }
       setNewOptionValueDraft((s) => ({ ...s, [groupId]: '' }))
       await refreshMenuOptionsAndDishes()
-      toast.success('Значение добавлено')
+      showSyncConfirmation(data, 'Значение добавлено')
     } catch {
       toast.error('Ошибка сети')
     } finally {
@@ -1016,8 +1023,8 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
         return
       }
       await refreshMenuOptionsAndDishes()
-      if (patch.isActive === false) toast.success('Группа скрыта')
-      if (patch.isActive === true) toast.success('Группа снова в меню')
+      if (patch.isActive === false) showSyncConfirmation(data, 'Группа скрыта')
+      if (patch.isActive === true) showSyncConfirmation(data, 'Группа снова в меню')
     } catch {
       toast.error('Ошибка сети')
     } finally {
@@ -1043,8 +1050,8 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
         return
       }
       await refreshMenuOptionsAndDishes()
-      if (patch.isActive === false) toast.success('Вариант скрыт')
-      if (patch.isActive === true) toast.success('Вариант снова в меню')
+      if (patch.isActive === false) showSyncConfirmation(data, 'Вариант скрыт')
+      if (patch.isActive === true) showSyncConfirmation(data, 'Вариант снова в меню')
     } catch {
       toast.error('Ошибка сети')
     } finally {
@@ -1231,6 +1238,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
         })
       const shouldPersistDishOptions = hasDishOptionChanges
       const shouldSave = hasDishPatch || shouldPersistDishOptions
+      let syncResponseData: any = null
       if (shouldSave) {
         setSavingDishStep('сохраняем…')
         const payload: Record<string, unknown> = hasDishPatch ? patch : { id }
@@ -1242,6 +1250,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
           body: JSON.stringify(payload),
         })
         const data = await res.json().catch(() => null)
+        syncResponseData = data
         if (!res.ok || !data?.ok) {
           toast.error(data?.error || 'Не удалось сохранить')
           return
@@ -1337,7 +1346,8 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
         return next
       })
       const changed = hasDishPatch || hasDishOptionChanges
-      toast.success(changed ? 'Сохранено' : 'Без изменений')
+      if (changed) showSyncConfirmation(syncResponseData, 'Блюдо сохранено')
+      else toast.success('Без изменений')
       setSavingDishStep('обновляем список…')
       void load({ silent: true, skipCache: true })
     } catch (e: any) {
@@ -1408,7 +1418,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
       if (res.ok && data?.ok) {
         await load()
         setSelectedDishIds((s) => { const n = new Set(s); n.delete(id); return n })
-        toast.success('Блюдо удалено')
+        showSyncConfirmation(data, 'Блюдо удалено')
       } else {
         toast.error(data?.error || 'Не удалось удалить')
       }
@@ -1430,7 +1440,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
       if (res.ok && data?.ok) {
         await load()
         setSelectedDishIds(new Set())
-        toast.success(`Удалено блюд: ${data?.deleted ?? ids.length}`)
+        showSyncConfirmation(data, `Удалено блюд: ${data?.deleted ?? ids.length}`)
       } else {
         toast.error(data?.error || 'Не удалось удалить')
       }
@@ -1468,7 +1478,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
       const data = await res.json().catch(() => null)
       if (res.ok && data?.ok) {
         await load()
-        toast.success('Категория обновлена')
+        showSyncConfirmation(data, 'Категория обновлена')
       } else {
         toast.error(data?.error || 'Не удалось сохранить')
       }
@@ -1692,6 +1702,13 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
 
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden space-y-5">
+      {syncNotice && (
+        <div className="flex items-center justify-between gap-3 rounded-[18px] border border-emerald-200 bg-emerald-50/90 px-3 py-2.5 text-[12px] font-semibold text-emerald-900">
+          <span>{syncNotice.text}{syncNotice.version == null ? '' : ` · гости увидят после обновления v${syncNotice.version}`}</span>
+          <button type="button" className="text-emerald-800/70" onClick={() => setSyncNotice(null)} aria-label="Закрыть уведомление">×</button>
+        </div>
+      )}
+
       {!menuEnabled && (
         <div className="rounded-[18px] border border-amber-200 bg-amber-50/80 p-3 text-[13px] text-amber-900">
           Включите «Готовые блюда» в настройках заведения, чтобы меню видели гости.

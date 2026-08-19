@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -150,7 +151,8 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, productId: created!.id })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'StoreProduct', entityId: created!.id })
+    return NextResponse.json({ ok: true, productId: created!.id, sync: sync.state })
   } catch (e: any) {
     if (e?.code === 'P2002') {
       return NextResponse.json({ ok: false, error: 'Товар с таким идентификатором уже есть' }, { status: 400 })
@@ -193,7 +195,8 @@ export async function PATCH(request: Request) {
       data,
     })
 
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'StoreProduct', entityId: existing.id })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })
@@ -219,7 +222,10 @@ export async function DELETE(request: Request) {
       where: { id: { in: toDelete }, restaurantId: ctx.restaurantId },
     })
 
-    return NextResponse.json({ ok: true, deleted: count })
+    const sync = count > 0
+      ? await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'StoreProductBatch', payload: { count } })
+      : null
+    return NextResponse.json({ ok: true, deleted: count, sync: sync?.state ?? null })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })

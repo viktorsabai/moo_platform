@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,7 +53,8 @@ export async function PUT(request: Request) {
       })
     })
 
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'DishModifierBatch', entityId: dishId })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })
@@ -94,9 +96,11 @@ export async function POST(request: Request) {
       select: { id: true, dishId: true, name: true, type: true, priceAdjust: true, order: true },
     })
 
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'DishModifier', entityId: created.id })
     return NextResponse.json({
       ok: true,
       modifier: { ...created, priceAdjust: Number(created.priceAdjust) },
+      sync: sync.state,
     })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
@@ -141,7 +145,8 @@ export async function PATCH(request: Request) {
       data,
     })
 
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'DishModifier', entityId: id })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: 'Ошибка' }, { status })
@@ -165,7 +170,8 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.dishModifier.delete({ where: { id } })
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'DishModifier', entityId: id })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: 'Ошибка' }, { status })

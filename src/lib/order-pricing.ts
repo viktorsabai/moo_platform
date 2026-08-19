@@ -6,6 +6,7 @@ export type RawCheckoutItem = {
   storeVariantId?: string
   quantity?: number
   modifierIds?: string[]
+  price?: number
 }
 
 export type PricedCheckoutItem = {
@@ -18,10 +19,19 @@ export type PricedCheckoutItem = {
   modifierIds: string[]
 }
 
+export type CheckoutConsistencyChange = {
+  kind: 'dish' | 'store'
+  id: string
+  name: string
+  reason: 'UNAVAILABLE' | 'PRICE_CHANGED' | 'MODIFIER_CHANGED'
+  previousPrice?: number
+  currentPrice?: number
+}
+
 export async function computeTrustedItemsAndSubtotal(
   restaurantId: string,
   rawItems: RawCheckoutItem[]
-): Promise<{ items: PricedCheckoutItem[]; subtotal: number }> {
+): Promise<{ items: PricedCheckoutItem[]; subtotal: number; changes: CheckoutConsistencyChange[] }> {
   const normalized = (Array.isArray(rawItems) ? rawItems : [])
     .map((it) => {
       const kind = String(it?.kind || '').toLowerCase() === 'store' ? 'store' : 'dish'
@@ -32,6 +42,7 @@ export async function computeTrustedItemsAndSubtotal(
         storeVariantId: String(it?.storeVariantId || '').trim(),
         quantity,
         modifierIds: Array.isArray(it?.modifierIds) ? it.modifierIds.filter((x): x is string => typeof x === 'string') : [],
+        clientPrice: Number.isFinite(Number(it?.price)) ? Number(it.price) : null,
       }
     })
     .filter((it) => (it.kind === 'store' ? Boolean(it.storeVariantId) : Boolean(it.dishId)))
@@ -86,20 +97,38 @@ export async function computeTrustedItemsAndSubtotal(
   }
 
   const priced: PricedCheckoutItem[] = []
+  const changes: CheckoutConsistencyChange[] = []
   for (const it of normalized) {
     if (it.kind === 'store') {
       const base = variantMap.get(it.storeVariantId)
-      if (!base || !Number.isFinite(base.price)) continue
+      if (!base || !Number.isFinite(base.price)) {
+        changes.push({ kind: 'store', id: it.storeVariantId, name: 'Товар', reason: 'UNAVAILABLE' })
+        continue
+      }
+      if (it.clientPrice != null && Math.abs(it.clientPrice - Number(base.price)) > 0.001) {
+        changes.push({ kind: 'store', id: it.storeVariantId, name: base.name, reason: 'PRICE_CHANGED', previousPrice: it.clientPrice, currentPrice: Number(base.price) })
+      }
       priced.push({ ...it, name: base.name, unitPrice: Number(base.price), kind: 'store' })
       continue
     }
     const baseDish = dishMap.get(it.dishId)
-    if (!baseDish || !Number.isFinite(baseDish.price)) continue
+    if (!baseDish || !Number.isFinite(baseDish.price)) {
+      changes.push({ kind: 'dish', id: it.dishId, name: 'Блюдо', reason: 'UNAVAILABLE' })
+      continue
+    }
     const modMap = modsByDish.get(it.dishId) ?? new Map<string, number>()
+    const missingModifier = it.modifierIds.find((id) => !modMap.has(id))
+    if (missingModifier) {
+      changes.push({ kind: 'dish', id: it.dishId, name: baseDish.name, reason: 'MODIFIER_CHANGED' })
+    }
     const modsAdjust = it.modifierIds.reduce((sum, id) => sum + Number(modMap.get(id) ?? 0), 0)
-    priced.push({ ...it, name: baseDish.name, unitPrice: Math.max(0, Number(baseDish.price) + modsAdjust), kind: 'dish' })
+    const currentPrice = Math.max(0, Number(baseDish.price) + modsAdjust)
+    if (it.clientPrice != null && Math.abs(it.clientPrice - currentPrice) > 0.001) {
+      changes.push({ kind: 'dish', id: it.dishId, name: baseDish.name, reason: 'PRICE_CHANGED', previousPrice: it.clientPrice, currentPrice })
+    }
+    priced.push({ ...it, name: baseDish.name, unitPrice: currentPrice, kind: 'dish' })
   }
 
   const subtotal = priced.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0)
-  return { items: priced, subtotal }
+  return { items: priced, subtotal, changes }
 }

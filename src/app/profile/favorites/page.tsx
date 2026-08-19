@@ -80,7 +80,7 @@ export default function ProfileFavoritesPage() {
   useEffect(() => {
     let cancelled = false
     const loadFavorites = async () => {
-      const restaurantHeaders =
+      const restaurantHeaders: Record<string, string> =
         venueRestaurantId && venueRestaurantId !== 'default'
           ? { 'x-ufo-restaurant': venueRestaurantId }
           : {}
@@ -123,7 +123,7 @@ export default function ProfileFavoritesPage() {
     setRemovingId(dishId)
     setFavorites((rows) => rows.filter((row) => row.dishId !== dishId))
     try {
-      const restaurantHeaders =
+      const restaurantHeaders: Record<string, string> =
         venueRestaurantId && venueRestaurantId !== 'default'
           ? { 'x-ufo-restaurant': venueRestaurantId }
           : {}

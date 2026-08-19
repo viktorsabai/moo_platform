@@ -79,6 +79,7 @@ export default function CheckoutPage() {
 
   const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [staleCartChanges, setStaleCartChanges] = useState<Array<{ name: string; reason: string; previousPrice?: number; currentPrice?: number }>>([])
   const submitRequestIdRef = useRef<string | null>(null)
   const [promoCode, setPromoCode] = useState('')
   /** Акция без кода (AUTO / старые кампании) — валидация по id, как в /api/campaigns/validate */
@@ -644,10 +645,23 @@ export default function CheckoutPage() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        toast.error(data?.error || 'не удалось создать заказ')
+        if (res.status === 409 && data?.code === 'STALE_CART' && Array.isArray(data?.changes)) {
+          const changes = data.changes.map((change: any) => ({
+            name: String(change?.name || 'Позиция'),
+            reason: String(change?.reason || 'CHANGED'),
+            previousPrice: change?.previousPrice == null ? undefined : Number(change.previousPrice),
+            currentPrice: change?.currentPrice == null ? undefined : Number(change.currentPrice),
+          }))
+          setStaleCartChanges(changes)
+          window.dispatchEvent(new CustomEvent('ufo-cart-stale', { detail: { changes } }))
+          toast.error('Меню обновилось. Проверьте изменившиеся позиции и повторите заказ.')
+        } else {
+          toast.error(data?.error || 'не удалось создать заказ')
+        }
         setIsSubmitting(false)
         return
       }
+      setStaleCartChanges([])
       serverOrderId = typeof data?.orderId === 'string' ? data.orderId : undefined
     } catch {
       toast.error('не удалось отправить заказ на сервер')
@@ -784,6 +798,20 @@ export default function CheckoutPage() {
   return (
     <main className="ui-container ui-screen pb-[var(--ufo-scroll-pad-floating,calc(5.75rem+12px))]">
       <PageHeader backHref="/cart" title="оформление" subtitle="проверьте данные заказа" />
+      {staleCartChanges.length > 0 && (
+        <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50/90 p-4 text-[13px] text-amber-950">
+          <p className="font-bold">Меню обновилось — проверьте корзину</p>
+          <p className="mt-1 text-amber-900/80">Цена или доступность некоторых позиций изменились. Заказ не создан, данные доставки сохранены.</p>
+          <div className="mt-2 space-y-1">
+            {staleCartChanges.map((change, index) => (
+              <p key={`${change.name}-${index}`}>
+                {change.name}{change.reason === 'PRICE_CHANGED' && change.currentPrice != null ? ` · новая цена ${formatPrice(change.currentPrice)}` : ' · позиция недоступна или изменилась'}
+              </p>
+            ))}
+          </div>
+          <Link href="/cart" className="mt-3 inline-flex rounded-full bg-[#101927] px-4 py-2 font-semibold text-white">открыть корзину</Link>
+        </div>
+      )}
       <form id="checkout-form" onSubmit={handleSubmit} noValidate className="border-t border-[color:var(--stroke)]">
         <section className="border-b border-[color:var(--stroke)] py-3">
           <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">контакт</h3>

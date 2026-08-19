@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { slugifyOption } from '@/lib/menu-options'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -180,7 +181,14 @@ export async function POST(request: Request) {
       }
       return createdGroup
     })
-    return NextResponse.json({ ok: true, group })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'MenuOptionGroup',
+      entityId: group.id,
+    })
+    return NextResponse.json({ ok: true, group, sync: sync.state })
   } catch (e: any) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
       return NextResponse.json({ ok: false, error: 'Такая опция уже есть' }, { status: 400 })
@@ -239,7 +247,14 @@ export async function PUT(request: Request) {
         throw e
       }
     }
-    return NextResponse.json({ ok: true, value: { ...value, subscriptionImageUrl: (value as any).subscriptionImageUrl ?? null } })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'MenuOptionValue',
+      entityId: value.id,
+    })
+    return NextResponse.json({ ok: true, value: { ...value, subscriptionImageUrl: (value as any).subscriptionImageUrl ?? null }, sync: sync.state })
   } catch (e: any) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && (e.code === 'P2021' || e.code === 'P2022')) {
       return NextResponse.json({ ok: false, error: 'База ещё не обновлена для опций. Нужно применить миграцию.' }, { status: 503 })
@@ -292,7 +307,14 @@ export async function PATCH(request: Request) {
         const g = await tx.menuOptionGroup.update({ where: { id: groupId }, data })
         return g
       })
-      return NextResponse.json({ ok: true, group })
+      const sync = await publishRestaurantContentChange({
+        restaurantId: ctx.restaurantId,
+        domain: CONTENT_SYNC_DOMAINS.MENU,
+        action: 'UPSERT',
+        entityType: 'MenuOptionGroup',
+        entityId: group.id,
+      })
+      return NextResponse.json({ ok: true, group, sync: sync.state })
     }
     if (kind === 'value') {
       const valueId = typeof body?.valueId === 'string' ? body.valueId : ''
@@ -345,7 +367,14 @@ export async function PATCH(request: Request) {
           throw e
         }
       }
-      return NextResponse.json({ ok: true, value })
+      const sync = await publishRestaurantContentChange({
+        restaurantId: ctx.restaurantId,
+        domain: CONTENT_SYNC_DOMAINS.MENU,
+        action: 'UPSERT',
+        entityType: 'MenuOptionValue',
+        entityId: value.id,
+      })
+      return NextResponse.json({ ok: true, value, sync: sync.state })
     }
     return NextResponse.json({ ok: false, error: 'kind: group | value' }, { status: 400 })
   } catch (e: any) {
@@ -385,10 +414,12 @@ export async function DELETE(request: Request) {
           )
         }
         await prisma.menuOptionValue.delete({ where: { id: valueId } })
-        return NextResponse.json({ ok: true, deleted: 'value', mode: 'delete' })
+        const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'MenuOptionValue', entityId: valueId })
+        return NextResponse.json({ ok: true, deleted: 'value', mode: 'delete', sync: sync.state })
       }
       await prisma.menuOptionValue.update({ where: { id: valueId }, data: { isActive: false } })
-      return NextResponse.json({ ok: true, deleted: 'value', mode: 'hide' })
+      const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'MenuOptionValue', entityId: valueId })
+      return NextResponse.json({ ok: true, deleted: 'value', mode: 'hide', sync: sync.state })
     }
     if (groupId) {
       const g = await prisma.menuOptionGroup.findFirst({
@@ -410,13 +441,15 @@ export async function DELETE(request: Request) {
           )
         }
         await prisma.menuOptionGroup.delete({ where: { id: groupId } })
-        return NextResponse.json({ ok: true, deleted: 'group', mode: 'delete' })
+        const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'MenuOptionGroup', entityId: groupId })
+        return NextResponse.json({ ok: true, deleted: 'group', mode: 'delete', sync: sync.state })
       }
       await prisma.$transaction(async (tx) => {
         await tx.menuOptionValue.updateMany({ where: { groupId }, data: { isActive: false } })
         await tx.menuOptionGroup.update({ where: { id: groupId }, data: { isActive: false } })
       })
-      return NextResponse.json({ ok: true, deleted: 'group', mode: 'hide' })
+      const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'MenuOptionGroup', entityId: groupId })
+      return NextResponse.json({ ok: true, deleted: 'group', mode: 'hide', sync: sync.state })
     }
     return NextResponse.json({ ok: false, error: 'Нужен groupId или valueId' }, { status: 400 })
   } catch (e: any) {

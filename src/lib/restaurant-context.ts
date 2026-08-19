@@ -251,33 +251,12 @@ export async function getConsumerRestaurantResolution(): Promise<{
     return row?.id ?? null
   }
 
-  // Single-tenant pin: дефолт остаётся forced, но реальный id из WebApp (шапка / cookie) важен для акций и данных,
-  // если в БД заведение не совпадает с UFO_SINGLE_RESTAURANT_ID.
+  // In forced single-tenant pilot mode, consumer reads must never trust a
+  // client-supplied restaurant id. Header/cookie values are user-controlled
+  // and may be stale or intentionally changed to another tenant. Operators
+  // can still switch their managed venue through the authenticated admin
+  // context; the public guest surface remains pinned to the pilot tenant.
   if (forcedRestaurantId) {
-    if (headerRestaurantId && !isConsumerPlaceholderRestaurantId(headerRestaurantId)) {
-      const hid = await resolveExistingRestaurantId(headerRestaurantId)
-      if (hid) {
-        return {
-          restaurantId: hid,
-          source: 'header',
-          headerRestaurantId: hid,
-          cookieRestaurantId: overridden || undefined,
-          sessionRestaurantId: undefined,
-        }
-      }
-    }
-    if (overridden && !isConsumerPlaceholderRestaurantId(overridden)) {
-      const cid = await resolveExistingRestaurantId(overridden)
-      if (cid) {
-        return {
-          restaurantId: cid,
-          source: 'cookie',
-          headerRestaurantId: headerRestaurantId || undefined,
-          cookieRestaurantId: cid,
-          sessionRestaurantId: undefined,
-        }
-      }
-    }
     return {
       restaurantId: forcedRestaurantId,
       source: 'default',

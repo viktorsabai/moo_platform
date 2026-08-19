@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, price: true, qty: true, isActive: true },
     })
-    return NextResponse.json({ ok: true, variant: { ...created, price: Number(created.price) } })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'StoreVariant', entityId: created.id })
+    return NextResponse.json({ ok: true, variant: { ...created, price: Number(created.price) }, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })
@@ -78,7 +80,8 @@ export async function PATCH(request: Request) {
       select: { id: true, name: true, price: true, qty: true, isActive: true },
     })
 
-    return NextResponse.json({ ok: true, variant: { ...updated, price: Number(updated.price) } })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'UPSERT', entityType: 'StoreVariant', entityId: updated.id })
+    return NextResponse.json({ ok: true, variant: { ...updated, price: Number(updated.price) }, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })
@@ -103,7 +106,8 @@ export async function DELETE(request: Request) {
       where: { id: existing.id },
     })
 
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({ restaurantId: ctx.restaurantId, domain: CONTENT_SYNC_DOMAINS.MENU, action: 'DELETE', entityType: 'StoreVariant', entityId: existing.id })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })

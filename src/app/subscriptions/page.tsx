@@ -16,6 +16,7 @@ import { SubscriptionHubDraftBanner } from '@/features/subscriptions/components/
 import { PageHeader } from '@/components/ui/PageHeader'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { type SubscriptionConfig } from '@/lib/subscription-config'
+import { useContentSync } from '@/hooks/useContentSync'
 
 export type StatusFilterKey = 'all' | 'active' | 'pending' | 'ended' | 'draft'
 
@@ -40,6 +41,7 @@ function SubscriptionsPageContent() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(true)
   const [guestConfig, setGuestConfig] = useState<SubscriptionConfig | null>(null)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   const loadSubscriptions = useCallback(async () => {
     setLoadError(null)
@@ -103,18 +105,31 @@ function SubscriptionsPageContent() {
     if (id) setFocusSubscriptionId(id)
   }, [searchParams])
 
-  useEffect(() => {
-    fetch('/api/subscriptions/config', {
-      cache: 'no-store',
-      credentials: 'include',
-      headers: { ...telegramInitHeaderRecord() },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.ok && data.config) setGuestConfig(data.config)
+  const loadGuestConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/subscriptions/config', {
+        cache: 'no-store',
+        credentials: 'include',
+        headers: { ...telegramInitHeaderRecord() },
       })
-      .catch(() => {})
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.ok && data.config) setGuestConfig(data.config)
+    } catch {
+      // Keep the last known config; the next sync tick retries.
+    }
   }, [])
+
+  useEffect(() => {
+    void loadGuestConfig()
+  }, [loadGuestConfig])
+
+  useContentSync({
+    onSubscriptionChanged: async () => {
+      await Promise.all([loadSubscriptions(), loadGuestConfig()])
+      setSyncMessage('Подписка обновлена — каталог и настройки актуальны')
+      window.setTimeout(() => setSyncMessage(null), 4500)
+    },
+  })
 
   const subscriptions = useMemo(() => storeSubscriptions, [storeSubscriptions])
 
@@ -178,6 +193,12 @@ function SubscriptionsPageContent() {
           </Link>
         </div>
       </div>
+
+      {syncMessage && (
+        <div className="mb-3 rounded-[16px] border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[12px] font-semibold text-emerald-900" role="status">
+          {syncMessage}
+        </div>
+      )}
 
       <SubscriptionHubTabs tab={hubTab} onTab={setHubTab} listCount={subscriptions.length} />
 

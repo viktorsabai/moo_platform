@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { computeGuestDeliveryFee } from '@/lib/delivery-quote'
+import { computeGuestDeliveryFee, type DeliveryQuoteResult } from '@/lib/delivery-quote'
 import { DELIVERY_SETTINGS_CHANGED_EVENT } from '@/lib/delivery-settings-events'
 import { DELIVERY_PROFILE_CHANGED_EVENT, loadDeliveryProfile } from '@/lib/delivery-profile'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
@@ -14,22 +14,7 @@ export type GuestDeliveryZoneSummary = {
   deliveryWindowMin: number
 }
 
-export type GuestDeliveryQuote = {
-  matched: boolean
-  reason?: string
-  message?: string
-  zone?: {
-    id: string
-    name: string
-    districtId?: string | null
-    districtName?: string | null
-    deliveryFee: number
-    minOrderAmount: number
-    deliveryWindowMin: number
-    minOrderSatisfied: boolean
-    missingForMinOrder: number
-  }
-}
+export type GuestDeliveryQuote = DeliveryQuoteResult & { message?: string }
 
 export type GuestDeliveryAddressInput = {
   address: string
@@ -189,12 +174,11 @@ export function useGuestDelivery({
         })
         const data = await res.json().catch(() => null)
         if (!cancelled && data?.ok) {
-          setQuote({
-            matched: Boolean(data.matched),
-            reason: data.reason,
-            message: data.message,
-            zone: data.zone,
-          })
+          if (data.matched && data.zone) {
+            setQuote({ matched: true, zone: data.zone })
+          } else {
+            setQuote({ matched: false, reason: data.reason, message: data.message })
+          }
         }
       } catch {
         if (!cancelled) setQuote(null)
@@ -215,7 +199,7 @@ export function useGuestDelivery({
     if (quote && !quote.matched) return 0
     return computeGuestDeliveryFee({
       subtotal,
-      quote: quote?.matched && quote.zone ? { matched: true, zone: quote.zone } : null,
+      quote: quote?.matched ? quote : null,
       fallbackDeliveryFee: settings.deliveryFee,
       fallbackFreeDeliveryFrom: settings.freeDeliveryFrom,
     })

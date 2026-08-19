@@ -75,6 +75,8 @@ export function SubscriptionCheckoutFlow() {
   const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const [slotsByWizardDay, setSlotsByWizardDay] = useState<Record<number, MealSlot[]>>({})
   const [menuCategories, setMenuCategories] = useState<MenuCategory[]>([])
+  const [subscriptionVersion, setSubscriptionVersion] = useState<number | null>(null)
+  const [staleDraftNotice, setStaleDraftNotice] = useState(false)
   const [editingLine, setEditingLine] = useState<SelectedLine | null>(null)
   const createRequestIdRef = useRef<string | null>(null)
 
@@ -109,11 +111,14 @@ export function SubscriptionCheckoutFlow() {
     async function load() {
       setLoading(true)
       try {
-        const [cfgRes, dishRes] = await Promise.all([
+        const [cfgRes, dishRes, syncRes] = await Promise.all([
           fetch('/api/subscriptions/config', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
           fetch('/api/dishes?subscriptionEligible=true', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
+          fetch('/api/sync/state', { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } }),
         ])
         const cfgData = await cfgRes.json().catch(() => null)
+        const syncData = await syncRes.json().catch(() => null)
+        if (Number.isFinite(Number(syncData?.subscriptionVersion))) setSubscriptionVersion(Number(syncData.subscriptionVersion))
         const dishJson = await dishRes.json().catch(() => [])
         let dishList = dishRes.ok ? parseJsonArray<any>(dishJson) : []
         if (dishList.length === 0) {
@@ -261,6 +266,12 @@ export function SubscriptionCheckoutFlow() {
     const draft = loadSubscriptionBuilderDraft(restaurantId)
     if (!draft?.lines?.length) return
     draftHydratedRef.current = true
+    if (subscriptionVersion != null && draft.subscriptionVersion != null && draft.subscriptionVersion < subscriptionVersion) {
+      setStaleDraftNotice(true)
+      clearSubscriptionBuilderDraft(restaurantId)
+      toast('Меню подписки обновилось. Черновик сброшен — соберите актуальный рацион.', { icon: '↻' })
+      return
+    }
     setLines(draft.lines as SelectedLine[])
     if (draft.selectedDays?.length) {
       setSelectedDays(draft.selectedDays)
@@ -279,15 +290,16 @@ export function SubscriptionCheckoutFlow() {
     }
     if (draft.name) setName(draft.name)
     if (draft.phase === 'checkout') setPhase('checkout')
-  }, [loading, resumeId, restaurantId])
+  }, [loading, resumeId, restaurantId, subscriptionVersion])
 
   useEffect(() => {
     if (loading || resumeId) return
     const t = setTimeout(() => {
       if (!lines.length && !selectedDays.length) return
-      saveSubscriptionBuilderDraft(restaurantId, {
+        saveSubscriptionBuilderDraft(restaurantId, {
         v: 1,
         updatedAt: Date.now(),
+        subscriptionVersion: subscriptionVersion ?? undefined,
         phase,
         selectedDays,
         activeWizardDay,
@@ -322,6 +334,7 @@ export function SubscriptionCheckoutFlow() {
     deliveryTime,
     startDate,
     name,
+    subscriptionVersion,
   ])
 
   const quotePayload = useMemo(
@@ -394,12 +407,6 @@ export function SubscriptionCheckoutFlow() {
     }
     return list
   }, [catalogDishes, subConfig, activeSlot])
-
-  const recommendedDishIds = useMemo(() => {
-    const sc = subConfig.mealSlots[activeSlot]
-    const defs = sc?.defaultDishIds?.length ? sc.defaultDishIds : (sc?.dishIds ?? []).slice(0, 4)
-    return defs.filter((id) => dishesForSlot.some((d) => d.id === id))
-  }, [subConfig, activeSlot, dishesForSlot])
 
   const activeQuote = quotesByPeriod[periodDays] ?? null
 
@@ -593,10 +600,6 @@ export function SubscriptionCheckoutFlow() {
     )
   }
 
-  function removeLine(target: SelectedLine) {
-    setLines((prev) => prev.filter((x) => lineKey(x) !== lineKey(target)))
-  }
-
   function setLineModifierIds(target: SelectedLine, modifierIds: string[]) {
     const k = lineKey(target)
     setLines((prev) => prev.map((x) => (lineKey(x) === k ? { ...x, modifierIds } : x)))
@@ -752,7 +755,6 @@ export function SubscriptionCheckoutFlow() {
         enabledSlots={enabledSlots}
         pickerDishes={dishesForSlot}
         lines={lines}
-        recommendedDishIds={recommendedDishIds}
         menuCategories={menuCategories}
         subConfig={subConfig}
         minDays={minDays}
@@ -796,7 +798,15 @@ export function SubscriptionCheckoutFlow() {
   }
 
   return (
-    <SubscriptionCheckoutConfigPhase
+    <>
+      {staleDraftNotice && (
+        <div className="ui-container ui-screen mb-4 rounded-[18px] border border-amber-200 bg-amber-50/90 p-4 text-[13px] text-amber-950">
+          <p className="font-bold">Рацион обновился</p>
+          <p className="mt-1 text-amber-900/80">Состав, цена или доступность блюд изменились. Старый черновик очищен, чтобы не оформить устаревшую подписку.</p>
+          <button type="button" className="mt-3 rounded-full bg-[#101927] px-4 py-2 font-semibold text-white" onClick={() => setStaleDraftNotice(false)}>собрать актуальный рацион</button>
+        </div>
+      )}
+      <SubscriptionCheckoutConfigPhase
       resumeId={resumeId}
       lines={lines}
       dishes={dishes}
@@ -827,6 +837,7 @@ export function SubscriptionCheckoutFlow() {
       onName={setName}
       onEditRation={() => setPhase('build')}
       onSubmit={() => void submit()}
-    />
+      />
+    </>
   )
 }

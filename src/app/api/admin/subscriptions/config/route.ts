@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getPeriodDiscountPercent } from '@/lib/subscription-config'
 import { calculateSubscriptionQuote } from '@/lib/subscription-pricing'
 import { parseMealSlot } from '@/lib/subscription-meal-slots'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -107,7 +108,13 @@ export async function PATCH(request: Request) {
     const body = await request.json().catch(() => ({}))
     const config = parseSubscriptionConfig(body?.config ?? body)
     const saved = await saveSubscriptionConfig(ctx.restaurantId, config)
-    return NextResponse.json({ ok: true, config: saved })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.SUBSCRIPTION,
+      action: 'CONFIG_CHANGED',
+      entityType: 'SubscriptionConfig',
+    })
+    return NextResponse.json({ ok: true, config: saved, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })

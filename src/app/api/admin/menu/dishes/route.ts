@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -318,9 +319,18 @@ export async function POST(request: Request) {
       }
     }
 
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'Dish',
+      entityId: created.id,
+    })
+
     return NextResponse.json({
       ok: true,
       dish: { ...created, price: Number(created.price), costPrice: created.costPrice == null ? null : Number(created.costPrice) },
+      sync: sync.state,
     })
   } catch (e: any) {
     if (e?.code === 'P2002') {
@@ -445,7 +455,15 @@ export async function PATCH(request: Request) {
         })
       )
 
-      return NextResponse.json({ ok: true, updated: targets.length })
+      const sync = await publishRestaurantContentChange({
+        restaurantId: ctx.restaurantId,
+        domain: CONTENT_SYNC_DOMAINS.MENU,
+        action: 'UPSERT',
+        entityType: 'DishBatch',
+        payload: { count: targets.length },
+      })
+
+      return NextResponse.json({ ok: true, updated: targets.length, sync: sync.state })
     }
 
     const id = typeof body?.id === 'string' ? body.id : ''
@@ -521,7 +539,9 @@ export async function PATCH(request: Request) {
             .filter((v: any) => v.optionValueId)
             .slice(0, 40)
 
-    const optionValueIds = normalizedOptions ? [...new Set(normalizedOptions.map((v: any) => v.optionValueId))] : []
+    const optionValueIds: string[] = normalizedOptions
+      ? Array.from(new Set<string>(normalizedOptions.map((v: any) => String(v.optionValueId))))
+      : []
     const effectiveRestaurantId = String(existing.restaurantId || ctx.restaurantId)
     // Single-restaurant production can still have stale tenant context in session.
     // Validate by primary key only so dish edit is not blocked by context drift.
@@ -612,6 +632,14 @@ export async function PATCH(request: Request) {
       }
     }
 
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'Dish',
+      entityId: id,
+    })
+
     return NextResponse.json({
       ok: true,
       optionsUpdated: safeOptions && !optionsAllInvalid ? safeOptions.length : 0,
@@ -620,6 +648,7 @@ export async function PATCH(request: Request) {
           ? 'выбранные значения опций не найдены'
           : undefined,
       reqId,
+      sync: sync.state,
     })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
@@ -661,7 +690,17 @@ export async function DELETE(request: Request) {
       where: { id: { in: toDelete }, restaurantId: ctx.restaurantId },
     })
 
-    return NextResponse.json({ ok: true, deleted: count })
+    const sync = count > 0
+      ? await publishRestaurantContentChange({
+          restaurantId: ctx.restaurantId,
+          domain: CONTENT_SYNC_DOMAINS.MENU,
+          action: 'DELETE',
+          entityType: 'DishBatch',
+          payload: { count },
+        })
+      : null
+
+    return NextResponse.json({ ok: true, deleted: count, sync: sync?.state ?? null })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: 'Ошибка' }, { status })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -80,7 +81,14 @@ export async function POST(request: Request) {
       select: { id: true, name: true, slug: true, order: true },
     })
 
-    return NextResponse.json({ ok: true, category: created })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'Category',
+      entityId: created.id,
+    })
+    return NextResponse.json({ ok: true, category: created, sync: sync.state })
   } catch (e: any) {
     if (e?.code === 'P2002') {
       return NextResponse.json({ ok: false, error: 'категория с таким идентификатором уже есть' }, { status: 400 })
@@ -118,7 +126,14 @@ export async function PATCH(request: Request) {
     }
     if (Object.keys(data).length === 0) return NextResponse.json({ ok: false, error: 'нет полей для обновления' }, { status: 400 })
     await prisma.category.update({ where: { id }, data })
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'Category',
+      entityId: id,
+    })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: e?.message || 'Ошибка' }, { status })
@@ -203,10 +218,19 @@ export async function DELETE(request: Request) {
       })
     })
 
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'DELETE',
+      entityType: 'CategoryBatch',
+      payload: { count: categoryIds.length, archivedDishes: protectedDishIds.length },
+    })
+
     return NextResponse.json({
       ok: true,
       deleted: categoryIds.length,
       archivedDishes: protectedDishIds.length,
+      sync: sync.state,
     })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -129,7 +130,15 @@ export async function PUT(request: Request) {
       dishId,
       updatedCount: safe.length,
     })
-    return NextResponse.json({ ok: true, updated: safe.length })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: effectiveRestaurantId,
+      domain: CONTENT_SYNC_DOMAINS.MENU,
+      action: 'UPSERT',
+      entityType: 'DishOptionValueBatch',
+      entityId: dishId,
+      payload: { count: safe.length },
+    })
+    return NextResponse.json({ ok: true, updated: safe.length, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     logDishOptionsDebug('error', {

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { getDefaultPlanBySlug } from '@/lib/subscription-plans'
 import { loadSubscriptionPlanTemplates } from '@/lib/subscription-plan-templates-load'
+import { CONTENT_SYNC_DOMAINS, publishRestaurantContentChange } from '@/lib/content-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -145,9 +146,18 @@ export async function POST(request: Request) {
       select: { id: true, name: true, price: true, plan: true, presetSlug: true, order: true, isActive: true },
     })
 
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.SUBSCRIPTION,
+      action: 'UPSERT',
+      entityType: 'SubscriptionPlanTemplate',
+      entityId: created.id,
+    })
+
     return NextResponse.json({
       ok: true,
       plan: { ...created, price: Number(created.price) },
+      sync: sync.state,
     })
   } catch (e: any) {
     // #region agent log
@@ -210,7 +220,15 @@ export async function PATCH(request: Request) {
       data,
     })
 
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.SUBSCRIPTION,
+      action: 'UPSERT',
+      entityType: 'SubscriptionPlanTemplate',
+      entityId: id,
+    })
+
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
     return NextResponse.json({ ok: false, error: 'Ошибка' }, { status })
@@ -273,7 +291,14 @@ export async function DELETE(request: Request) {
     // #region agent log
     debugLog('DELETE:afterDelete', { id }, 'H2')
     // #endregion
-    return NextResponse.json({ ok: true })
+    const sync = await publishRestaurantContentChange({
+      restaurantId: ctx.restaurantId,
+      domain: CONTENT_SYNC_DOMAINS.SUBSCRIPTION,
+      action: 'DELETE',
+      entityType: 'SubscriptionPlanTemplate',
+      entityId: id,
+    })
+    return NextResponse.json({ ok: true, sync: sync.state })
   } catch (e: any) {
     // #region agent log
     debugLog('DELETE:catch', { errMsg: String(e?.message || e), code: e?.code }, 'H2')
