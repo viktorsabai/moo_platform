@@ -26,23 +26,26 @@ export async function POST(request: Request) {
     const body = await request.text()
     const event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET)
 
+    let updatedOrders = 0
     if (event.type === 'payment_intent.succeeded') {
       const intent = event.data.object as Stripe.PaymentIntent
-      await prisma.order.updateMany({
-        where: { paymentIntentId: intent.id },
+      const result = await prisma.order.updateMany({
+        where: { paymentIntentId: intent.id, paymentStatus: { not: 'PAID' } },
         data: { paymentStatus: 'PAID' },
       })
+      updatedOrders = result.count
     }
 
     if (event.type === 'payment_intent.payment_failed') {
       const intent = event.data.object as Stripe.PaymentIntent
-      await prisma.order.updateMany({
-        where: { paymentIntentId: intent.id },
+      const result = await prisma.order.updateMany({
+        where: { paymentIntentId: intent.id, paymentStatus: { not: 'FAILED' } },
         data: { paymentStatus: 'FAILED' },
       })
+      updatedOrders = result.count
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, replaySafe: true, updatedOrders })
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_webhook' }, { status: 400 })
   }
