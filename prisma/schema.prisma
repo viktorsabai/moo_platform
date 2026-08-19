@@ -69,13 +69,14 @@ model User {
   sessions                Session[]
   accounts                Account[]
   memberships             RestaurantMember[]
-  invitesCreated          RestaurantInvite[]       @relation("RestaurantInvitesCreated")
+  invitesCreated          RestaurantInvite[]          @relation("RestaurantInvitesCreated")
   favoriteDishes          FavoriteDish[]
   serviceLeads            ServiceLead[]
   activityEvents          UserActivityEvent[]
-  assignedCampaigns       Campaign[]               @relation("CampaignAssignedUser")
+  assignedCampaigns       Campaign[]                  @relation("CampaignAssignedUser")
   campaignRedemptions     CampaignRedemption[]
   notificationPreferences NotificationPreference[]
+  mealPlanDrafts          SubscriptionMealPlanDraft[] @relation("MealPlanDraftOwner")
 }
 
 model Restaurant {
@@ -112,6 +113,7 @@ model Restaurant {
   contentSyncState          RestaurantContentSyncState?
   contentSyncEvents         RestaurantContentSyncEvent[]
   notificationPreferences   NotificationPreference[]
+  mealPlanDrafts            SubscriptionMealPlanDraft[]
 }
 
 model BotIntegration {
@@ -275,8 +277,9 @@ model SubscriptionPlanTemplate {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  subscriptions Subscription[]
+  restaurant     Restaurant                  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  subscriptions  Subscription[]
+  mealPlanDrafts SubscriptionMealPlanDraft[]
 
   @@index([restaurantId])
   @@index([restaurantId, isActive, order])
@@ -707,6 +710,30 @@ model OrderItem {
   @@index([orderId])
   @@index([dishId])
   @@index([storeVariantId])
+}
+
+// Серверный черновик конкретного рациона владельца
+model SubscriptionMealPlanDraft {
+  id              String    @id @default(cuid())
+  restaurantId    String
+  createdByUserId String
+  planTemplateId  String?
+  name            String    @default("Новый рацион")
+  status          String    @default("DRAFT")
+  periodDays      Int       @default(7)
+  personCount     Int       @default(1)
+  payload         Json
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastOpenedAt    DateTime?
+
+  restaurant   Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation("MealPlanDraftOwner", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  planTemplate SubscriptionPlanTemplate? @relation(fields: [planTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, status, updatedAt])
+  @@index([restaurantId, createdByUserId, updatedAt])
+  @@index([planTemplateId])
 }
 
 // Подписка
