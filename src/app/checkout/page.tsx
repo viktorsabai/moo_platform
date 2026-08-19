@@ -79,6 +79,7 @@ export default function CheckoutPage() {
 
   const [telegramContact, setTelegramContact] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [staleCartChanges, setStaleCartChanges] = useState<Array<{ name: string; reason: string; previousPrice?: number; currentPrice?: number }>>([])
   const submitRequestIdRef = useRef<string | null>(null)
   const [promoCode, setPromoCode] = useState('')
@@ -499,9 +500,12 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
+    setSubmitError(null)
 
     if (deliveryMethod === 'DELIVERY' && (!deliveryQuote || !deliveryQuote.matched)) {
-      toast.error(deliveryQuote?.message || 'Укажите адрес в зоне доставки')
+      const message = deliveryQuote?.message || 'Укажите адрес в зоне доставки'
+      setSubmitError(message)
+      toast.error(message)
       setIsSubmitting(false)
       return
     }
@@ -517,14 +521,18 @@ export default function CheckoutPage() {
       venueRid !== 'default' &&
       cartRid !== venueRid
     ) {
-      toast.error('Корзина от другого заведения. Очистите корзину и добавьте товары заново.')
+      const message = 'Корзина от другого заведения. Очистите корзину и добавьте товары заново.'
+      setSubmitError(message)
+      toast.error(message)
       setIsSubmitting(false)
       return
     }
 
     // Валидация (делаем сами, без HTML required — в Telegram/iOS иногда не показывает подсказку и выглядит как “не нажимается”)
     if (!formData.name || (deliveryMethod === 'DELIVERY' && !formData.address)) {
-      toast.error('Заполните все обязательные поля')
+      const message = 'Заполните обязательные поля: имя и данные доставки.'
+      setSubmitError(message)
+      toast.error(message)
       setIsSubmitting(false)
       return
     }
@@ -552,7 +560,9 @@ export default function CheckoutPage() {
       .filter((it) => (it.kind === 'store' ? it.storeVariantId : it.dishId) && it.quantity > 0 && it.price >= 0)
 
     if (!lineItems.length) {
-      toast.error('корзина пуста')
+      const message = 'Корзина пуста. Вернитесь в меню и добавьте блюда.'
+      setSubmitError(message)
+      toast.error(message)
       setIsSubmitting(false)
       return
     }
@@ -583,13 +593,17 @@ export default function CheckoutPage() {
         })
         const intentData = await intentRes.json().catch(() => null)
         if (!intentRes.ok || !intentData?.ok || !intentData?.paymentIntentId) {
-          toast.error(intentData?.error || 'Не удалось инициализировать онлайн-оплату')
+          const message = intentData?.error || 'Не удалось инициализировать онлайн-оплату'
+          setSubmitError(message)
+          toast.error(message)
           setIsSubmitting(false)
           return
         }
         paymentIntentId = String(intentData.paymentIntentId)
       } catch {
-        toast.error('Ошибка инициализации онлайн-оплаты')
+        const message = 'Ошибка инициализации онлайн-оплаты'
+        setSubmitError(message)
+        toast.error(message)
         setIsSubmitting(false)
         return
       }
@@ -654,17 +668,31 @@ export default function CheckoutPage() {
           }))
           setStaleCartChanges(changes)
           window.dispatchEvent(new CustomEvent('ufo-cart-stale', { detail: { changes } }))
-          toast.error('Меню обновилось. Проверьте изменившиеся позиции и повторите заказ.')
+          const message = 'Меню обновилось. Проверьте изменившиеся позиции и повторите заказ.'
+          setSubmitError(message)
+          toast.error(message)
         } else {
-          toast.error(data?.error || 'не удалось создать заказ')
+          const message = data?.error || `Не удалось создать заказ (HTTP ${res.status})`
+          setSubmitError(message)
+          toast.error(message)
         }
         setIsSubmitting(false)
         return
       }
       setStaleCartChanges([])
+      setSubmitError(null)
       serverOrderId = typeof data?.orderId === 'string' ? data.orderId : undefined
+      if (!serverOrderId) {
+        const message = 'Сервер не вернул номер заказа. Обновите экран и повторите попытку.'
+        setSubmitError(message)
+        toast.error(message)
+        setIsSubmitting(false)
+        return
+      }
     } catch {
-      toast.error('не удалось отправить заказ на сервер')
+      const message = 'Не удалось отправить заказ на сервер. Проверьте соединение и повторите.'
+      setSubmitError(message)
+      toast.error(message)
       setIsSubmitting(false)
       return
     }
@@ -798,6 +826,13 @@ export default function CheckoutPage() {
   return (
     <main className="ui-container ui-screen pb-[var(--ufo-scroll-pad-floating,calc(5.75rem+12px))]">
       <PageHeader backHref="/cart" title="оформление" subtitle="проверьте данные заказа" />
+      {submitError && (
+        <div role="alert" className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50/95 p-4 text-[13px] text-rose-950">
+          <p className="font-bold">Заказ не отправлен</p>
+          <p className="mt-1 break-words">{submitError}</p>
+          <p className="mt-2 text-[11px] text-rose-900/70">Проверьте данные и повторите попытку.</p>
+        </div>
+      )}
       {staleCartChanges.length > 0 && (
         <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50/90 p-4 text-[13px] text-amber-950">
           <p className="font-bold">Меню обновилось — проверьте корзину</p>
