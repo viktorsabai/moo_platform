@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { AdminDashboardSections } from '@/app/admin/AdminDashboardSections'
 import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
+import { OwnerCopilotPanel } from '@/components/admin/OwnerCopilotPanel'
 import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
 import { Card } from '@/components/ui/Card'
 
@@ -457,6 +458,7 @@ export default async function AdminHomePage() {
         subscriptionRequestLeads={newLeadsCount}
         restaurantName={dashboardData.restaurantName}
       />
+      <OwnerCopilotPanel />
       <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
     </main>
   )
