@@ -55,10 +55,39 @@ export default function SubscriptionDetailsPage() {
 
   const [loaded, setLoaded] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
+  const [deliveryActionId, setDeliveryActionId] = useState<string | null>(null)
   const [fetchedById, setFetchedById] = useState(false)
   const subscription = useMemo(() => (id ? getSubscription(id) : undefined), [id, getSubscription])
 
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
+
+  async function skipDelivery(deliveryId: string) {
+    if (!window.confirm('Пропустить эту доставку?')) return
+    setDeliveryActionId(deliveryId)
+    try {
+      const res = await fetch(`/api/subscriptions/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json', ...telegramInitHeaderRecord() },
+        body: JSON.stringify({ action: 'skip_delivery', deliveryId }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) {
+        window.alert(data?.error || 'Не удалось пропустить доставку')
+        return
+      }
+      const refreshed = await fetch(`/api/subscriptions/${id}`, { cache: 'no-store', credentials: 'include', headers: { ...telegramInitHeaderRecord() } })
+      const refreshedData = await refreshed.json().catch(() => null)
+      if (refreshed.ok && refreshedData?.ok && refreshedData.subscription) {
+        const next = refreshedData.subscription
+        updateSubscription(id, { ...next, price: Number(next.price ?? 0), nextDelivery: next.nextDelivery ? new Date(next.nextDelivery) : undefined, items: Array.isArray(next.items) ? next.items : [] } as any)
+      }
+    } catch {
+      window.alert('Ошибка сети. Повторите попытку.')
+    } finally {
+      setDeliveryActionId(null)
+    }
+  }
 
   useEffect(() => {
     if (subscriptions.length > 0) {
@@ -362,8 +391,19 @@ export default function SubscriptionDetailsPage() {
                     className="mt-1 text-[11px] font-semibold"
                     style={{ color: isDelivered ? 'var(--accent)' : 'var(--muted)' }}
                   >
-                    {isDelivered ? 'получено' : 'ожидается'}
+                    {isDelivered ? 'получено' : d.status === 'SKIPPED' ? 'пропущено' : 'ожидается'}
                   </p>
+                  {(d.status === 'SCHEDULED' || d.status === 'CONFIRMED') && new Date(d.scheduledDate) > new Date() && (
+                    <button
+                      type="button"
+                      disabled={deliveryActionId === d.id}
+                      onClick={() => void skipDelivery(d.id)}
+                      className="mt-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold disabled:opacity-50"
+                      style={{ borderColor: 'var(--stroke)', color: 'var(--text)', borderRadius: 'var(--radius-pill)' }}
+                    >
+                      {deliveryActionId === d.id ? '…' : 'пропустить'}
+                    </button>
+                  )}
                   {dayItems.length > 0 && (
                     <ul className="mt-2 space-y-0.5 border-t pt-2" style={{ borderColor: 'var(--stroke)' }}>
                       {dayItems.slice(0, 3).map((it) => (
