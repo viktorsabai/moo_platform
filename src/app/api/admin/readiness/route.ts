@@ -30,12 +30,16 @@ export async function GET() {
       { id: 'payment', label: 'Есть способ оплаты', ok: enabledPaymentMethods > 0, href: '/admin/venue?section=payments' },
       { id: 'hours', label: 'Заполнены часы работы', ok: Boolean(settings?.openTime && settings?.closeTime), href: '/admin/venue' },
     ]
+    const blockingChecks = checks.filter((check) => !check.ok).map((check) => check.id)
     return NextResponse.json({
       ok: true,
-      ready: checks.every((check) => check.ok),
+      ready: blockingChecks.length === 0,
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
       commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+      generatedAt: new Date().toISOString(),
       restaurantId,
+      previewPath: '/',
+      blockingChecks,
       checks,
       summary: { dishes, availableDishes, categories, zones: zoneCount, enabledPaymentMethods },
     })
