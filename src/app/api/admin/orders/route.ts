@@ -110,8 +110,14 @@ export async function GET(request: Request) {
     })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
+    const code = status === 403 ? 'OPS_FORBIDDEN' : String(e?.code || 'OPS_ORDERS_UNAVAILABLE')
+    console.error('[admin/orders] request failed', { code, status, message: e?.message, name: e?.name })
     return NextResponse.json(
-      { ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' },
+      {
+        ok: false,
+        code,
+        error: status === 403 ? 'Нет доступа к операционной очереди.' : 'Не удалось загрузить операционную очередь.',
+      },
       { status }
     )
   }
@@ -249,8 +255,14 @@ export async function PATCH(request: Request) {
     })
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
+    const code = status === 403 ? 'OPS_FORBIDDEN' : String(e?.code || 'OPS_STATUS_UPDATE_FAILED')
+    console.error('[admin/orders] status update failed', { code, status, message: e?.message, name: e?.name })
     return NextResponse.json(
-      { ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' },
+      {
+        ok: false,
+        code,
+        error: status === 403 ? 'Нет доступа к изменению заказа.' : 'Не удалось обновить заказ.',
+      },
       { status }
     )
   }

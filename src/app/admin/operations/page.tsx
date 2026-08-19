@@ -26,15 +26,20 @@ export default function OperationsWorkspacePage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setErrorCode(null)
     try {
       const res = await fetch('/api/admin/orders', { cache: 'no-store', credentials: 'include' })
       const data = await res.json().catch(() => null)
-      if (!res.ok || !data?.ok) throw new Error(data?.error || 'не удалось загрузить очередь')
+      if (!res.ok || !data?.ok) {
+        setErrorCode(typeof data?.code === 'string' ? data.code : `HTTP_${res.status}`)
+        throw new Error(data?.error || 'Не удалось загрузить операционную очередь.')
+      }
       setOrders(Array.isArray(data.orders) ? data.orders : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'не удалось загрузить очередь')
@@ -78,7 +83,17 @@ export default function OperationsWorkspacePage() {
         {[['нужно сделать', queue.length], ['проверка оплаты', paymentReview.length], ['активные', activeOrders.length]].map(([label, value]) => <div key={String(label)} className="rounded-[20px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3"><div className="text-[20px] font-black tabular-nums text-[color:var(--text)]">{value}</div><div className="mt-1 text-[10px] font-extrabold text-[color:var(--muted)]">{label}</div></div>)}
       </section>
 
-      {error ? <div className="mt-4 rounded-[22px] border border-rose-200 bg-rose-50 p-4 text-[13px] font-semibold text-rose-900"><p>{error}</p><button type="button" onClick={() => void load()} className="mt-3 rounded-full bg-rose-900 px-3 py-2 text-[11px] font-extrabold text-white">повторить</button></div> : null}
+      {error ? (
+        <div className="mt-4 rounded-[22px] border border-rose-200 bg-rose-50 p-4 text-rose-950">
+          <p className="text-[14px] font-black">не удалось загрузить очередь</p>
+          <p className="mt-1 text-[12px] font-semibold leading-relaxed">{error}</p>
+          {errorCode ? <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-wide text-rose-800/70">код: {errorCode}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => void load()} className="rounded-full bg-rose-900 px-3.5 py-2.5 text-[11px] font-extrabold text-white">повторить</button>
+            <Link href="/admin/settings" prefetch={false} className="rounded-full border border-rose-300 bg-white/60 px-3.5 py-2.5 text-[11px] font-extrabold text-rose-950">проверить настройки</Link>
+          </div>
+        </div>
+      ) : null}
       {loading ? <div className="mt-4 rounded-[24px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-5 text-[13px] font-semibold text-[color:var(--muted)]">загружаем операционную очередь…</div> : null}
       {!loading && !error && queue.length === 0 ? <div className="mt-4 rounded-[26px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-6"><p className="text-[18px] font-black text-[color:var(--text)]">всё чисто</p><p className="mt-1 max-w-[420px] text-[13px] font-medium leading-relaxed text-[color:var(--muted)]">Новых заказов и блокирующих операций нет. Можно проверить витрину или посмотреть экономику.</p><div className="mt-4 flex flex-wrap gap-2"><Link href="/admin/storefront" prefetch={false} className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[12px] font-extrabold text-white">проверить витрину</Link><Link href="/admin/visits" prefetch={false} className="rounded-full border border-[color:var(--stroke)] px-4 py-2.5 text-[12px] font-extrabold text-[color:var(--text)]">открыть аналитику</Link></div></div> : null}
 
