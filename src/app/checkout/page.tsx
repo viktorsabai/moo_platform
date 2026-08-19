@@ -680,7 +680,13 @@ export default function CheckoutPage() {
           setSubmitError(message)
           toast.error(message)
         } else {
-          const message = data?.error || `Не удалось создать заказ (HTTP ${res.status})`
+          const message = data?.code === 'PAYMENT_METHOD_UNAVAILABLE'
+            ? 'Этот способ оплаты сейчас недоступен. Выберите другой способ оплаты.'
+            : data?.code === 'PAYMENT_INTENT_REQUIRED'
+              ? 'Платёж не подтверждён. Вернитесь к выбору оплаты и повторите попытку.'
+              : data?.code === 'PAYMENT_AMOUNT_MISMATCH'
+                ? 'Итог заказа изменился. Обновите корзину и проверьте сумму перед повтором.'
+                : data?.error || `Не удалось создать заказ (HTTP ${res.status})`
           setSubmitError(message)
           toast.error(message)
         }
