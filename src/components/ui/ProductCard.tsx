@@ -268,7 +268,7 @@ export function ProductCard({
     <div
       className={cn(
         'overflow-hidden transition',
-        variant === 'compact' ? 'w-[260px] shrink-0 p-3' : variant === 'menu' ? 'w-[300px] max-w-full shrink-0 p-3' : 'p-3',
+        variant === 'compact' ? 'w-[248px] shrink-0 p-3' : variant === 'menu' ? 'w-full max-w-full p-3' : 'p-3',
         'border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] shadow-[var(--shadow-soft)]',
         onClick && !expandable && 'cursor-pointer active:scale-[0.99]',
         menuDimmed && 'opacity-[0.82]',
@@ -281,7 +281,7 @@ export function ProductCard({
         <div
         className={cn(
           'relative w-full overflow-hidden bg-[color:var(--surface)]',
-          variant === 'compact' ? 'h-28' : variant === 'menu' ? 'h-40' : 'h-[160px]'
+          variant === 'compact' ? 'aspect-[4/3]' : variant === 'menu' ? 'aspect-square' : 'aspect-[4/3]'
         )}
         style={{ borderRadius: 'var(--radius-medium)' }}
       >
@@ -290,7 +290,7 @@ export function ProductCard({
             src={img}
             alt={name}
             sizes={variant === 'compact' ? IMAGE_SIZES.productCardCompact : IMAGE_SIZES.productCard}
-            className="object-cover"
+            className="object-contain p-2"
             quality={78}
           />
         ) : (
@@ -392,7 +392,7 @@ export function ProductCard({
           <div className="min-w-0 flex-1">
             <div className={cn(
               'ui-body font-semibold',
-              (variant === 'compact' || variant === 'menu') ? 'truncate' : 'line-clamp-2'
+              (variant === 'compact' || variant === 'menu') ? 'break-words' : 'line-clamp-2'
             )}>
               {name}
             </div>

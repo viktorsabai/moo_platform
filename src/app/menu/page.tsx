@@ -1744,7 +1744,7 @@ function MenuPageInner() {
                 >
                   <div className="relative h-full w-full max-w-[760px]">
                     <div className="absolute left-3 right-16 top-1 z-10">
-                      <h2 className="max-w-[88%] text-[27px] font-extrabold leading-[0.96] tracking-[-0.04em] text-[color:var(--text)] sm:text-[38px]">
+                      <h2 className="max-w-[calc(100%-52px)] break-words text-[27px] font-extrabold leading-[1.04] tracking-[-0.04em] text-[color:var(--text)] sm:text-[38px]">
                         {focusedDish.name}
                       </h2>
                       <div className="mt-2 flex max-w-[92%] items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1847,7 +1847,7 @@ function MenuPageInner() {
                     >
                       <div className="mb-2 rounded-[24px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/95 p-3 shadow-[var(--shadow-card)] backdrop-blur-xl [html.dark_&]:border-white/[0.1] [html.dark_&]:bg-white/[0.07] [html.dark_&]:shadow-[0_12px_40px_rgba(0,0,0,0.35)] [html.dark_&]:backdrop-blur-2xl">
                         {focusedDish.description && (
-                          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-[color:var(--muted)]">
+                          <p className="break-words text-[13px] font-semibold leading-snug text-[color:var(--muted)]">
                             {focusedDish.description}
                           </p>
                         )}
@@ -2041,7 +2041,7 @@ function MenuPageInner() {
                   .slice(0, sliceIdx)
                   .reduce((acc, s) => acc + s.dishes.length, 0)
                 const grid = (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {slice.dishes.map((dish, idx) => {
                   const isFocused = focusedDishId === dish.id
                   const dishTags = Array.isArray(dish.tags) ? dish.tags.map((t) => String(t).toLowerCase()) : []
@@ -2058,7 +2058,7 @@ function MenuPageInner() {
                       ? 'col-span-2'
                         : ''
                   const mediaHeightClass =
-                    sizeVariant === 'wide' ? 'h-64 sm:h-72' : 'h-56 sm:h-64'
+                    sizeVariant === 'wide' ? 'aspect-[16/10]' : 'aspect-square'
                   const catEmoji = foodCategories.find((cat) => cat.id === dish.categoryId)?.emoji
                   const fallback = dish.emoji ?? catEmoji ?? getCategoryEmoji(categorySlugById.get(dish.categoryId) ?? dish.categoryId, true)
                   const qty = qtyById.get(dish.id) ?? 0
@@ -2080,7 +2080,7 @@ function MenuPageInner() {
                       role="button"
                       tabIndex={0}
                       className={cn(
-                        'group relative block w-full overflow-hidden rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface)] text-left shadow-[var(--shadow-soft)] transition',
+                        'group relative flex w-full flex-col overflow-hidden rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface)] text-left shadow-[var(--shadow-soft)] transition',
                         cardSpanClass,
                         'rounded-[26px] border-black/[0.045] bg-[color:var(--surface-strong)] shadow-[0_14px_34px_rgba(15,23,42,0.07)] duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.11)]',
                         focusedDishId === dish.id && 'opacity-0 pointer-events-none',
@@ -2088,7 +2088,7 @@ function MenuPageInner() {
                         !orderable && 'opacity-[0.78]',
                       )}
                     >
-                      <div className={cn('relative overflow-hidden bg-[color:var(--surface)]', mediaHeightClass, addedDishPulseId === dish.id && 'animate-[cart-pop_.34s_ease-out]')}>
+                      <div className={cn('relative shrink-0 overflow-hidden bg-[color:var(--surface)]', mediaHeightClass, addedDishPulseId === dish.id && 'animate-[cart-pop_.34s_ease-out]')}>
                         {dish.image ? (
                           <OptimizedImage
                             src={dish.image}
@@ -2096,7 +2096,7 @@ function MenuPageInner() {
                             sizes={IMAGE_SIZES.menuGrid}
                             priority={dishIdxOffset + idx < 8}
                             quality={76}
-                            className="object-contain p-3 transition duration-300 group-hover:scale-[1.02]"
+                            className="object-contain p-2 transition duration-300 group-hover:scale-[1.02]"
                           />
                         ) : (
                           <div className="grid h-full place-items-center">
@@ -2136,10 +2136,10 @@ function MenuPageInner() {
                           <IconHeart className={cn('h-4 w-4', favorites.has(dish.id) && 'fill-current')} />
                         </button>
                       </div>
-                      <div className="flex items-end justify-between gap-3 p-3.5">
+                      <div className="flex min-h-[112px] flex-1 items-end justify-between gap-3 p-3.5">
                         <div className="min-w-0 flex-1">
                           <div className={cn(
-                            'min-h-[2.9rem] text-[15px] font-extrabold leading-[1.05] text-[color:var(--text)] line-clamp-3'
+                            'break-words text-[14px] font-extrabold leading-[1.14] text-[color:var(--text)] sm:text-[15px]'
                           )}>
                             {dish.name}
                           </div>
