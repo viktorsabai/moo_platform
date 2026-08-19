@@ -183,8 +183,8 @@ html.dark {
   }
 
   .ui-header {
-    @apply flex items-center justify-between;
-    padding: 12px 0 8px;
+    @apply flex min-w-0 items-start gap-2;
+    padding: 14px 0 12px;
   }
 
   /* Кнопка «назад»: только стрелка (минимализм) */
@@ -220,7 +220,8 @@ html.dark {
 
   /* Legacy (keep for compatibility) */
   .ui-title {
-    @apply ui-h1;
+    @apply ui-h1 min-w-0 break-words;
+    line-height: 1.05;
   }
 
   .ui-subtitle {

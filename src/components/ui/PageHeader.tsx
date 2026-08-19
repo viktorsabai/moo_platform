@@ -19,12 +19,12 @@ export function PageHeader({
 }) {
   return (
     <div className={cn('ui-header', compact && 'py-1', className)}>
-      {backHref ? <BackLink href={backHref} className="mr-3 shrink-0" /> : null}
+      {backHref ? <BackLink href={backHref} className="shrink-0" /> : null}
       <div className="min-w-0 flex-1">
-        <div className={cn('ui-title truncate', compact && 'text-[18px]')}>{title}</div>
-        {subtitle ? <div className="ui-subtitle mt-1">{subtitle}</div> : null}
+        <div className={cn('ui-title', compact && 'text-[18px]')}>{title}</div>
+        {subtitle ? <div className="ui-subtitle mt-1 max-w-[36rem]">{subtitle}</div> : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="min-w-0 max-w-[42%] shrink-0 text-right">{action}</div> : null}
     </div>
   )
 }

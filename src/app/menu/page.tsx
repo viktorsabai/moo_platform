@@ -2096,7 +2096,7 @@ function MenuPageInner() {
                             sizes={IMAGE_SIZES.menuGrid}
                             priority={dishIdxOffset + idx < 8}
                             quality={76}
-                            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                            className="object-contain p-3 transition duration-300 group-hover:scale-[1.02]"
                           />
                         ) : (
                           <div className="grid h-full place-items-center">
@@ -2108,11 +2108,11 @@ function MenuPageInner() {
                           </div>
                         )}
                         {visibleTags.length > 0 && (
-                          <div className="pointer-events-none absolute left-2 top-2 flex max-w-[72%] gap-1.5">
+                          <div className="pointer-events-none absolute left-3 top-3 flex max-w-[72%] gap-1.5">
                             {visibleTags.map((tag) => (
                               <span
                                 key={`${dish.id}-tag-${tag}`}
-                                className="truncate rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/95 px-2.5 py-1 text-[11px] font-extrabold text-[color:var(--text)] shadow-[var(--shadow-soft)] backdrop-blur-md"
+                                className="truncate rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[11px] font-extrabold text-[color:var(--text)] shadow-[var(--shadow-soft)] backdrop-blur-md"
                                 style={{ borderRadius: 'var(--radius-pill)' }}
                               >
                                 {tagWithEmoji(tag)}
@@ -2139,7 +2139,7 @@ function MenuPageInner() {
                       <div className="flex items-end justify-between gap-3 p-3.5">
                         <div className="min-w-0 flex-1">
                           <div className={cn(
-                            'min-h-[2.6rem] text-[14px] font-semibold leading-tight text-[color:var(--text)] line-clamp-2'
+                            'min-h-[2.9rem] text-[15px] font-extrabold leading-[1.05] text-[color:var(--text)] line-clamp-3'
                           )}>
                             {dish.name}
                           </div>

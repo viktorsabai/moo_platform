@@ -71,7 +71,7 @@ export function RequestLeadClient({ initialType }: { initialType: string }) {
           guestCount: guestCount ? Number(guestCount) : null,
           eventDate,
           note,
-          source: 'home',
+          source: 'catering',
         }),
       })
       const data = await res.json().catch(() => null)
@@ -112,19 +112,11 @@ export function RequestLeadClient({ initialType }: { initialType: string }) {
 
   return (
     <main className="ui-container ui-screen max-w-full overflow-x-hidden !pb-32">
-      <div className="ui-header min-w-0 justify-start">
-        <Link href="/" prefetch={false} className="mr-3 shrink-0 text-[26px] leading-none text-[color:var(--muted)]" aria-label="назад">
-          ‹
-        </Link>
-        <div className="min-w-0 flex-1 text-left">
-          <div className="ui-title truncate">оставить заявку</div>
-          <div className="ui-subtitle mt-1">кейтеринг, банкет, корпоратив или особый запрос</div>
-        </div>
-      </div>
+      <PageHeader backHref="/catering" title="рассказать о событии" subtitle="кейтеринг, банкет, корпоратив или особый запрос" />
 
       <div className="min-w-0 space-y-4">
-        <section className="ui-surface min-w-0 p-4">
-          <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">что нужно</div>
+        <section className="ui-surface min-w-0 rounded-[28px] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3"><div className="text-[12px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">что нужно</div><div className="text-[11px] font-bold text-[color:var(--muted)]">шаг 1 из 2</div></div>
           <div className="grid min-w-0 grid-cols-2 gap-2">
             {TYPE_OPTIONS.map((option) => (
               <button
@@ -147,7 +139,8 @@ export function RequestLeadClient({ initialType }: { initialType: string }) {
           </div>
         </section>
 
-        <section className="ui-surface min-w-0 p-4">
+        <section className="ui-surface min-w-0 rounded-[28px] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3"><div className="text-[12px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">детали</div><div className="text-[11px] font-bold text-[color:var(--muted)]">шаг 2 из 2</div></div>
           <div className="space-y-3">
             <div>
               <label className="mb-1 block text-[12px] font-semibold text-[color:var(--muted)]">Коротко</label>
