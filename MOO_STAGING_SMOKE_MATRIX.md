@@ -37,3 +37,12 @@ The `test` branch head is `61c7e7a`. Local type-check, lint and production build
 | S16 | Guest | Attempt order against closed restaurant through a stale/open client | API returns `409 RESTAURANT_CLOSED`; no order is created. |
 | S17 | Guest | Skip a future subscription delivery before the 12-hour cutoff | Delivery becomes `SKIPPED`, subscription remains intact, and the result is visible after refresh. |
 | S18 | Guest | Reschedule a future subscription delivery | Future date is accepted only before cutoff; duplicate dates and past dates are rejected with a visible reason. |
+
+## P0 payment and subscription recovery additions
+
+| ID | Actor | Scenario | Expected result |
+|---|---|---|---|
+| P19 | Guest | Submit checkout with a changed total/payment configuration | API returns `PAYMENT_AMOUNT_MISMATCH` or `PAYMENT_METHOD_UNAVAILABLE`; checkout shows a concrete recovery action and does not create an order. |
+| P20 | Guest | Submit Stripe order without confirmed payment intent | API returns `PAYMENT_INTENT_REQUIRED`; checkout asks the guest to return to payment selection. |
+| P21 | Guest | Change subscription plan/menu price between quote and submit | API returns `409 STALE_SUBSCRIPTION_QUOTE`; builder returns to quote state and shows the current server price. |
+| P22 | Guest | Create subscription with stable quote and clientRequestId, retry the same request | One subscription is created; retry is deduplicated by the same request id. |
