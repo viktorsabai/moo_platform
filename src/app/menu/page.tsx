@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { Dish, Category } from '@/types'
 import { useCartStore } from '@/store/cart-store'
@@ -1965,18 +1966,34 @@ function MenuPageInner() {
                         </div>
                         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                           {focusedQty > 0 ? (
-                            <InlineCounter
-                              value={focusedQty}
-                              onInc={() => {
-                                if (!focusedDishOrderable) return
-                                updateQuantity(focusedLineId, focusedQty + 1, 'dish')
-                              }}
-                              onDec={() => {
-                                if (focusedQty <= 1) removeItem(focusedLineId, 'dish')
-                                else updateQuantity(focusedLineId, focusedQty - 1, 'dish')
-                              }}
-                              max={focusedDish.maxOrderQuantity ?? 20}
-                            />
+                            <div className="flex min-w-0 items-center justify-end gap-2">
+                              <span className={cn(
+                                'hidden rounded-full bg-emerald-500/12 px-3 py-2 text-[12px] font-extrabold text-emerald-700 sm:inline-flex [html.dark_&]:text-emerald-300',
+                                focusedAddedPulse && 'animate-[fadeIn_.18s_ease-out]'
+                              )}>
+                                добавлено · {focusedQty}
+                              </span>
+                              <InlineCounter
+                                value={focusedQty}
+                                onInc={() => {
+                                  if (!focusedDishOrderable) return
+                                  updateQuantity(focusedLineId, focusedQty + 1, 'dish')
+                                }}
+                                onDec={() => {
+                                  if (focusedQty <= 1) removeItem(focusedLineId, 'dish')
+                                  else updateQuantity(focusedLineId, focusedQty - 1, 'dish')
+                                }}
+                                max={focusedDish.maxOrderQuantity ?? 20}
+                              />
+                              <Link
+                                href="/cart"
+                                prefetch={false}
+                                onClick={() => setFocusedDishId(null)}
+                                className="rounded-full bg-[color:var(--accent)] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-[0_8px_16px_rgba(0,0,0,0.2)] transition active:scale-95"
+                              >
+                                корзина
+                              </Link>
+                            </div>
                           ) : focusedDishOrderable ? (
                             <>
                               <div className="flex items-center rounded-full bg-[color:var(--surface)] p-1">
