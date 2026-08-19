@@ -293,6 +293,7 @@ function MenuPageInner() {
   const { settings, restaurantId, isLoading: venueLoading } = useVenue()
   const { menuEnabled, storeEnabled } = settings
   const [mode, setMode] = useState<'food' | 'store'>('food')
+  const [presentationMode, setPresentationMode] = useState<'grid' | 'list' | 'editorial'>('grid')
   const [requestedCategory, setRequestedCategory] = useState<string>('')
   const [selectedCategory, setSelectedCategory] = useState<string>(MENU_ALL_CATEGORY_ID)
   /** При «все меню» — какая категория сейчас у верхней границы (только подсвет чипов, без смены фильтра). */
@@ -1243,7 +1244,7 @@ function MenuPageInner() {
   const [focusedStoreAddedPulse, setFocusedStoreAddedPulse] = useState(false)
   const categoryChipRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const chipScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const viewerDishes = baseDishes
+  const viewerDishes = useMemo(() => baseDishes.slice().sort((a, b) => Number(dishMenuOrderHint(a) ?? 0) - Number(dishMenuOrderHint(b) ?? 0) || a.name.localeCompare(b.name, 'ru')), [baseDishes])
   const focusedDish = useMemo(
     () => viewerDishes.find((dish) => dish.id === focusedDishId) ?? null,
     [viewerDishes, focusedDishId]
@@ -1271,7 +1272,7 @@ function MenuPageInner() {
   }, [focusedOptionGroups, focusedGroupSelections])
   const focusedLegacyOption = focusedOptionModifiers.find((m) => m.id === focusedOptionId) ?? null
   const focusedOptionPriceAdjust = focusedSelectedOptionValues.reduce((sum, value) => sum + Number(value.priceAdjust || 0), 0) + Number(focusedLegacyOption?.priceAdjust || 0)
-  const focusedUnitPrice = focusedDish ? focusedDish.price + focusedOptionPriceAdjust : 0
+  const focusedUnitPrice = focusedDish ? Number(focusedDish.price ?? 0) + focusedOptionPriceAdjust : 0
   const focusedCategory = useMemo(
     () => foodCategories.find((c) => String(c.id) === String(focusedDish?.categoryId ?? '')) ?? null,
     [foodCategories, focusedDish]
@@ -1408,7 +1409,7 @@ function MenuPageInner() {
     sendMenuActivity('VIEW_DISH', {
       dishId: focusedDish.id,
       dishName: focusedDish.name,
-      price: focusedDish.price,
+      price: Number(focusedDish.price ?? 0),
       categoryId: focusedDish.categoryId,
     })
   }, [focusedDish?.id])
@@ -1537,6 +1538,16 @@ function MenuPageInner() {
           {menuSyncMessage}
         </div>
       )}
+      {mode === 'food' ? (
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">вид меню</span>
+          <div className="flex rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] p-1 shadow-[var(--shadow-soft)]" role="group" aria-label="представление меню">
+            {([['grid', 'сетка'], ['list', 'список'], ['editorial', 'витрина']] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setPresentationMode(value)} className={cn('rounded-full px-3 py-1.5 text-[11px] font-extrabold transition', presentationMode === value ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'text-[color:var(--muted)]')} aria-pressed={presentationMode === value}>{label}</button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <FilterBar
         ref={filterBarChipsRef}
         className="sticky top-0 z-30 mb-3 rounded-[22px] border border-black/[0.04] bg-[color:var(--surface)]/92 px-1 py-1 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur supports-[backdrop-filter]:bg-[color:var(--surface)]/82"
@@ -1743,7 +1754,14 @@ function MenuPageInner() {
                   }}
                 >
                   <div className="relative h-full w-full max-w-[760px]">
-                    <div className="absolute left-3 right-16 top-1 z-10">
+                    <div className="absolute left-3 right-3 top-1 z-10">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">{focusedDishIndex + 1} из {viewerDishes.length} · всё меню</span>
+                        <div className="flex gap-1.5">
+                          <button type="button" onClick={() => focusDishByOffset(-1)} disabled={focusedDishIndex <= 0} className="grid h-8 w-8 place-items-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[color:var(--text)] shadow-[var(--shadow-soft)] disabled:opacity-35" aria-label="предыдущее блюдо">←</button>
+                          <button type="button" onClick={() => focusDishByOffset(1)} disabled={focusedDishIndex < 0 || focusedDishIndex >= viewerDishes.length - 1} className="grid h-8 w-8 place-items-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[color:var(--text)] shadow-[var(--shadow-soft)] disabled:opacity-35" aria-label="следующее блюдо">→</button>
+                        </div>
+                      </div>
                       <h2 className="max-w-[calc(100%-52px)] break-words text-[27px] font-extrabold leading-[1.04] tracking-[-0.04em] text-[color:var(--text)] sm:text-[38px]">
                         {focusedDish.name}
                       </h2>
@@ -1988,7 +2006,7 @@ function MenuPageInner() {
                                       dishId: focusedDish.id,
                                       name: focusedDish.name,
                                       description: focusedDish.description ?? undefined,
-                                      price: focusedDish.price + focusedOptionPriceAdjust,
+                                      price: Number(focusedDish.price ?? 0) + focusedOptionPriceAdjust,
                                       quantity: focusedDraftQty,
                                       imageUrl: focusedDish.image ?? undefined,
                                       modifierIds: focusedModifierIds,
@@ -2041,24 +2059,25 @@ function MenuPageInner() {
                   .slice(0, sliceIdx)
                   .reduce((acc, s) => acc + s.dishes.length, 0)
                 const grid = (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className={cn(
+                    presentationMode === 'list' ? 'grid grid-cols-1 gap-3' : presentationMode === 'editorial' ? 'grid grid-cols-1 gap-5' : 'grid grid-cols-2 gap-3 sm:grid-cols-3'
+                  )}>
                     {slice.dishes.map((dish, idx) => {
                   const isFocused = focusedDishId === dish.id
                   const dishTags = Array.isArray(dish.tags) ? dish.tags.map((t) => String(t).toLowerCase()) : []
-                  const orderable = isDishOrderableForCart(dish)
+                  const dishPrice = Number(dish.price ?? 0)
+                  const orderable = isDishOrderableForCart({ ...dish, price: dishPrice })
                   const menuHint = orderable ? null : dishMenuOrderHint(dish)
                   const isHeroByTag =
                     dishTags.includes('hit') ||
                     dishTags.includes('popular') ||
                     dishTags.includes('chef-choice')
                   const forcedWide = dishTags.includes('card-wide')
-                  const sizeVariant = forcedWide || isHeroByTag ? 'wide' : 'standard'
-                  const cardSpanClass =
-                    sizeVariant === 'wide'
-                      ? 'col-span-2'
-                        : ''
-                  const mediaHeightClass =
-                    sizeVariant === 'wide' ? 'aspect-[16/10]' : 'aspect-square'
+                  const sizeVariant = presentationMode === 'editorial' || forcedWide || isHeroByTag ? 'wide' : 'standard'
+                  const cardSpanClass = presentationMode === 'grid' && sizeVariant === 'wide' ? 'col-span-2' : ''
+                  const mediaHeightClass = presentationMode === 'list'
+                    ? 'aspect-square w-[38%] min-w-[38%]'
+                    : sizeVariant === 'wide' ? 'aspect-[16/10]' : 'aspect-square'
                   const catEmoji = foodCategories.find((cat) => cat.id === dish.categoryId)?.emoji
                   const fallback = dish.emoji ?? catEmoji ?? getCategoryEmoji(categorySlugById.get(dish.categoryId) ?? dish.categoryId, true)
                   const qty = qtyById.get(dish.id) ?? 0
@@ -2080,7 +2099,9 @@ function MenuPageInner() {
                       role="button"
                       tabIndex={0}
                       className={cn(
-                        'group relative flex w-full flex-col overflow-hidden rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface)] text-left shadow-[var(--shadow-soft)] transition',
+                        'group relative w-full overflow-hidden rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface)] text-left shadow-[var(--shadow-soft)] transition',
+                        presentationMode === 'list' ? 'flex flex-row rounded-[22px]' : 'flex flex-col',
+                        presentationMode === 'editorial' ? 'rounded-[28px]' : '',
                         cardSpanClass,
                         'rounded-[26px] border-black/[0.045] bg-[color:var(--surface-strong)] shadow-[0_14px_34px_rgba(15,23,42,0.07)] duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.11)]',
                         focusedDishId === dish.id && 'opacity-0 pointer-events-none',
@@ -2088,7 +2109,7 @@ function MenuPageInner() {
                         !orderable && 'opacity-[0.78]',
                       )}
                     >
-                      <div className={cn('relative shrink-0 overflow-hidden bg-[color:var(--surface)]', mediaHeightClass, addedDishPulseId === dish.id && 'animate-[cart-pop_.34s_ease-out]')}>
+                      <div className={cn('relative shrink-0 overflow-hidden bg-[color:var(--surface)]', mediaHeightClass, presentationMode === 'editorial' && 'sm:min-h-[280px]', addedDishPulseId === dish.id && 'animate-[cart-pop_.34s_ease-out]')}>
                         {dish.image ? (
                           <OptimizedImage
                             src={dish.image}
@@ -2136,7 +2157,7 @@ function MenuPageInner() {
                           <IconHeart className={cn('h-4 w-4', favorites.has(dish.id) && 'fill-current')} />
                         </button>
                       </div>
-                      <div className="flex min-h-[112px] flex-1 items-end justify-between gap-3 p-3.5">
+                      <div className={cn('flex min-h-[112px] flex-1 items-end justify-between gap-3 p-3.5', presentationMode === 'list' && 'min-h-0 items-center p-4', presentationMode === 'editorial' && 'min-h-[132px] p-5')}>
                         <div className="min-w-0 flex-1">
                           <div className={cn(
                             'break-words text-[14px] font-extrabold leading-[1.14] text-[color:var(--text)] sm:text-[15px]'
@@ -2149,11 +2170,11 @@ function MenuPageInner() {
                               orderable ? 'text-[color:var(--text)]' : 'text-[color:var(--muted)]',
                             )}
                           >
-                            {!orderable && Number(dish.price) <= 0
+                            {!orderable && dishPrice <= 0
                               ? '—'
                               : hasOptions
-                                ? `от ${dish.price} ฿`
-                                : `${dish.price} ฿`}
+                                ? `от ${dishPrice} ฿`
+                                : `${dishPrice} ฿`}
                           </div>
                           {menuHint ? (
                             <div className="mt-0.5 text-[10px] font-semibold leading-tight text-[color:var(--muted)]">{menuHint}</div>
@@ -2215,7 +2236,7 @@ function MenuPageInner() {
                                   dishId: dish.id,
                                   name: dish.name,
                                   description: dish.description ?? undefined,
-                                  price: dish.price,
+                                  price: dishPrice,
                                   quantity: 1,
                                   imageUrl: dish.image ?? undefined,
                                 },
@@ -2228,7 +2249,7 @@ function MenuPageInner() {
                                 kind: 'dish',
                                 dishId: dish.id,
                                 dishName: dish.name,
-                                price: dish.price,
+                                price: dishPrice,
                                 quantity: 1,
                               })
                             }}
