@@ -52,6 +52,11 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+  const paymentReviewOrders = useMemo(
+    () => orders.filter((order) => String(order.paymentStatus || '').toUpperCase() === 'UNDER_REVIEW'),
+    [orders],
+  )
+
   const { activeOrders, historySections } = useMemo(() => {
     const active: OrderRow[] = []
     const history: OrderRow[] = []
@@ -170,7 +175,7 @@ export default function AdminOrdersPage() {
     const next = getOrderNextAction(s)
     const hasReceipt = Boolean(String(o.receiptUrl || '').trim())
     return (
-      <div key={o.id} className={cardClass} style={cardRadius}>
+      <div id={`order-${o.id}`} key={o.id} className={cardClass} style={cardRadius}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="ui-h2 text-[14px]">#{String(o.id).slice(-8)}</div>
@@ -265,7 +270,7 @@ export default function AdminOrdersPage() {
     const paymentStatusLabel = (PAYMENT_STATUSES as Record<string, string>)[paymentStatus] ?? paymentStatus
     const fulfillmentLabel = String(o.fulfillmentMethod || 'DELIVERY').toUpperCase() === 'PICKUP' ? 'самовывоз' : 'доставка'
     return (
-      <details key={o.id} className="border-t border-[color:var(--stroke)] first:border-t-0">
+      <details id={`order-${o.id}`} key={o.id} className="border-b border-[color:var(--stroke)] px-1 py-3 last:border-b-0">
         <summary className="cursor-pointer list-none py-2.5 [&::-webkit-details-marker]:hidden">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -303,10 +308,22 @@ export default function AdminOrdersPage() {
         <p className="ui-muted mt-1 text-[13px]">активные сверху · история по периодам</p>
       </div>
 
-      <div className="mb-4">
+            <div className="mb-4">
         <AdminSlaDashboard />
       </div>
-
+      {paymentReviewOrders.length > 0 ? (
+        <div className="mb-4 rounded-[var(--radius-large)] border border-amber-200 bg-amber-50/90 p-3 text-amber-950 shadow-[var(--shadow-soft)]">
+          <div className="text-[13px] font-bold">проверить оплату · {paymentReviewOrders.length}</div>
+          <p className="mt-1 text-[12px] leading-snug">Есть заказы с загруженными чеками. Откройте их ниже, подтвердите или отклоните оплату — клиент получит обновление статуса.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {paymentReviewOrders.slice(0, 4).map((order) => (
+              <a key={order.id} href={`#order-${order.id}`} className="rounded-full border border-amber-300 bg-white/70 px-3 py-1.5 text-[11px] font-semibold">
+                #{String(order.id).slice(-8)}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {loading ? (
         <div className={cardClass} style={cardRadius}>
           <div className="ui-muted text-[13px]">загрузка…</div>
