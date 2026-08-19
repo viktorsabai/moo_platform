@@ -6,6 +6,7 @@ import { cn, formatPrice } from '@/lib/utils'
 import { MEAL_SLOT_IDS, MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
 import type { SubscriptionConfig, SubscriptionCommerceConfig } from '@/lib/subscription-config'
 import { defaultSubscriptionConfig } from '@/lib/subscription-config'
+import { SubscriptionMealPlanner } from '@/components/admin/SubscriptionMealPlanner'
 
 type CatalogDish = {
   id: string
@@ -41,6 +42,7 @@ export function AdminSubscriptionCatalog() {
   const [activeSlot, setActiveSlot] = useState<MealSlot>('lunch')
   const [quote, setQuote] = useState<QuotePreview | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [plannerOpen, setPlannerOpen] = useState(false)
   const [draftCandidate, setDraftCandidate] = useState<SubscriptionConfig | null>(null)
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const draftKey = 'moo:subscription-config:draft:v2'
@@ -233,11 +235,13 @@ export function AdminSubscriptionCatalog() {
         ) : null}
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
           <button type="button" onClick={() => { setShowAdvanced(true); document.getElementById('subscription-slot-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} className="rounded-2xl border border-[color:var(--primary)] bg-[color:var(--primary)]/[0.08] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">готовая основа</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">начните с рациона и измените только важное</span></button>
-          <button type="button" onClick={() => { setShowAdvanced(true); document.getElementById('subscription-slot-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">свой рацион</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">выберите слоты и блюда сами</span></button>
+          <button type="button" onClick={() => { setPlannerOpen(true); window.setTimeout(() => document.getElementById('subscription-meal-planner')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0) }} className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">собрать рацион</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">по дням и слотам, с черновиком</span></button>
           <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">быстрая проверка</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">{showAdvanced ? 'скрыть детали' : 'посмотреть состав и экономику'}</span></button>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-semibold text-[color:var(--muted)]"><span>{draftSummary}</span><span>{selectedDishCount > 0 ? `${selectedDishCount} выборов блюд` : 'блюда ещё не ограничены'}</span></div>
       </div>
+
+      {plannerOpen ? <SubscriptionMealPlanner config={config} dishes={dishes} onClose={() => setPlannerOpen(false)} /> : null}
 
       {showAdvanced ? <>
       <div id="subscription-slot-settings" className="scroll-mt-24">
