@@ -5,99 +5,121 @@ import { formatPrice } from '@/lib/utils'
 import type { DashboardData } from '@/app/admin/AdminSectionDashboards'
 import { OwnerOperationsControls } from '@/components/admin/OwnerOperationsControls'
 
-function WorkspaceCard({ title, description, state, href, action, quickHref, quickLabel, tone = 'neutral' }: { title: string; description: string; state: string; href: string; action: string; quickHref?: string; quickLabel?: string; tone?: 'neutral' | 'accent' | 'warning' }) {
-  const toneClass = tone === 'warning'
-    ? 'border-amber-200 bg-amber-50/70'
-    : tone === 'accent'
-      ? 'border-[color:var(--primary)]/20 bg-[color:var(--primary)]/[0.05]'
-      : 'border-[color:var(--stroke)] bg-[color:var(--surface)]'
+type Tone = 'neutral' | 'warning' | 'success' | 'accent'
+
+function toneClasses(tone: Tone) {
+  if (tone === 'warning') return 'border-amber-200 bg-amber-50/80'
+  if (tone === 'success') return 'border-emerald-200 bg-emerald-50/70'
+  if (tone === 'accent') return 'border-[color:var(--primary)]/20 bg-[color:var(--primary)]/[0.05]'
+  return 'border-[color:var(--stroke)] bg-[color:var(--surface)]'
+}
+
+function DecisionCard({
+  eyebrow,
+  title,
+  value,
+  detail,
+  action,
+  href,
+  tone = 'neutral',
+}: {
+  eyebrow: string
+  title: string
+  value: string
+  detail: string
+  action: string
+  href: string
+  tone?: Tone
+}) {
   return (
-    <article className={`group rounded-[24px] border p-4 transition hover:-translate-y-0.5 ${toneClass}`}>
-      <Link href={href} prefetch={false} className="block">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-[16px] font-extrabold tracking-[-0.02em] text-[color:var(--text)]">{title}</h3>
-            <p className="mt-1 text-[12px] font-medium leading-relaxed text-[color:var(--muted)]">{description}</p>
-          </div>
-          <span className="shrink-0 text-[20px] leading-none text-[color:var(--muted)] transition group-hover:translate-x-0.5">›</span>
+    <article className={`rounded-[24px] border p-4 ${toneClasses(tone)}`}>
+      <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">{eyebrow}</p>
+      <div className="mt-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[17px] font-black tracking-[-0.025em] text-[color:var(--text)]">{title}</h2>
+          <p className="mt-1 text-[25px] font-black leading-none tracking-[-0.04em] text-[color:var(--text)]">{value}</p>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-black/[0.06] pt-3">
-          <span className="text-[12px] font-extrabold text-[color:var(--text)]">{state}</span>
-          <span className="text-[11px] font-bold text-[color:var(--muted)]">подробнее ›</span>
-        </div>
-      </Link>
-      {quickHref && quickLabel ? <Link href={quickHref} prefetch={false} className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full bg-[color:var(--primary)] px-3.5 py-2 text-[11px] font-extrabold text-white transition active:scale-[0.98]">{quickLabel}</Link> : null}
+        <span className="mt-1 text-[18px] text-[color:var(--muted)]">›</span>
+      </div>
+      <p className="mt-2 min-h-[32px] text-[12px] font-medium leading-relaxed text-[color:var(--muted)]">{detail}</p>
+      <Link href={href} prefetch={false} className="mt-3 inline-flex min-h-9 items-center rounded-full bg-[color:var(--primary)] px-3.5 py-2 text-[11px] font-extrabold text-white active:scale-[0.98]">{action}</Link>
     </article>
   )
 }
 
-export function OwnerCommandCenter({ data }: { data: DashboardData }) {
-  const pendingOrdersCount = Number(data.pendingOrdersCount ?? 0)
-  const activeOrdersCount = Number(data.activeOrdersCount ?? 0)
-  const newSubscriptionRequestLeads = Number(data.newSubscriptionRequestLeads ?? 0)
-  const newServiceLeadsCount = Number(data.newServiceLeadsCount ?? 0)
-  const pendingWork = [
-    pendingOrdersCount > 0 ? { label: 'новые заказы', hint: `${data.pendingOrdersCount} ждут реакции`, href: '/admin/operations' } : null,
-    newSubscriptionRequestLeads > 0 ? { label: 'запросы на подписку', hint: `${newSubscriptionRequestLeads} новых`, href: '/admin/subscription-leads' } : null,
-    newServiceLeadsCount > 0 ? { label: 'заявки на кейтеринг', hint: `${newServiceLeadsCount} новых`, href: '/admin/leads' } : null,
-    data.settings?.subscriptionEnabled === false ? { label: 'подписки выключены', hint: 'включите витрину, если готовы принимать заявки', href: '/admin/subscriptions' } : null,
-  ].filter(Boolean) as { label: string; hint: string; href: string }[]
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return <div className="rounded-[18px] bg-[color:var(--surface-strong)] px-3 py-3"><p className="text-[19px] font-black tabular-nums tracking-[-0.03em] text-[color:var(--text)]">{value}</p><p className="mt-1 text-[10px] font-bold text-[color:var(--muted)]">{label}</p></div>
+}
 
-  const opportunities = [
-    newServiceLeadsCount > 0 ? { title: 'Ответьте на заявки по кейтерингу', text: 'Быстрый ответ повышает шанс перевести запрос в заказ.', href: '/admin/leads', action: 'открыть pipeline' } : null,
-    newSubscriptionRequestLeads > 0 && data.subscriptionPlansCount === 0 ? { title: 'У вас есть спрос на подписку', text: 'Соберите первый план из готового пресета и отправьте его на витрину.', href: '/admin/subscriptions', action: 'собрать план' } : null,
-    data.bannersCount === 0 ? { title: 'Оформите первый экран витрины', text: 'Добавьте один понятный hero-баннер, чтобы объяснить гостю, что заказать.', href: '/admin/banners', action: 'настроить витрину' } : null,
-  ].filter(Boolean).slice(0, 3) as { title: string; text: string; href: string; action: string }[]
+export function OwnerCommandCenter({ data }: { data: DashboardData }) {
+  const pendingOrders = Number(data.pendingOrdersCount ?? 0)
+  const activeOrders = Number(data.activeOrdersCount ?? 0)
+  const paymentReviews = Number(data.inboxPendingTotal ?? 0)
+  const subscriptionRequests = Number(data.newSubscriptionRequestLeads ?? 0)
+  const cateringLeads = Number(data.newServiceLeadsCount ?? 0)
+  const campaignCount = Number(data.activeCampaignsCount ?? 0)
+  const settings = data.settings
+  const menuReady = Boolean(settings?.menuEnabled && data.dishesCount > 0)
+  const storefrontReady = Boolean(settings?.storeEnabled)
+  const subscriptionsReady = Boolean(settings?.subscriptionEnabled)
+
+  const attentionCount = pendingOrders + paymentReviews + subscriptionRequests + cateringLeads
+  const attentionTitle = attentionCount > 0 ? 'есть задачи для решения' : 'всё под контролем'
+  const attentionDetail = attentionCount > 0
+    ? 'Сначала обработайте входящие задачи, которые влияют на гостя или кухню.'
+    : 'Срочных исключений нет. Можно проверить здоровье витрины или заняться ростом.'
 
   return (
     <section className="space-y-4">
-      <div className="flex items-end justify-between gap-3 px-1">
-        <div>
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[color:var(--muted)]">рабочий центр</p>
-          <h1 className="mt-1 text-[28px] font-black tracking-[-0.05em] text-[color:var(--text)]">сегодня в заведении</h1>
-        </div>
-        <Link href="/menu" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2 text-[11px] font-extrabold text-[color:var(--text)]">гостевой вид</Link>
-      </div>
-
-      <div className="rounded-[28px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-5 shadow-[var(--shadow-soft)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">{data.restaurantName}</p>
-            <h2 className="mt-1 text-[21px] font-black tracking-[-0.03em] text-[color:var(--text)]">{pendingWork.length > 0 ? 'есть задачи для решения' : 'операционный день под контролем'}</h2>
-            <p className="mt-1 max-w-[520px] text-[13px] font-medium leading-relaxed text-[color:var(--muted)]">{pendingWork.length > 0 ? 'Сначала разберите входящие задачи, затем переходите к развитию витрины и продаж.' : 'Заказы, витрина и входящие обращения сейчас не требуют срочной реакции.'}</p>
+      <header className="rounded-[28px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[color:var(--muted)]">сегодня в заведении</p>
+            <h1 className="mt-1 text-[28px] font-black tracking-[-0.055em] text-[color:var(--text)]">{attentionTitle}</h1>
+            <p className="mt-2 max-w-[520px] text-[13px] font-medium leading-relaxed text-[color:var(--muted)]">{attentionDetail}</p>
           </div>
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold ${data.isOpenNow ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{data.isOpenNow ? 'открыто' : 'закрыто'}</span>
         </div>
-        {pendingWork.length > 0 ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {pendingWork.slice(0, 4).map((item) => <Link key={item.href + item.label} href={item.href} prefetch={false} className="flex items-center justify-between gap-3 rounded-[16px] bg-[color:var(--surface-strong)] px-3 py-3"><span><span className="block text-[13px] font-extrabold text-[color:var(--text)]">{item.label}</span><span className="mt-0.5 block text-[11px] font-medium text-[color:var(--muted)]">{item.hint}</span></span><span className="text-[18px] text-[color:var(--muted)]">›</span></Link>)}
-          </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Metric label="новые заказы" value={pendingOrders} />
+          <Metric label="в работе" value={activeOrders} />
+          <Metric label="запросы" value={subscriptionRequests} />
+          <Metric label="кейтеринг" value={cateringLeads} />
+        </div>
+        {attentionCount > 0 ? (
+          <Link href={pendingOrders > 0 || paymentReviews > 0 ? '/admin/operations' : subscriptionRequests > 0 ? '/admin/subscription-leads' : '/admin/leads'} prefetch={false} className="mt-4 flex min-h-11 items-center justify-between rounded-[16px] bg-[color:var(--primary)] px-4 py-3 text-[12px] font-extrabold text-white">
+            <span>{pendingOrders > 0 || paymentReviews > 0 ? 'разобрать операционную очередь' : subscriptionRequests > 0 ? 'обработать запросы на подписку' : 'ответить на заявки'}</span><span className="text-[18px]">›</span>
+          </Link>
         ) : null}
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--stroke)] pt-4">
-          <Link href="/admin/operations" prefetch={false} className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[12px] font-extrabold text-white">открыть операции</Link>
-          <Link href="/admin/storefront" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-2.5 text-[12px] font-extrabold text-[color:var(--text)]">проверить витрину</Link>
+      </header>
+
+      <OwnerOperationsControls initial={settings} />
+
+      <section>
+        <div className="mb-2 flex items-end justify-between px-1">
+          <div><p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">здоровье бизнеса</p><h2 className="mt-1 text-[19px] font-black tracking-[-0.03em] text-[color:var(--text)]">Что происходит сейчас</h2></div>
+          <Link href="/admin/visits" prefetch={false} className="text-[11px] font-extrabold text-[color:var(--primary)]">вся аналитика ›</Link>
         </div>
-      </div>
-
-      <div className="rounded-[28px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4">
-        <div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">business pulse</p><h2 className="mt-1 text-[18px] font-black tracking-[-0.03em] text-[color:var(--text)]">экономика за сегодня</h2></div><Link href="/admin/visits" prefetch={false} className="text-[11px] font-extrabold text-[color:var(--primary)]">аналитика ›</Link></div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[['заказы', data.stats.ordersToday], ['выручка', formatPrice(Number(data.stats.revenueToday || 0))], ['заказы · 7д', data.stats.ordersWeek], ['выручка · 7д', formatPrice(Number(data.stats.revenueWeek || 0))]].map(([label, value]) => <div key={String(label)} className="rounded-[18px] bg-[color:var(--surface-strong)] px-3 py-3"><div className="text-[18px] font-black tabular-nums text-[color:var(--text)]">{value}</div><div className="mt-1 text-[10px] font-bold text-[color:var(--muted)]">{label}</div></div>)}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <DecisionCard eyebrow="операции" title="Заказы" value={pendingOrders > 0 ? `${pendingOrders} ждут` : `${activeOrders} активных`} detail={paymentReviews > 0 ? `${paymentReviews} операций требуют проверки оплаты.` : 'Новых блокирующих исключений нет.'} action={pendingOrders > 0 || paymentReviews > 0 ? 'разобрать сейчас' : 'открыть очередь'} href="/admin/operations" tone={pendingOrders > 0 || paymentReviews > 0 ? 'warning' : 'success'} />
+          <DecisionCard eyebrow="гостевая витрина" title="Что видит гость" value={`${data.dishesCount} блюд`} detail={storefrontReady && menuReady ? 'Витрина опубликована, меню доступно для заказа.' : 'Проверьте публикацию витрины и доступность меню.'} action={storefrontReady && menuReady ? 'посмотреть глазами гостя' : 'исправить витрину'} href={storefrontReady && menuReady ? '/menu' : '/admin/storefront'} tone={storefrontReady && menuReady ? 'success' : 'warning'} />
+          <DecisionCard eyebrow="подписки" title="Рационы и клиенты" value={`${data.subscriptionsCount} активных`} detail={subscriptionRequests > 0 ? `${subscriptionRequests} новых запросов ждут ответа.` : subscriptionsReady ? `${data.subscriptionPlansCount} планов доступны для работы.` : 'Приём новых подписок выключен.'} action={subscriptionRequests > 0 ? 'обработать запросы' : 'управлять подписками'} href={subscriptionRequests > 0 ? '/admin/subscription-leads' : '/admin/subscriptions'} tone={subscriptionRequests > 0 ? 'warning' : subscriptionsReady ? 'neutral' : 'warning'} />
+          <DecisionCard eyebrow="рост" title="Продажи" value={`${campaignCount} кампаний`} detail={campaignCount > 0 ? 'Проверьте, какие кампании приводят заказы и выручку.' : 'Активных кампаний нет — можно запустить первую проверку спроса.'} action={campaignCount > 0 ? 'оценить результат' : 'создать кампанию'} href="/admin/campaigns" tone={campaignCount > 0 ? 'accent' : 'neutral'} />
         </div>
-      </div>
+      </section>
 
-      {opportunities.length > 0 ? <div><div className="mb-2 flex items-center justify-between px-1"><h2 className="text-[16px] font-black tracking-[-0.02em] text-[color:var(--text)]">что можно улучшить</h2><span className="text-[11px] font-bold text-[color:var(--muted)]">до 3 шагов</span></div><div className="grid gap-2 sm:grid-cols-3">{opportunities.map((item) => <Link key={item.href} href={item.href} prefetch={false} className="rounded-[22px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4"><p className="text-[14px] font-extrabold text-[color:var(--text)]">{item.title}</p><p className="mt-1 text-[12px] font-medium leading-relaxed text-[color:var(--muted)]">{item.text}</p><span className="mt-3 block text-[11px] font-extrabold text-[color:var(--primary)]">{item.action} ›</span></Link>)}</div></div> : null}
+      <section className="rounded-[24px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4">
+        <div className="flex items-end justify-between gap-3"><div><p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--muted)]">business pulse</p><h2 className="mt-1 text-[18px] font-black tracking-[-0.03em] text-[color:var(--text)]">Экономика за сегодня</h2></div><span className="text-[11px] font-bold text-[color:var(--muted)]">7 дней рядом</span></div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label="заказы сегодня" value={data.stats.ordersToday} /><Metric label="выручка сегодня" value={formatPrice(Number(data.stats.revenueToday || 0))} /><Metric label="заказы · 7д" value={data.stats.ordersWeek} /><Metric label="выручка · 7д" value={formatPrice(Number(data.stats.revenueWeek || 0))} /></div>
+        <Link href="/admin/visits" prefetch={false} className="mt-3 inline-flex text-[11px] font-extrabold text-[color:var(--primary)]">открыть детали экономики ›</Link>
+      </section>
 
-      <OwnerOperationsControls initial={data.settings} />
-
-      <div><div className="mb-2 px-1"><h2 className="text-[16px] font-black tracking-[-0.02em] text-[color:var(--text)]">рабочие пространства</h2><p className="mt-1 text-[12px] font-medium text-[color:var(--muted)]">Каждый раздел отвечает за одну задачу бизнеса.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <WorkspaceCard title="Операции" description="Заказы, очередь, статусы и исключения." state={pendingOrdersCount > 0 ? `${pendingOrdersCount} ждут реакции` : activeOrdersCount > 0 ? `${activeOrdersCount} в работе` : 'очередь пуста'} href="/admin/operations" action="открыть очередь" quickHref="/admin/operations" quickLabel={pendingOrdersCount > 0 ? 'разобрать сейчас' : 'проверить очередь'} tone={pendingOrdersCount > 0 ? 'warning' : 'neutral'} />
-        <WorkspaceCard title="Гостевая витрина" description="Меню, главная, доступность и preview глазами гостя." state={`${data.dishesCount} блюд · ${data.bannersCount} баннеров`} href="/admin/storefront" action="открыть витрину" quickHref="/menu" quickLabel="посмотреть глазами гостя" tone="accent" />
-        <WorkspaceCard title="Подписки" description="Запросы, планы, клиенты и ближайшие доставки." state={newSubscriptionRequestLeads > 0 ? `${newSubscriptionRequestLeads} запросов ждут ответа` : `${data.subscriptionPlansCount} планов · ${data.subscriptionsCount} активных`} href="/admin/subscriptions" action="управлять подписками" quickHref={newSubscriptionRequestLeads > 0 ? '/admin/subscription-leads' : '/admin/subscriptions'} quickLabel={newSubscriptionRequestLeads > 0 ? 'обработать запросы' : 'проверить план'} tone={newSubscriptionRequestLeads > 0 ? 'warning' : 'neutral'} />
-        <WorkspaceCard title="Рост" description="Кампании, attribution, промо и вклад в выручку." state={`${data.activeCampaignsCount} активных кампаний`} href="/admin/campaigns" action="открыть рост" quickHref="/admin/campaigns" quickLabel="создать или проверить кампанию" />
-        <WorkspaceCard title="Кейтеринг" description="Заявки на события, корпоративы и follow-up." state={newServiceLeadsCount > 0 ? `${newServiceLeadsCount} новых заявок` : 'новых заявок нет'} href="/admin/leads" action="открыть pipeline" quickHref="/admin/leads" quickLabel={newServiceLeadsCount > 0 ? 'ответить на заявки' : 'открыть pipeline'} tone={newServiceLeadsCount > 0 ? 'warning' : 'neutral'} />
-        <WorkspaceCard title="Команда и система" description="Роли, Telegram-уведомления и расширенные настройки." state={`${data.teamMembers.length} участников`} href="/admin/settings" action="настроить доступы" quickHref="/admin/notifications" quickLabel="настроить уведомления" />
-      </div></div>
+      <nav className="flex flex-wrap gap-2 px-1" aria-label="дополнительные настройки">
+        <Link href="/admin/settings" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3.5 py-2 text-[11px] font-extrabold text-[color:var(--text)]">настройки</Link>
+        <Link href="/admin/notifications" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3.5 py-2 text-[11px] font-extrabold text-[color:var(--text)]">уведомления</Link>
+        <Link href="/admin/leads" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3.5 py-2 text-[11px] font-extrabold text-[color:var(--text)]">кейтеринг</Link>
+        <Link href="/menu" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3.5 py-2 text-[11px] font-extrabold text-[color:var(--text)]">гостевой вид</Link>
+      </nav>
     </section>
   )
 }
