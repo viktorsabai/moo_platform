@@ -49,13 +49,26 @@ export async function PATCH(request: Request) {
     const body = await request.json().catch(() => ({} as any))
 
     const data: any = {}
+    const validTime = (value: unknown) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.trim())
     if (typeof body?.menuEnabled === 'boolean') data.menuEnabled = body.menuEnabled
     if (typeof body?.storeEnabled === 'boolean') data.storeEnabled = body.storeEnabled
     if (typeof body?.subscriptionEnabled === 'boolean') data.subscriptionEnabled = body.subscriptionEnabled
-    if (body?.deliveryFee != null && Number.isFinite(Number(body.deliveryFee))) data.deliveryFee = Math.max(0, Math.trunc(Number(body.deliveryFee)))
-    if (body?.freeDeliveryFrom != null && Number.isFinite(Number(body.freeDeliveryFrom))) data.freeDeliveryFrom = Math.max(0, Math.trunc(Number(body.freeDeliveryFrom)))
-    if (typeof body?.openTime === 'string') data.openTime = body.openTime.trim() || '10:00'
-    if (typeof body?.closeTime === 'string') data.closeTime = body.closeTime.trim() || '22:00'
+    if (body?.deliveryFee != null) {
+      if (!Number.isFinite(Number(body.deliveryFee)) || Number(body.deliveryFee) < 0) return NextResponse.json({ ok: false, error: 'Стоимость доставки не может быть отрицательной.' }, { status: 400 })
+      data.deliveryFee = Math.trunc(Number(body.deliveryFee))
+    }
+    if (body?.freeDeliveryFrom != null) {
+      if (!Number.isFinite(Number(body.freeDeliveryFrom)) || Number(body.freeDeliveryFrom) < 0) return NextResponse.json({ ok: false, error: 'Порог бесплатной доставки не может быть отрицательным.' }, { status: 400 })
+      data.freeDeliveryFrom = Math.trunc(Number(body.freeDeliveryFrom))
+    }
+    if (body?.openTime != null) {
+      if (!validTime(body.openTime)) return NextResponse.json({ ok: false, error: 'Время открытия должно быть в формате HH:MM.' }, { status: 400 })
+      data.openTime = body.openTime.trim()
+    }
+    if (body?.closeTime != null) {
+      if (!validTime(body.closeTime)) return NextResponse.json({ ok: false, error: 'Время закрытия должно быть в формате HH:MM.' }, { status: 400 })
+      data.closeTime = body.closeTime.trim()
+    }
     if (body?.isOpenOverride === null) data.isOpenOverride = null
     if (typeof body?.isOpenOverride === 'boolean') data.isOpenOverride = body.isOpenOverride
 
