@@ -5,7 +5,13 @@ import {
   notifySubscriptionStatusChangedToCustomer,
   notifySubscriptionStatusChangedToOwner,
 } from '@/lib/notifications'
-import { activatePendingSubscription, rejectPendingSubscription } from '@/lib/subscription-lifecycle'
+import {
+  activatePendingSubscription,
+  cancelSubscription,
+  pauseActiveSubscription,
+  rejectPendingSubscription,
+  resumePausedSubscription,
+} from '@/lib/subscription-lifecycle'
 import { formatTelegramContact } from '@/lib/telegram-contact'
 
 export const runtime = 'nodejs'
@@ -21,8 +27,9 @@ export async function PATCH(
     const body = await request.json().catch(() => ({}))
     const action = String(body?.action || '').trim().toLowerCase()
 
-    if (action !== 'approve' && action !== 'reject') {
-      return NextResponse.json({ ok: false, error: 'action: approve | reject' }, { status: 400 })
+    const lifecycleActions = new Set(['pause', 'resume', 'cancel'])
+    if (!['approve', 'reject', ...Array.from(lifecycleActions)].includes(action)) {
+      return NextResponse.json({ ok: false, error: 'action: approve | reject | pause | resume | cancel' }, { status: 400 })
     }
 
     const sub = await prisma.subscription.findFirst({
@@ -35,15 +42,38 @@ export async function PATCH(
       },
     })
     if (!sub) return NextResponse.json({ ok: false, error: 'не найдена' }, { status: 404 })
-    if (sub.status !== 'PENDING') {
-      return NextResponse.json({ ok: false, error: 'подписка уже обработана' }, { status: 400 })
-    }
-
     const userName = formatTelegramContact({
       name: sub.user?.name,
       telegramUsername: sub.user?.telegramUsername,
       telegramId: sub.user?.telegramId,
     })
+    if (lifecycleActions.has(action)) {
+      if (action === 'pause' && sub.status !== 'ACTIVE') return NextResponse.json({ ok: false, error: 'пауза доступна только для ACTIVE' }, { status: 400 })
+      if (action === 'resume' && sub.status !== 'PAUSED') return NextResponse.json({ ok: false, error: 'возобновление доступно только для PAUSED' }, { status: 400 })
+      if (action === 'cancel' && !['ACTIVE', 'PAUSED', 'PENDING'].includes(sub.status)) return NextResponse.json({ ok: false, error: 'отмена недоступна для текущего статуса' }, { status: 400 })
+      if (action === 'pause') await pauseActiveSubscription(id, ctx.restaurantId)
+      if (action === 'resume') await resumePausedSubscription(id, ctx.restaurantId)
+      if (action === 'cancel') await cancelSubscription(id, ctx.restaurantId)
+      const nextStatus = action === 'pause' ? 'PAUSED' : action === 'resume' ? 'ACTIVE' : 'CANCELLED'
+      await notifySubscriptionStatusChangedToCustomer({
+        restaurantId: ctx.restaurantId,
+        subscriptionId: id,
+        subscriptionName: sub.name,
+        status: nextStatus,
+        customerTelegramId: sub.user?.telegramId ?? null,
+      }).catch(() => {})
+      await notifySubscriptionStatusChangedToOwner({
+        restaurantId: ctx.restaurantId,
+        subscriptionId: id,
+        subscriptionName: sub.name,
+        status: nextStatus,
+        userName,
+      }).catch(() => {})
+      return NextResponse.json({ ok: true, status: nextStatus })
+    }
+    if (sub.status !== 'PENDING') {
+      return NextResponse.json({ ok: false, error: 'подписка уже обработана' }, { status: 400 })
+    }
 
     if (action === 'approve') {
       await activatePendingSubscription(id, ctx.restaurantId)
