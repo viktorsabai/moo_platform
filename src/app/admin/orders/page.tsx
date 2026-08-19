@@ -16,6 +16,7 @@ type OrderRow = {
   paymentStatus?: string
   paymentMethod?: string | null
   paymentOptionSlug?: string | null
+  fulfillmentMethod?: 'DELIVERY' | 'PICKUP' | string | null
   paymentAmountRub?: number | null
   receiptUrl?: string | null
   receiptUploadedAt?: string | null
@@ -165,6 +166,7 @@ export default function AdminOrdersPage() {
     const statusLabel = (ORDER_STATUSES as Record<string, string>)[s] ?? s.toLowerCase()
     const paymentStatus = String(o.paymentStatus || 'PENDING').toUpperCase()
     const paymentStatusLabel = (PAYMENT_STATUSES as Record<string, string>)[paymentStatus] ?? paymentStatus
+    const fulfillmentLabel = String(o.fulfillmentMethod || 'DELIVERY').toUpperCase() === 'PICKUP' ? 'самовывоз' : 'доставка'
     const next = getOrderNextAction(s)
     const hasReceipt = Boolean(String(o.receiptUrl || '').trim())
     return (
@@ -176,7 +178,7 @@ export default function AdminOrdersPage() {
               {o.userName} · {o.itemsCount} поз. · {formatDateTime(o.createdAt)}
             </div>
             <div className="ui-muted mt-0.5 text-[11px]">
-              оплата: {paymentStatusLabel} {o.paymentOptionSlug ? `· ${String(o.paymentOptionSlug).toUpperCase()}` : o.paymentMethod ? `· ${String(o.paymentMethod).toUpperCase()}` : ''}
+              {fulfillmentLabel} · оплата: {paymentStatusLabel} {o.paymentOptionSlug ? `· ${String(o.paymentOptionSlug).toUpperCase()}` : o.paymentMethod ? `· ${String(o.paymentMethod).toUpperCase()}` : ''}
               {o.paymentAmountRub != null && Number.isFinite(o.paymentAmountRub) ? ` · ${o.paymentAmountRub.toFixed(0)} ₽` : ''}
             </div>
             {hasReceipt ? (
@@ -261,6 +263,7 @@ export default function AdminOrdersPage() {
     const statusLabel = (ORDER_STATUSES as Record<string, string>)[s] ?? s.toLowerCase()
     const paymentStatus = String(o.paymentStatus || 'PENDING').toUpperCase()
     const paymentStatusLabel = (PAYMENT_STATUSES as Record<string, string>)[paymentStatus] ?? paymentStatus
+    const fulfillmentLabel = String(o.fulfillmentMethod || 'DELIVERY').toUpperCase() === 'PICKUP' ? 'самовывоз' : 'доставка'
     return (
       <details key={o.id} className="border-t border-[color:var(--stroke)] first:border-t-0">
         <summary className="cursor-pointer list-none py-2.5 [&::-webkit-details-marker]:hidden">
@@ -283,7 +286,7 @@ export default function AdminOrdersPage() {
             {o.userName} · {o.itemsCount} поз.
           </div>
           <div>
-            оплата: {paymentStatusLabel}
+            {fulfillmentLabel} · оплата: {paymentStatusLabel}
             {o.paymentMethod ? ` · ${String(o.paymentMethod).toUpperCase()}` : ''}
           </div>
           {o.lastStatusChangeAt ? <div>изменение: {formatDateTime(o.lastStatusChangeAt)}</div> : null}
