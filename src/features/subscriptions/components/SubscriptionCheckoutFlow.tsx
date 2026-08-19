@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import type { SubscriptionPlan, SubscriptionStatus } from '@/types'
+import { formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import {
@@ -706,8 +707,11 @@ export function SubscriptionCheckoutFlow() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data?.ok) {
-        const msg = data?.error || 'не удалось отправить заявку'
+        const msg = data?.code === 'STALE_SUBSCRIPTION_QUOTE'
+          ? `${data?.error || 'Цена изменилась.'} Сейчас: ${formatPrice(Number(data?.serverPrice ?? 0))}. Расчёт обновлён.`
+          : data?.error || 'не удалось отправить заявку'
         setSubmitError(msg)
+        if (data?.code === 'STALE_SUBSCRIPTION_QUOTE') setPhase('checkout')
         toast.error(msg)
         return
       }

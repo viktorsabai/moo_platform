@@ -354,6 +354,18 @@ export async function POST(request: Request) {
     price = quoteResult.quote.guestPrice
   }
 
+  const clientPriceRaw = Number((body as any)?.price)
+  if (Number.isFinite(clientPriceRaw) && clientPriceRaw > 0 && Math.abs(clientPriceRaw - price) > 0.01) {
+    return NextResponse.json({
+      ok: false,
+      code: 'STALE_SUBSCRIPTION_QUOTE',
+      error: 'Цена подписки изменилась. Обновите расчёт перед подтверждением.',
+      clientPrice: Number(clientPriceRaw.toFixed(2)),
+      serverPrice: Number(price.toFixed(2)),
+      quote: quoteForResponse?.quote ?? null,
+    }, { status: 409 })
+  }
+
   let subscription: { id: string }
   try {
     subscription = await prisma.subscription.create({
