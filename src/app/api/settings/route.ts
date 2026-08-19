@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import { ensureMvpTables } from '@/lib/mvp-db'
 import { mergePaymentMethodsWithDefaults, methodsAvailableForConsumer, stripeIsConfigured } from '@/lib/payment-methods'
+import { getRestaurantOpenState } from '@/lib/restaurant-open-state'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,6 +38,11 @@ export async function GET() {
       ),
     ])
     const activeDeliveryZonesCount = Math.max(0, Number(zoneCountRows?.[0]?.count ?? 0))
+    const openState = getRestaurantOpenState({
+      openTime: settings.openTime,
+      closeTime: settings.closeTime,
+      isOpenOverride: settings.isOpenOverride,
+    })
     const merged = mergePaymentMethodsWithDefaults(settings.paymentMethodsJson)
     const paymentOptions = methodsAvailableForConsumer(merged)
     const { paymentMethodsJson: _omit, ...rest } = settings as typeof settings & { paymentMethodsJson?: unknown }
@@ -44,6 +50,7 @@ export async function GET() {
       ok: true,
       settings: {
         ...rest,
+        ...openState,
         paymentOptions,
         stripeConfigured: stripeIsConfigured(),
         activeDeliveryZonesCount,

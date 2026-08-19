@@ -46,6 +46,11 @@ export function useGuestDelivery({
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [settings, setSettings] = useState({
     deliveryFee: 100,
+    openTime: '10:00',
+    closeTime: '22:00',
+    isOpenOverride: null as boolean | null,
+    isOpen: true,
+    timeZone: 'Asia/Bangkok',
     freeDeliveryFrom: 500,
     activeDeliveryZonesCount: null as number | null,
     paymentOptions: [{ slug: 'CASH', title: 'Наличные курьеру' }] as PaymentOptionRow[],
@@ -91,6 +96,11 @@ export function useGuestDelivery({
         }
         setSettings({
           deliveryFee: Number(sData.settings?.deliveryFee ?? 100),
+          openTime: String(sData.settings?.openTime || '10:00'),
+          closeTime: String(sData.settings?.closeTime || '22:00'),
+          isOpenOverride: typeof sData.settings?.isOpenOverride === 'boolean' ? sData.settings.isOpenOverride : null,
+          isOpen: sData.settings?.isOpen !== false,
+          timeZone: String(sData.settings?.timeZone || 'Asia/Bangkok'),
           freeDeliveryFrom: Number(sData.settings?.freeDeliveryFrom ?? 500),
           activeDeliveryZonesCount,
           paymentOptions: opts.length ? opts : [{ slug: 'CASH', title: 'Наличные курьеру' }],

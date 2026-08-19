@@ -24,6 +24,7 @@ import {
 } from '@/lib/payment-methods'
 import { evaluateCampaign, giftDishIdFromPayload, parseCampaignCode, pickBestCampaign } from '@/lib/campaigns'
 import { computeGuestDeliveryFee, resolveDeliveryQuote } from '@/lib/delivery-quote'
+import { getRestaurantOpenState } from '@/lib/restaurant-open-state'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -140,6 +141,22 @@ export async function POST(request: Request) {
 
     if (!userId || !telegramId) {
       return NextResponse.json({ error: 'нужна авторизация через telegram' }, { status: 401 })
+    }
+
+    const appSettingsForOpenState = await prisma.appSettings.findUnique({
+      where: { restaurantId },
+      select: { openTime: true, closeTime: true, isOpenOverride: true },
+    })
+    const openState = getRestaurantOpenState(appSettingsForOpenState || undefined)
+    if (!openState.isOpen) {
+      return NextResponse.json({
+        ok: false,
+        code: 'RESTAURANT_CLOSED',
+        error: `Ресторан сейчас закрыт. Приём заказов возобновится в ${openState.openTime}.`,
+        openTime: openState.openTime,
+        closeTime: openState.closeTime,
+        timeZone: openState.timeZone,
+      }, { status: 409 })
     }
 
     const body = await request.json().catch(() => ({} as any))

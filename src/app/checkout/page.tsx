@@ -502,6 +502,14 @@ export default function CheckoutPage() {
     e?.preventDefault()
     setSubmitError(null)
 
+    if (!appSettings.isOpen) {
+      const message = `Ресторан сейчас закрыт. Приём заказов возобновится в ${appSettings.openTime}.`
+      setSubmitError(message)
+      toast.error(message)
+      setIsSubmitting(false)
+      return
+    }
+
     if (deliveryMethod === 'DELIVERY' && (!deliveryQuote || !deliveryQuote.matched)) {
       const message = deliveryQuote?.message || 'Укажите адрес в зоне доставки'
       setSubmitError(message)
@@ -791,7 +799,7 @@ export default function CheckoutPage() {
     deliveryMethod === 'DELIVERY' && Boolean(formData.address.trim()) && guestDelivery.quoteLoading
   const deliveryNeedsMatch =
     deliveryMethod === 'DELIVERY' && Boolean(formData.address.trim()) && !guestDelivery.quoteLoading && deliveryQuote?.matched !== true
-  const canSubmit = baseFieldsFilled && !outOfZone && !quotePending && !deliveryNeedsMatch && !isSubmitting
+  const canSubmit = appSettings.isOpen && baseFieldsFilled && !outOfZone && !quotePending && !deliveryNeedsMatch && !isSubmitting
   const selectedPay = appSettings.paymentOptions.find((p) => p.slug === paymentOptionSlug)
   const paymentLabel = selectedPay?.title || paymentOptionSlug
   const rubPreview =
@@ -805,8 +813,10 @@ export default function CheckoutPage() {
         ? `${formData.address}${formData.city ? `, ${formData.city}` : ''}`
         : 'выбрать адрес'
   const submitCta =
-    outOfZone
-      ? 'выбрать самовывоз'
+    !appSettings.isOpen
+      ? 'ресторан закрыт'
+      : outOfZone
+        ? 'выбрать самовывоз'
       : rubPreview != null
         ? `оформить · ${formatPrice(total)} (~${rubPreview.toFixed(0)} ₽)`
         : `оформить · ${formatPrice(total)}`
@@ -825,7 +835,13 @@ export default function CheckoutPage() {
 
   return (
     <main className="ui-container ui-screen pb-[var(--ufo-scroll-pad-floating,calc(5.75rem+12px))]">
-      <PageHeader backHref="/cart" title="оформление" subtitle="проверьте данные заказа" />
+        <PageHeader backHref="/cart" title="оформление" subtitle="проверьте данные заказа" />
+      {!appSettings.isOpen && (
+        <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50/95 p-4 text-[13px] text-amber-950">
+          <p className="font-bold">Ресторан сейчас закрыт</p>
+          <p className="mt-1">Новые заказы будут доступны с {appSettings.openTime} до {appSettings.closeTime}.</p>
+        </div>
+      )}
       {submitError && (
         <div role="alert" className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50/95 p-4 text-[13px] text-rose-950">
           <p className="font-bold">Заказ не отправлен</p>
