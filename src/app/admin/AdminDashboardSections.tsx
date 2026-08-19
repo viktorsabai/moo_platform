@@ -125,15 +125,18 @@ export function AdminDashboardSections({
   dashboardData?: DashboardData | null
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(['subscriptions', 'requests', 'analytics'])
+  )
   const sections = Array.isArray(rawSections) ? rawSections : []
   const dashboardData = safeDashboardData(rawData ?? emptyDashboardData)
   const groups = [
-    { id: 'venue', title: 'заведение' },
-    { id: 'showcase', title: 'витрина' },
-    { id: 'operations', title: 'заказы' },
-    { id: 'subscriptions', title: 'подписки' },
-    { id: 'requests', title: 'заявки' },
-    { id: 'analytics', title: 'статистика' },
+    { id: 'venue', title: 'заведение', description: 'режим, команда и Telegram' },
+    { id: 'showcase', title: 'гостевая витрина', description: 'что видит и может заказать гость' },
+    { id: 'operations', title: 'операции', description: 'заказы и текущая работа команды' },
+    { id: 'subscriptions', title: 'подписки', description: 'клиенты, планы и запросы' },
+    { id: 'requests', title: 'заявки', description: 'кейтеринг и входящие обращения' },
+    { id: 'analytics', title: 'аналитика', description: 'посещаемость, KPI и экономика' },
   ] as const
 
   function renderExpandedContent(sectionId: string) {
@@ -279,7 +282,7 @@ export function AdminDashboardSections({
             открыть гостевой вид
           </a>
           <Link href="/admin/venue" prefetch={false} scroll={false} className="inline-flex h-10 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 text-[12px] font-semibold text-[color:var(--text)] transition active:opacity-85">
-            настройки публикации
+            гостевая витрина
           </Link>
         </div>
       </section>
@@ -287,31 +290,53 @@ export function AdminDashboardSections({
       {groups.map((group) => {
         const list = sections.filter((s) => s.group === group.id)
         if (list.length === 0) return null
+        const isCollapsed = collapsedGroups.has(group.id)
         return (
           <section key={group.id} className="ui-surface-card overflow-hidden p-0" style={{ borderRadius: 'var(--radius-large)' }}>
-            <div className="px-4 py-2">
-              <div className="ui-kicker py-2">{group.title}</div>
-              <div className="divide-y divide-[color:var(--stroke)] pb-1">
-                {list.map((s) => (
-                  <AdminSectionCard
-                    key={s.id}
-                    id={s.id}
-                    title={s.title}
-                    hint={s.hint}
-                    href={s.href}
-                    summary={s.summary}
-                    linkLabel={s.linkLabel}
-                    icon={s.icon}
-                    badgeCount={s.badgeCount}
-                    badgeLabel={s.badgeLabel}
-                    badgeTone={s.badgeTone}
-                    isExpanded={expandedId === s.id}
-                    onToggle={() => setExpandedId((prev) => (prev === s.id ? null : s.id))}
-                    expandedContent={renderExpandedContent(s.id)}
-                  />
-                ))}
+            <button
+              type="button"
+              onClick={() => setCollapsedGroups((current) => {
+                const next = new Set(current)
+                if (next.has(group.id)) next.delete(group.id)
+                else next.add(group.id)
+                return next
+              })}
+              className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition active:opacity-80"
+              aria-expanded={!isCollapsed}
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2">
+                  <span className="text-[17px] font-extrabold tracking-[-0.025em] text-[color:var(--text)]">{group.title}</span>
+                  <span className="rounded-full bg-[color:var(--surface)] px-2 py-0.5 text-[10px] font-bold text-[color:var(--muted)]">{list.length}</span>
+                </span>
+                <span className="mt-1 block truncate text-[12px] font-medium text-[color:var(--muted)]">{group.description}</span>
+              </span>
+              <span className="shrink-0 text-[22px] leading-none text-[color:var(--muted)]">{isCollapsed ? '+' : '−'}</span>
+            </button>
+            {!isCollapsed ? (
+              <div className="border-t border-[color:var(--stroke)] px-4 py-2">
+                <div className="divide-y divide-[color:var(--stroke)] pb-1">
+                  {list.map((s) => (
+                    <AdminSectionCard
+                      key={s.id}
+                      id={s.id}
+                      title={s.title}
+                      hint={s.hint}
+                      href={s.href}
+                      summary={s.summary}
+                      linkLabel={s.linkLabel}
+                      icon={s.icon}
+                      badgeCount={s.badgeCount}
+                      badgeLabel={s.badgeLabel}
+                      badgeTone={s.badgeTone}
+                      isExpanded={expandedId === s.id}
+                      onToggle={() => setExpandedId((prev) => (prev === s.id ? null : s.id))}
+                      expandedContent={renderExpandedContent(s.id)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
           </section>
         )
       })}
