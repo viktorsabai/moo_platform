@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { AdminSectionOpenLink } from '@/components/admin/AdminSectionOpenLink'
+import { AdminKpiPanel } from './AdminKpiPanel'
 import { AdminSectionCard } from './AdminSectionCard'
 import type { DashboardData } from './AdminSectionDashboards'
 import {
@@ -282,6 +283,7 @@ export function AdminDashboardSections({
           </Link>
         </div>
       </section>
+      <AdminKpiPanel />
       {groups.map((group) => {
         const list = sections.filter((s) => s.group === group.id)
         if (list.length === 0) return null
