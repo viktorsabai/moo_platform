@@ -1236,6 +1236,7 @@ function MenuPageInner() {
   const [focusedDraftQty, setFocusedDraftQty] = useState(1)
   const [focusedAddedPulse, setFocusedAddedPulse] = useState(false)
   const [focusedLikePulse, setFocusedLikePulse] = useState(false)
+  const [addedDishPulseId, setAddedDishPulseId] = useState<string | null>(null)
   const [focusedStoreProductId, setFocusedStoreProductId] = useState<string | null>(null)
   const [focusedStoreSelections, setFocusedStoreSelections] = useState<Record<string, string>>({})
   const [focusedStoreDraftQty, setFocusedStoreDraftQty] = useState(1)
@@ -1524,6 +1525,13 @@ function MenuPageInner() {
 
   return (
     <main className="ui-container ui-screen menu-page flex min-h-dvh flex-col">
+      <section className="mb-3 flex items-end justify-between gap-3 px-1 pt-1" aria-label="витрина меню">
+        <div>
+          <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[color:var(--accent)]">сегодня вкусно</div>
+          <h1 className="mt-1 text-[30px] font-extrabold leading-[0.92] tracking-[-0.055em] text-[color:var(--text)]">выберите своё</h1>
+        </div>
+        <div className="rounded-full bg-[color:var(--surface-strong)] px-3 py-2 text-[11px] font-extrabold text-[color:var(--muted)] shadow-[var(--shadow-soft)]">fresh menu</div>
+      </section>
       {menuSyncMessage && (
         <div className="mb-2 rounded-[16px] border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[12px] font-semibold text-emerald-900" role="status">
           {menuSyncMessage}
@@ -1531,7 +1539,7 @@ function MenuPageInner() {
       )}
       <FilterBar
         ref={filterBarChipsRef}
-        className="sticky top-0 z-30 mb-2 bg-[color:var(--surface)]/95 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--surface)]/85"
+        className="sticky top-0 z-30 mb-3 rounded-[22px] border border-black/[0.04] bg-[color:var(--surface)]/92 px-1 py-1 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur supports-[backdrop-filter]:bg-[color:var(--surface)]/82"
         topLeft={
           navOptions.length > 0 ? (
             <PillTabToggle
@@ -1573,7 +1581,7 @@ function MenuPageInner() {
             >
               <Chip
                 accent={menuIsAllScope && !scrollSpyCategoryId}
-                className="whitespace-nowrap py-2.5 px-4 text-[14px]"
+                className="whitespace-nowrap py-2.5 px-4 text-[13px] font-extrabold"
               >
                 все
               </Chip>
@@ -1628,7 +1636,7 @@ function MenuPageInner() {
                 >
                   <Chip
                     accent={chipActive}
-                    className="whitespace-nowrap py-2.5 px-4 text-[14px]"
+                    className="whitespace-nowrap py-2.5 px-4 text-[13px] font-extrabold"
                   >
                     {emoji ? <span className="mr-2 text-[1.35em] leading-none" aria-hidden>{emoji}</span> : null}
                     {c.name}
@@ -2050,7 +2058,7 @@ function MenuPageInner() {
                       ? 'col-span-2'
                         : ''
                   const mediaHeightClass =
-                    sizeVariant === 'wide' ? 'h-56 sm:h-64' : 'h-52 sm:h-58'
+                    sizeVariant === 'wide' ? 'h-64 sm:h-72' : 'h-56 sm:h-64'
                   const catEmoji = foodCategories.find((cat) => cat.id === dish.categoryId)?.emoji
                   const fallback = dish.emoji ?? catEmoji ?? getCategoryEmoji(categorySlugById.get(dish.categoryId) ?? dish.categoryId, true)
                   const qty = qtyById.get(dish.id) ?? 0
@@ -2074,12 +2082,13 @@ function MenuPageInner() {
                       className={cn(
                         'group relative block w-full overflow-hidden rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface)] text-left shadow-[var(--shadow-soft)] transition',
                         cardSpanClass,
+                        'rounded-[26px] border-black/[0.045] bg-[color:var(--surface-strong)] shadow-[0_14px_34px_rgba(15,23,42,0.07)] duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.11)]',
                         focusedDishId === dish.id && 'opacity-0 pointer-events-none',
                         focusedDishId && dish.id !== focusedDishId && 'pointer-events-none opacity-40 blur-[1px]',
                         !orderable && 'opacity-[0.78]',
                       )}
                     >
-                      <div className={cn('relative overflow-hidden bg-[color:var(--surface-strong)]', mediaHeightClass)}>
+                      <div className={cn('relative overflow-hidden bg-[color:var(--surface)]', mediaHeightClass, addedDishPulseId === dish.id && 'animate-[cart-pop_.34s_ease-out]')}>
                         {dish.image ? (
                           <OptimizedImage
                             src={dish.image}
@@ -2127,7 +2136,7 @@ function MenuPageInner() {
                           <IconHeart className={cn('h-4 w-4', favorites.has(dish.id) && 'fill-current')} />
                         </button>
                       </div>
-                      <div className="flex items-end justify-between gap-2 p-2.5">
+                      <div className="flex items-end justify-between gap-3 p-3.5">
                         <div className="min-w-0 flex-1">
                           <div className={cn(
                             'min-h-[2.6rem] text-[14px] font-semibold leading-tight text-[color:var(--text)] line-clamp-2'
@@ -2212,6 +2221,9 @@ function MenuPageInner() {
                                 },
                                 restaurantId
                               )
+                              setAddedDishPulseId(dish.id)
+                              window.setTimeout(() => setAddedDishPulseId((current) => current === dish.id ? null : current), 850)
+                              try { ;(window as any)?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light') } catch { /* outside Telegram */ }
                               sendMenuActivity('ADD_TO_CART', {
                                 kind: 'dish',
                                 dishId: dish.id,
@@ -2221,11 +2233,12 @@ function MenuPageInner() {
                               })
                             }}
                             className={cn(
-                              'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[18px] font-extrabold leading-none text-[color:var(--text)] shadow-[var(--shadow-soft)] transition active:scale-95',
+                              'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--text)] text-[20px] font-extrabold leading-none text-[color:var(--surface-strong)] shadow-[0_8px_18px_rgba(15,23,42,0.16)] transition active:scale-90',
+                              addedDishPulseId === dish.id && 'bg-emerald-600 text-white animate-[cart-pop_.34s_ease-out]',
                               !orderable && !hasOptions && 'cursor-not-allowed opacity-35',
                             )}
                           >
-                            {hasOptions ? '›' : '+'}
+                            {addedDishPulseId === dish.id ? '✓' : hasOptions ? '›' : '+'}
                           </button>
                         )}
                       </div>

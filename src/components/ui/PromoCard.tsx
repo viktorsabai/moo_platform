@@ -22,42 +22,42 @@ export function PromoCard({ href, title, description, image, cta, className }: P
   const card = (
     <div
       className={cn(
-        'relative flex h-[140px] w-[min(88vw,400px)] min-w-[min(82vw,340px)] flex-col justify-between overflow-hidden p-5 transition active:scale-[0.99]',
-        'border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]',
-        'shadow-[var(--shadow-soft)]',
+        'group relative flex h-[210px] w-[min(88vw,420px)] min-w-[min(82vw,350px)] flex-col justify-end overflow-hidden p-5 transition duration-300 active:scale-[0.985] hover:-translate-y-0.5',
+        'border border-white/20 bg-[color:var(--text)]',
+        'shadow-[0_18px_42px_rgba(15,23,42,0.16)]',
         className
       )}
       style={{ borderRadius: 'var(--radius-large)' }}
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.22]"
+        className="pointer-events-none absolute inset-0 opacity-[0.42]"
         style={{
           background:
-            'radial-gradient(120% 90% at 10% -10%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 55%), radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%)',
+            'linear-gradient(180deg, transparent 18%, rgba(8,12,20,0.82) 100%), radial-gradient(120% 90% at 10% -10%, color-mix(in srgb, var(--accent) 42%, transparent), transparent 62%)',
         }}
       />
-      <span aria-hidden className="absolute right-4 top-3 text-[18px] opacity-70">✦</span>
+      <span aria-hidden className="absolute left-4 top-4 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-white/90 backdrop-blur-md">для своих</span>
       {image ? (
         <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-[42%] overflow-hidden">
           <OptimizedImage
             src={image}
             alt=""
             sizes={IMAGE_SIZES.homeBanner}
-            className="object-cover"
+            className="object-cover opacity-90 transition duration-500 group-hover:scale-[1.04]"
             quality={75}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--surface-strong)] via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-transparent" />
         </div>
       ) : null}
       <div className={cn('min-w-0', image && 'max-w-[68%]')}>
-        <h2 className="relative z-[1] text-[18px] font-extrabold leading-tight line-clamp-2 tracking-tight">{title}</h2>
+        <h2 className="relative z-[1] text-[25px] font-extrabold leading-[0.96] tracking-[-0.04em] text-white line-clamp-2">{title}</h2>
         {description ? (
-          <p className="ui-muted relative z-[1] mt-1 line-clamp-1 text-[13px]">{description}</p>
+          <p className="relative z-[1] mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-white/75">{description}</p>
         ) : null}
       </div>
       <div className="relative z-[1] mt-3">
-        <span className="inline-flex items-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-2.5 text-[13px] font-semibold text-[color:var(--text)]">
+        <span className="inline-flex items-center rounded-full bg-white px-4 py-2.5 text-[13px] font-extrabold text-slate-950 shadow-[0_8px_18px_rgba(0,0,0,0.14)]">
           {cta}
         </span>
       </div>
