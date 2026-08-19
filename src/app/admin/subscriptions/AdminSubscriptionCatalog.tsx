@@ -40,6 +40,10 @@ export function AdminSubscriptionCatalog() {
   const [dishes, setDishes] = useState<CatalogDish[]>([])
   const [activeSlot, setActiveSlot] = useState<MealSlot>('lunch')
   const [quote, setQuote] = useState<QuotePreview | null>(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [draftCandidate, setDraftCandidate] = useState<SubscriptionConfig | null>(null)
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
+  const draftKey = 'moo:subscription-config:draft:v2'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -47,8 +51,18 @@ export function AdminSubscriptionCatalog() {
       const res = await fetch('/api/admin/subscriptions/config', { cache: 'no-store', credentials: 'include' })
       const data = await res.json().catch(() => null)
       if (res.ok && data?.ok) {
-        setConfig(data.config ?? defaultSubscriptionConfig())
+        const serverConfig = data.config ?? defaultSubscriptionConfig()
+        setConfig(serverConfig)
         setDishes(Array.isArray(data.dishes) ? data.dishes : [])
+        try {
+          const rawDraft = window.localStorage.getItem(draftKey)
+          if (rawDraft) {
+            const parsed = JSON.parse(rawDraft) as SubscriptionConfig
+            if (parsed && typeof parsed === 'object') setDraftCandidate(parsed)
+          }
+        } catch {
+          // local draft is an enhancement; server config remains authoritative
+        }
       } else {
         toast.error(data?.error || 'Не удалось загрузить конфиг подписок')
       }
@@ -75,6 +89,19 @@ export function AdminSubscriptionCatalog() {
     }
     return items
   }, [config])
+
+  useEffect(() => {
+    if (loading || draftCandidate) return
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(draftKey, JSON.stringify(config))
+        setDraftSavedAt(new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }))
+      } catch {
+        // private mode or blocked storage: explicit server save still works
+      }
+    }, 650)
+    return () => window.clearTimeout(timer)
+  }, [config, loading, draftCandidate])
 
   useEffect(() => {
     if (previewItems.length === 0) {
@@ -183,15 +210,37 @@ export function AdminSubscriptionCatalog() {
     return <p className="ui-muted py-6 text-[13px]">Загрузка каталога подписок…</p>
   }
 
+  const selectedDishCount = MEAL_SLOT_IDS.reduce((sum, slot) => sum + config.mealSlots[slot].dishIds.length, 0)
+  const enabledSlotCount = MEAL_SLOT_IDS.filter((slot) => config.mealSlots[slot].enabled).length
+  const draftSummary = `${enabledSlotCount} приём${enabledSlotCount === 1 ? '' : enabledSlotCount < 5 ? 'а' : 'ов'} · ${config.minDaysPerWeek}–${config.maxDaysPerWeek} дн./нед · ${config.maxPersons} перс.`
+
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-[15px] font-extrabold tracking-tight">Каталог подписки</p>
-        <p className="ui-muted mt-1 text-[12px]">
-          Блюда с отметкой «доступно для подписки» в меню. Распределите по слотам — гость соберёт рацион в этих рамках.
-        </p>
+      <div className="rounded-[28px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[color:var(--muted)]">подписка · рабочая версия</p>
+            <h2 className="mt-1 text-[24px] font-black tracking-[-0.04em] text-[color:var(--text)]">Соберите рацион без лишних настроек</h2>
+            <p className="mt-2 max-w-xl text-[13px] font-medium leading-relaxed text-[color:var(--muted)]">Сначала выберите основу и проверьте результат. Детали меню и коммерции можно открыть позже — прогресс сохранится.</p>
+          </div>
+          <div className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-1.5 text-[11px] font-extrabold text-[color:var(--muted)]">{draftSavedAt ? `черновик сохранён в ${draftSavedAt}` : 'черновик пока не сохранён'}</div>
+        </div>
+        {draftCandidate ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[color:var(--primary)]/20 bg-[color:var(--primary)]/[0.06] p-3">
+            <div><p className="text-[13px] font-extrabold text-[color:var(--text)]">Нашли незавершённый черновик</p><p className="mt-0.5 text-[12px] text-[color:var(--muted)]">Вернуть прошлый вариант или начать с текущей настройки.</p></div>
+            <div className="flex gap-2"><button type="button" onClick={() => { setConfig(draftCandidate); setDraftCandidate(null); toast.success('Черновик восстановлен') }} className="btn btn-primary rounded-full px-3 py-2 text-[12px] font-extrabold">восстановить</button><button type="button" onClick={() => { try { window.localStorage.removeItem(draftKey) } catch {} setDraftCandidate(null) }} className="btn btn-soft rounded-full px-3 py-2 text-[12px] font-extrabold">начать заново</button></div>
+          </div>
+        ) : null}
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <button type="button" onClick={() => { setShowAdvanced(true); document.getElementById('subscription-slot-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} className="rounded-2xl border border-[color:var(--primary)] bg-[color:var(--primary)]/[0.08] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">готовая основа</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">начните с рациона и измените только важное</span></button>
+          <button type="button" onClick={() => { setShowAdvanced(true); document.getElementById('subscription-slot-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">свой рацион</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">выберите слоты и блюда сами</span></button>
+          <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3 text-left transition active:scale-[0.99]"><span className="text-[13px] font-extrabold text-[color:var(--text)]">быстрая проверка</span><span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--muted)]">{showAdvanced ? 'скрыть детали' : 'посмотреть состав и экономику'}</span></button>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-semibold text-[color:var(--muted)]"><span>{draftSummary}</span><span>{selectedDishCount > 0 ? `${selectedDishCount} выборов блюд` : 'блюда ещё не ограничены'}</span></div>
       </div>
 
+      {showAdvanced ? <>
+      <div id="subscription-slot-settings" className="scroll-mt-24">
       <div className="flex flex-wrap gap-2">
         {MEAL_SLOT_IDS.map((slot) => {
           const sc = config.mealSlots[slot]
@@ -430,8 +479,10 @@ export function AdminSubscriptionCatalog() {
         className="btn btn-primary w-full rounded-full py-3 text-[14px] font-semibold disabled:opacity-50 sm:w-auto sm:px-8"
         style={{ borderRadius: 'var(--radius-pill)' }}
       >
-        {saving ? 'сохраняем…' : 'сохранить каталог и коммерцию'}
+        {saving ? 'сохраняем…' : 'сохранить изменения'}
       </button>
+      </div>
+      </> : null}
     </div>
   )
 }
