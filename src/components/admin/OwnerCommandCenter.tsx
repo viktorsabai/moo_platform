@@ -33,7 +33,7 @@ export function OwnerCommandCenter({ data }: { data: DashboardData }) {
   const newSubscriptionRequestLeads = Number(data.newSubscriptionRequestLeads ?? 0)
   const newServiceLeadsCount = Number(data.newServiceLeadsCount ?? 0)
   const pendingWork = [
-    pendingOrdersCount > 0 ? { label: 'новые заказы', hint: `${data.pendingOrdersCount} ждут реакции`, href: '/admin/orders' } : null,
+    pendingOrdersCount > 0 ? { label: 'новые заказы', hint: `${data.pendingOrdersCount} ждут реакции`, href: '/admin/operations' } : null,
     newSubscriptionRequestLeads > 0 ? { label: 'запросы на подписку', hint: `${newSubscriptionRequestLeads} новых`, href: '/admin/subscription-leads' } : null,
     newServiceLeadsCount > 0 ? { label: 'заявки на кейтеринг', hint: `${newServiceLeadsCount} новых`, href: '/admin/leads' } : null,
     data.settings?.subscriptionEnabled === false ? { label: 'подписки выключены', hint: 'включите витрину, если готовы принимать заявки', href: '/admin/subscriptions' } : null,
@@ -70,8 +70,8 @@ export function OwnerCommandCenter({ data }: { data: DashboardData }) {
           </div>
         ) : null}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--stroke)] pt-4">
-          <Link href="/admin/orders" prefetch={false} className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[12px] font-extrabold text-white">открыть операции</Link>
-          <Link href="/admin/store" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-2.5 text-[12px] font-extrabold text-[color:var(--text)]">проверить витрину</Link>
+          <Link href="/admin/operations" prefetch={false} className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[12px] font-extrabold text-white">открыть операции</Link>
+          <Link href="/admin/storefront" prefetch={false} className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-4 py-2.5 text-[12px] font-extrabold text-[color:var(--text)]">проверить витрину</Link>
         </div>
       </div>
 
@@ -85,8 +85,8 @@ export function OwnerCommandCenter({ data }: { data: DashboardData }) {
       {opportunities.length > 0 ? <div><div className="mb-2 flex items-center justify-between px-1"><h2 className="text-[16px] font-black tracking-[-0.02em] text-[color:var(--text)]">что можно улучшить</h2><span className="text-[11px] font-bold text-[color:var(--muted)]">до 3 шагов</span></div><div className="grid gap-2 sm:grid-cols-3">{opportunities.map((item) => <Link key={item.href} href={item.href} prefetch={false} className="rounded-[22px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4"><p className="text-[14px] font-extrabold text-[color:var(--text)]">{item.title}</p><p className="mt-1 text-[12px] font-medium leading-relaxed text-[color:var(--muted)]">{item.text}</p><span className="mt-3 block text-[11px] font-extrabold text-[color:var(--primary)]">{item.action} ›</span></Link>)}</div></div> : null}
 
       <div><div className="mb-2 px-1"><h2 className="text-[16px] font-black tracking-[-0.02em] text-[color:var(--text)]">рабочие пространства</h2><p className="mt-1 text-[12px] font-medium text-[color:var(--muted)]">Каждый раздел отвечает за одну задачу бизнеса.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <WorkspaceCard title="Операции" description="Заказы, очередь, статусы и исключения." state={activeOrdersCount > 0 ? `${activeOrdersCount} в работе` : 'очередь пуста'} href="/admin/orders" action="открыть очередь" tone={pendingOrdersCount > 0 ? 'warning' : 'neutral'} />
-        <WorkspaceCard title="Гостевая витрина" description="Меню, главная, доступность и preview глазами гостя." state={`${data.dishesCount} блюд · ${data.bannersCount} баннеров`} href="/admin/store" action="открыть витрину" tone="accent" />
+        <WorkspaceCard title="Операции" description="Заказы, очередь, статусы и исключения." state={activeOrdersCount > 0 ? `${activeOrdersCount} в работе` : 'очередь пуста'} href="/admin/operations" action="открыть очередь" tone={pendingOrdersCount > 0 ? 'warning' : 'neutral'} />
+        <WorkspaceCard title="Гостевая витрина" description="Меню, главная, доступность и preview глазами гостя." state={`${data.dishesCount} блюд · ${data.bannersCount} баннеров`} href="/admin/storefront" action="открыть витрину" tone="accent" />
         <WorkspaceCard title="Подписки" description="Запросы, планы, клиенты и ближайшие доставки." state={`${data.subscriptionPlansCount} планов · ${data.subscriptionsCount} активных`} href="/admin/subscriptions" action="управлять подписками" />
         <WorkspaceCard title="Рост" description="Кампании, attribution, промо и вклад в выручку." state={`${data.activeCampaignsCount} активных кампаний`} href="/admin/campaigns" action="открыть рост" />
         <WorkspaceCard title="Кейтеринг" description="Заявки на события, корпоративы и follow-up." state={`${newServiceLeadsCount} новых заявок`} href="/admin/leads" action="открыть pipeline" />
