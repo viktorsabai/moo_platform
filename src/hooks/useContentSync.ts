@@ -31,9 +31,14 @@ export function useContentSync({
     let disposed = false
     let timer: number | null = null
     let inFlight = false
+    let failureCount = 0
+    let wasOffline = false
 
     const schedule = () => {
-      if (!disposed) timer = window.setTimeout(check, intervalMs)
+      if (!disposed) {
+        const backoff = Math.min(30000, intervalMs * Math.max(1, 2 ** Math.min(failureCount, 3)))
+        timer = window.setTimeout(check, backoff)
+      }
     }
 
     const check = async () => {
@@ -58,11 +63,18 @@ export function useContentSync({
           }
           const prev = stateRef.current
           stateRef.current = next
+          failureCount = 0
+          if (wasOffline) {
+            wasOffline = false
+            window.dispatchEvent(new CustomEvent('ufo-content-sync-status', { detail: { state: 'restored', at: Date.now() } }))
+          }
           if (prev && next.menuVersion !== prev.menuVersion) await callbacksRef.current.onMenuChanged?.()
           if (prev && next.subscriptionVersion !== prev.subscriptionVersion) await callbacksRef.current.onSubscriptionChanged?.()
         }
       } catch {
-        // The canonical page loaders remain the fallback when the sync endpoint is unavailable.
+        failureCount += 1
+        wasOffline = true
+        window.dispatchEvent(new CustomEvent('ufo-content-sync-status', { detail: { state: 'error', retryInMs: Math.min(30000, intervalMs * Math.max(1, 2 ** Math.min(failureCount, 3))), at: Date.now() } }))
       } finally {
         inFlight = false
         schedule()
