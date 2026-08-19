@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
+import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel'
+import toast from 'react-hot-toast'
 
 type RegistryEvent = {
   id: string
@@ -156,6 +158,9 @@ export function AdminNotificationsCatalog() {
         </div>
       </Card>
 
+      <NotificationPreferencesPanel compact />
+      <AdminBroadcastControls />
+
       <div className="flex flex-wrap gap-2">
         {(
           [
@@ -243,6 +248,64 @@ export function AdminNotificationsCatalog() {
         </section>
       ))}
     </div>
+  )
+}
+
+function AdminBroadcastControls() {
+  const [telegramId, setTelegramId] = useState('')
+  const [scenario, setScenario] = useState('abandoned_cart')
+  const [sending, setSending] = useState(false)
+
+  async function sendScenario() {
+    if (!telegramId.trim() || sending) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/admin/notifications/scenario', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telegramId: telegramId.trim(), scenario }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) throw new Error(data?.error || 'send_failed')
+      toast.success('сообщение отправлено в Telegram')
+      setTelegramId('')
+    } catch {
+      toast.error('не удалось отправить — проверьте Telegram ID и привязку бота')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <Card variant="surfaceStrong" className="space-y-3 p-5">
+      <div>
+        <div className="text-[15px] font-extrabold text-[color:var(--text)]">управление рассылкой</div>
+        <p className="mt-1 text-[13px] text-[color:var(--muted)]">Отправьте гостю разрешённый CRM-сценарий с кнопкой прямо в Telegram.</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <input
+          value={telegramId}
+          onChange={(e) => setTelegramId(e.target.value)}
+          className="input input--pill min-w-0"
+          inputMode="numeric"
+          placeholder="Telegram ID гостя"
+          aria-label="Telegram ID гостя"
+        />
+        <select value={scenario} onChange={(e) => setScenario(e.target.value)} className="input input--pill min-w-0" aria-label="Сценарий рассылки">
+          <option value="abandoned_cart">корзина брошена</option>
+          <option value="abandoned_checkout">checkout не завершён</option>
+          <option value="favorite_interest">интерес к избранному</option>
+          <option value="repeat_view">повторный просмотр</option>
+          <option value="subscription_interest">интерес к подписке</option>
+          <option value="repeat_customer">вернувшийся гость</option>
+        </select>
+        <button type="button" onClick={() => void sendScenario()} disabled={!telegramId.trim() || sending} className="btn btn-primary rounded-full px-4 text-[13px] font-bold disabled:opacity-50">
+          {sending ? 'отправляем…' : 'отправить'}
+        </button>
+      </div>
+      <p className="text-[11px] text-[color:var(--muted)]">Отправка доступна владельцу и администратору. Сценарий не меняет заказ и не отправляется повторно автоматически.</p>
+    </Card>
   )
 }
 

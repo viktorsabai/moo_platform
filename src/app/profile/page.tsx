@@ -423,6 +423,7 @@ export default function ProfilePage() {
                 <SettingsRow inset href="/profile/favorites" title="избранное" subtitle="любимые блюда" left={<IconHeart className="h-5 w-5 text-[color:var(--text)]" />} />
                 <SettingsRow inset href="/orders?from=profile" title="заказы" subtitle="история покупок" left={<IconReceipt className="h-5 w-5 text-[color:var(--text)]" />} />
                 <SettingsRow inset href="/subscriptions" title="подписки" subtitle="активные планы" left={<IconBell className="h-5 w-5 text-[color:var(--text)]" />} />
+                <SettingsRow inset href="/profile/notifications" title="уведомления" subtitle="настройки Telegram-бота" left={<IconBell className="h-5 w-5 text-[color:var(--text)]" />} />
                 <SettingsRow inset href="/profile/promocodes" title="мои промокоды" subtitle="акции и бонусы" left={<IconBell className="h-5 w-5 text-[color:var(--text)]" />} />
               </div>
             </div>
