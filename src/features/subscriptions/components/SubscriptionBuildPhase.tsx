@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Dish } from '@/types'
 import { cn, formatPrice } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -96,7 +96,28 @@ export function SubscriptionBuildPhase({
     selectedDays.every((d) => dayComplete(lines, d, slotsForWizardDay(slotsByWizardDay, d, enabledSlots)))
   const missingHint = daysOk && !allComplete ? nextMissingMealHint(lines, selectedDays, slotsByWizardDay, enabledSlots) : null
   const slotLines = lines.filter((l) => l.dayOfWeek === jsDay && l.mealSlot === activeSlot)
+  const requiredSlotsCount = selectedDays.reduce((sum, day) => sum + slotsForWizardDay(slotsByWizardDay, day, enabledSlots).length, 0)
+  const filledSlotsCount = selectedDays.reduce((sum, day) => sum + slotsForWizardDay(slotsByWizardDay, day, enabledSlots).filter((slot) => lines.some((line) => line.dayOfWeek === wizardDayToJs(day) && line.mealSlot === slot)).length, 0)
   const periodQuote = quotesByPeriod[periodDays]
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [buildStep])
+
+  const nextMissingTarget = (() => {
+    for (const day of [...selectedDays].sort((a, b) => a - b)) {
+      const slots = slotsForWizardDay(slotsByWizardDay, day, enabledSlots)
+      const missing = slots.find((slot) => !lines.some((line) => line.dayOfWeek === wizardDayToJs(day) && line.mealSlot === slot))
+      if (missing) return { day, slot: missing }
+    }
+    return null
+  })()
+
+  function goToNextMissing() {
+    if (!nextMissingTarget) return
+    onDayCell(nextMissingTarget.day)
+    onActiveSlot(nextMissingTarget.slot)
+  }
 
   const prevWizardDay = useMemo(() => {
     const idx = selectedDays.indexOf(activeWizardDay)
@@ -140,7 +161,7 @@ export function SubscriptionBuildPhase({
           <span className="text-[color:var(--muted)]">3 · проверка</span>
         </div>
         <p className="mt-2 text-[12px] font-medium text-[color:var(--muted)]">
-          {buildStep === 'days' ? 'Сначала выберите дни доставки и приёмы пищи.' : allComplete ? 'Рацион готов — проверьте состав и перейдите к стоимости.' : 'Добавьте блюда для каждого выбранного дня.'}
+          {buildStep === 'days' ? 'Сначала выберите дни доставки и приёмы пищи.' : allComplete ? 'Рацион готов — проверьте состав и перейдите к стоимости.' : `Заполнено ${filledSlotsCount} из ${requiredSlotsCount} приёмов. Сейчас: ${WEEKDAYS[activeWizardDay]} · ${MEAL_SLOT_LABEL[activeSlot]}.`}
         </p>
       </div>
       <SubscriptionFlowProgress step="build" onStep={(s) => s === 'pay' && allComplete && onOpenPay?.()} payEnabled={allComplete} />
@@ -281,11 +302,15 @@ export function SubscriptionBuildPhase({
           </div>
           <button
             type="button"
-            onClick={() => buildStep === 'days' ? onBuildStep('dishes') : onContinue()}
-            disabled={buildStep === 'days' ? !daysOk : !allComplete}
+            onClick={() => {
+              if (buildStep === 'days') onBuildStep('dishes')
+              else if (allComplete) onContinue()
+              else if (slotLines.length > 0) goToNextMissing()
+            }}
+            disabled={buildStep === 'days' ? !daysOk : !allComplete && slotLines.length === 0}
             className="btn btn-primary h-10 shrink-0 rounded-full px-4 text-[13px] font-bold disabled:opacity-40"
           >
-            {buildStep === 'days' ? 'перейти к блюдам' : 'проверить рацион'}
+            {buildStep === 'days' ? 'перейти к блюдам' : allComplete ? 'проверить рацион' : 'следующий приём'}
             <IconChevronUp className="ml-0.5 inline h-4 w-4 rotate-90" />
           </button>
         </div>

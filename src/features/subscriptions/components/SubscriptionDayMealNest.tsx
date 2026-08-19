@@ -133,7 +133,7 @@ export function SubscriptionDayMealNest({
           })}
         </div>
         <p className="mt-1 text-[10px] text-[color:var(--muted)]">
-          тап — день · удержите включённый день — убрать доставку
+          Выберите минимум {minDays} дня. Нажмите включённый день, чтобы настроить его приёмы пищи.
         </p>
       </div>
 
@@ -152,9 +152,9 @@ export function SubscriptionDayMealNest({
               <button
                 type="button"
                 onClick={() => onRemoveDayDelivery(activeWizardDay)}
-                className="shrink-0 text-[11px] font-bold text-red-600"
+                className="shrink-0 rounded-full border border-red-200 px-2.5 py-1.5 text-[11px] font-bold text-red-700"
               >
-                без доставки
+                убрать этот день
               </button>
             ) : null}
           </div>
