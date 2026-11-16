@@ -156,7 +156,7 @@ type PlanTemplate = {
   price: number
   plan: SubscriptionPlan
   planMode?: 'READY' | 'CUSTOM'
-  pricingMode?: 'FIXED' | 'MENU' | 'MENU_DISCOUNT'
+  pricingMode?: 'FIXED'
   menuDiscountPercent?: number | null
   availablePeriods?: number[]
   cycleDaysMin?: number | null
@@ -277,6 +277,7 @@ export function SubscriptionWizard() {
   const [editLoaded, setEditLoaded] = useState(false)
   const [editError, setEditError] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
   const hasPlans = planTemplates.length > 0
   const dishPrefillDoneRef = useRef(false)
   /** Однократное авто-сворачивание шага «блюда» после валидного префилла готового тарифа. */
@@ -383,6 +384,7 @@ export function SubscriptionWizard() {
   useEffect(() => {
     if (selectedDishes.length === 0) {
       setLiveQuote(null)
+      setQuoteError(null)
       return
     }
     const t = setTimeout(async () => {
@@ -405,12 +407,16 @@ export function SubscriptionWizard() {
         })
         const data = await res.json().catch(() => null)
         if (res.ok && data?.ok && data.quote) {
+          setQuoteError(null)
           setLiveQuote({
             guestPrice: data.quote.guestPrice,
             periodRetail: data.quote.periodRetail,
             guestSavingsPercent: data.quote.guestSavingsPercent,
             deliveriesInPeriod: data.quote.deliveriesInPeriod,
           })
+        } else {
+          setLiveQuote(null)
+          setQuoteError(res.status === 422 && typeof data?.error === 'string' ? data.error : null)
         }
       } catch {
         setLiveQuote(null)
@@ -932,15 +938,11 @@ export function SubscriptionWizard() {
   const effectivePriceForPeriod =
     liveQuote?.guestPrice ??
     (selectedTemplate
-      ? selectedTemplate.pricingMode === 'MENU'
-        ? subscriptionPrice.perMonth
-        : selectedTemplate.pricingMode === 'MENU_DISCOUNT'
-          ? Math.round(subscriptionPrice.perMonth * (1 - Math.max(0, Math.min(90, Number(selectedTemplate.menuDiscountPercent || 0))) / 100))
-          : selectedTemplate.plan === 'MONTHLY'
-            ? selectedTemplate.price
-            : selectedTemplate.plan === 'BIWEEKLY'
-              ? selectedTemplate.price * 2.165
-              : selectedTemplate.price * 4.33
+      ? selectedTemplate.plan === 'MONTHLY'
+        ? selectedTemplate.price
+        : selectedTemplate.plan === 'BIWEEKLY'
+          ? selectedTemplate.price * 2.165
+          : selectedTemplate.price * 4.33
       : subscriptionPrice.perMonth)
   const effectivePricePerMonth = effectivePriceForPeriod
 
@@ -1926,11 +1928,13 @@ export function SubscriptionWizard() {
               paddingTop: 16,
             }}
           >
+            {quoteError && <p className="mb-2 text-center text-[13px] font-medium text-red-600">{quoteError}</p>}
             <button
               type="button"
               onClick={onCreate}
               disabled={
                 isCreating ||
+                Boolean(quoteError) ||
                 subscriptionPrice.dishesPerDelivery === 0 ||
                 (!isEditMode && !subscriptionName.trim())
               }

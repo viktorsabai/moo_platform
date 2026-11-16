@@ -25,6 +25,8 @@ type QuotePreview = {
   ownerMargin: number
   ownerMarginPercent: number
   missingCostCount: number
+  offerable?: boolean
+  blockReason?: 'missing_cost' | 'no_guest_benefit' | null
 }
 
 export function AdminSubscriptionCatalog() {
@@ -303,13 +305,14 @@ export function AdminSubscriptionCatalog() {
         style={{ borderColor: 'var(--stroke)', borderRadius: 'var(--radius-large)' }}
       >
         <p className="text-[14px] font-extrabold">Коммерция</p>
-        <p className="ui-muted mt-1 text-[12px]">Рекомендуемая цена считается от себестоимости и скидки гостю.</p>
+        <p className="ui-muted mt-1 text-[12px]">Цена рациона: не ниже себестоимости с мин. маржой и не выше меню за вычетом мин. выгоды гостя.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {(
             [
               ['targetMarginPercent', 'Целевая маржа, %', config.commerce.targetMarginPercent],
               ['subscriptionDiscountPercent', 'Скидка гостю, %', config.commerce.subscriptionDiscountPercent],
               ['minMarginPercent', 'Мин. маржа, %', config.commerce.minMarginPercent],
+              ['minGuestDiscountPercent', 'Мин. выгода гостя, %', config.commerce.minGuestDiscountPercent],
               ['priceRoundTo', 'Округление, ฿', config.commerce.priceRoundTo],
             ] as const
           ).map(([key, label, val]) => (
@@ -381,6 +384,13 @@ export function AdminSubscriptionCatalog() {
               Рекомендуемая: {formatPrice(quote.recommendedPrice)}
               {quote.missingCostCount > 0 ? ` · ${quote.missingCostCount} поз. без себестоимости` : ''}
             </p>
+            {quote.offerable === false ? (
+              <p className="mt-1 text-[12px] font-semibold text-red-600">
+                {quote.blockReason === 'missing_cost'
+                  ? 'Гость не сможет взять такой набор: у части блюд нет себестоимости'
+                  : 'Гость не сможет взять такой набор: с мин. маржой он не выходит дешевле меню'}
+              </p>
+            ) : null}
           </div>
         ) : null}
         <label className="mt-4 block text-[12px]">

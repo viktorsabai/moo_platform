@@ -21,7 +21,8 @@ export async function GET(request: Request) {
 
     const where = {
       restaurantId,
-      ...(subscriptionEligible ? { isAvailable: true, subscriptionEligible: true } : {}),
+      // в рацион попадают только блюда с себестоимостью — иначе нечем защитить владельца от минуса
+      ...(subscriptionEligible ? { isAvailable: true, subscriptionEligible: true, costPrice: { gt: 0 } } : {}),
       ...(categoryId && { categoryId }),
     }
     const orderBy = { createdAt: 'desc' as const }

@@ -1,6 +1,7 @@
 import type { SubscriptionCommerceConfig } from '@/lib/subscription-config'
+import { resolveGuestPrice } from '@/lib/subscription-pricing'
 
-export type DeliveryPriceVerdict = 'good' | 'low' | 'loss' | 'unknown'
+export type DeliveryPriceVerdict = 'good' | 'low' | 'loss' | 'blocked' | 'unknown'
 
 export type DeliveryPricePreview = {
   retail: number
@@ -13,32 +14,29 @@ export type DeliveryPricePreview = {
   hasCost: boolean
 }
 
-/** Одна доставка, одно блюдо — та же логика, что в pricing engine. */
+/** Одна доставка, одно блюдо — та же функция цены, что и для гостя (resolveGuestPrice). */
 export function previewOneDeliveryPrice(
   retail: number,
   cost: number | null,
   commerce: SubscriptionCommerceConfig
 ): DeliveryPricePreview {
   const c = cost != null && cost > 0 ? cost : 0
-  const byDiscount = retail * (1 - commerce.subscriptionDiscountPercent / 100)
-  const byMargin = c > 0 ? c * (1 + commerce.targetMarginPercent / 100) : 0
-  const floor = c > 0 ? c * (1 + commerce.minMarginPercent / 100) : 0
-  const minGuest = c > 0 ? Math.round(Math.max(byMargin, floor)) : null
-  let guest = Math.max(byDiscount, byMargin, floor, 0)
-  guest = Math.round(guest)
+  const r = resolveGuestPrice({ periodRetail: retail, periodCost: c, commerce, roundTo: 1 })
+  const guest = r.guestPrice
   const profit = c > 0 ? guest - c : null
   const marginPercent = profit != null && guest > 0 ? (profit / guest) * 100 : null
+  const markupPercent = profit != null && c > 0 ? (profit / c) * 100 : null
 
   let verdict: DeliveryPriceVerdict = 'unknown'
-  let verdictLabel = 'Укажите себестоимость в меню — покажем, не в убыток ли скидка (необязательно).'
+  let verdictLabel = 'Укажите себестоимость блюда — без неё оно не попадёт в рацион.'
 
   if (c > 0) {
-    if (guest < c) {
-      verdict = 'loss'
-      verdictLabel = 'Ниже себестоимости — вы в минусе'
-    } else if (marginPercent != null && marginPercent < commerce.minMarginPercent) {
+    if (!r.offerable) {
+      verdict = 'blocked'
+      verdictLabel = 'Блюдо не попадёт в рацион: с мин. маржой оно не выходит дешевле меню'
+    } else if (markupPercent != null && markupPercent < commerce.targetMarginPercent - 0.5) {
       verdict = 'low'
-      verdictLabel = 'Мало зарабатываете — поднимите цену или снизьте скидку'
+      verdictLabel = 'В плюсе, но ниже целевой маржи — поднимите цену блюда или снизьте скидку'
     } else {
       verdict = 'good'
       verdictLabel = 'С этой скидкой на этом блюде вы в плюсе'
@@ -50,7 +48,7 @@ export function previewOneDeliveryPrice(
     guest,
     profit,
     marginPercent,
-    minGuest,
+    minGuest: c > 0 ? r.floorPrice : null,
     verdict,
     verdictLabel,
     hasCost: c > 0,
@@ -95,6 +93,7 @@ export function verdictStyles(verdict: DeliveryPriceVerdict) {
         dot: 'bg-amber-500',
       }
     case 'loss':
+    case 'blocked':
       return {
         wrap: 'border-red-200 bg-red-50 text-red-950',
         dot: 'bg-red-500',
