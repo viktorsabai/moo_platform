@@ -83,7 +83,7 @@ export function SubscriptionDishCarouselCard({
             </button>
           ) : null}
           {onRemove ? (
-            <button type="button" onClick={onRemove} className="py-1 text-[10px] font-bold text-red-600">
+            <button type="button" onClick={onRemove} className="py-1 text-[10px] font-bold text-[color:var(--danger)]">
               убрать
             </button>
           ) : null}

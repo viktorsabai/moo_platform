@@ -1102,3 +1102,41 @@ export async function notifyCustomerPaymentRejected(params: {
     botToken
   )
 }
+
+/** Итог утренней сборки кухни по подпискам: сколько создано, что не получилось. */
+export async function notifyOwnersKitchenSummary(params: {
+  restaurantId: string
+  created: number
+  failed: string[]
+}): Promise<void> {
+  const { restaurantId, created, failed } = params
+  const ownerIds = await getOpsTelegramIds(restaurantId)
+  const botToken = await getBotToken(restaurantId)
+  if (!botToken || ownerIds.length === 0) return
+
+  const failLines = failed.length
+    ? [`• Не получилось: ${failed.length} (${escapeHtml([...new Set(failed)].slice(0, 2).join('; '))})`]
+    : []
+  const text = formatNotificationMessage({
+    emoji: failed.length ? '⚠️' : '🍳',
+    title: 'Кухня на сегодня',
+    metricsLine: `Создано заказов: ${created}`,
+    bulletLines: failLines,
+    closingPhrase: failed.length
+      ? 'Откройте подписчиков и соберите оставшиеся вручную.'
+      : 'Заказы по подпискам уже в разделе «Заказы».',
+  })
+  for (const chatId of ownerIds) {
+    await sendTelegramMessage(
+      chatId,
+      {
+        text,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: 'Подписчики', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } }]],
+        },
+      },
+      botToken
+    ).catch(() => undefined)
+  }
+}

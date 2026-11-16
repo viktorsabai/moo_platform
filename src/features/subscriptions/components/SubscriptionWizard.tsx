@@ -1928,7 +1928,7 @@ export function SubscriptionWizard() {
               paddingTop: 16,
             }}
           >
-            {quoteError && <p className="mb-2 text-center text-[13px] font-medium text-red-600">{quoteError}</p>}
+            {quoteError && <p className="mb-2 text-center text-[13px] font-medium text-[color:var(--danger)]">{quoteError}</p>}
             <button
               type="button"
               onClick={onCreate}
@@ -1945,7 +1945,7 @@ export function SubscriptionWizard() {
             </button>
             {createError && (
               <div className="mt-2 text-center">
-                <p className="text-[13px] font-medium text-red-600">{createError}</p>
+                <p className="text-[13px] font-medium text-[color:var(--danger)]">{createError}</p>
                 {(createError.includes('Telegram') || createError.includes('Войдите')) && typeof window !== 'undefined' && (window as any)?.Telegram?.WebApp?.initData && (
                   <button
                     type="button"

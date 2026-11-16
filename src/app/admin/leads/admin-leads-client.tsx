@@ -106,7 +106,7 @@ export function AdminLeadsClient() {
       {loading ? (
         <div className="ui-surface p-4 text-[13px] text-[color:var(--muted)]">загрузка...</div>
       ) : error ? (
-        <div className="ui-surface p-4 text-[13px] font-semibold text-red-500">{error}</div>
+        <div className="ui-surface p-4 text-[13px] font-semibold text-[color:var(--danger)]">{error}</div>
       ) : leads.length === 0 ? (
         <div className="ui-surface p-4">
           <div className="text-[14px] font-semibold text-[color:var(--text)]">Пока нет заявок</div>

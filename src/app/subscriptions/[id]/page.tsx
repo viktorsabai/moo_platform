@@ -224,9 +224,9 @@ export default function SubscriptionDetailsPage() {
       />
 
       {subscription.status === 'PENDING' ? (
-        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-[14px] font-bold text-amber-900">Ожидает подтверждения заведения</p>
-          <p className="mt-1 text-[12px] text-amber-800">
+        <div className="mt-3 rounded-2xl border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-4 py-3">
+          <p className="text-[14px] font-bold text-[color:var(--warn)]">Ожидает подтверждения заведения</p>
+          <p className="mt-1 text-[12px] text-[color:var(--warn)]">
             Можно изменить рацион, пока владелец не подтвердил заявку.
           </p>
           {canChange ? (

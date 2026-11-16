@@ -465,21 +465,21 @@ export default function ProfilePage() {
                         className={cn(
                           'h-5 w-5 shrink-0',
                           businessInquiry === 'sent'
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? 'text-[color:var(--ok)] dark:text-emerald-400'
                             : 'text-[color:var(--text)]'
                         )}
                       />
                     }
                     right={
                       businessInquiry === 'sent' ? (
-                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--ok)] dark:text-emerald-300">
                           <span aria-hidden>✓</span>
                           готово
                         </span>
                       ) : businessInquiry === 'sending' ? (
                         <span className="shrink-0 text-[12px] font-semibold text-[color:var(--muted)]">…</span>
                       ) : businessInquiry === 'error' ? (
-                        <span className="shrink-0 text-[11px] font-semibold text-red-600">ещё раз</span>
+                        <span className="shrink-0 text-[11px] font-semibold text-[color:var(--danger)]">ещё раз</span>
                       ) : undefined
                     }
                     className={cn(

@@ -147,7 +147,7 @@ export default function PlatformPage() {
       <PageHeader backHref="/profile" title="платформа" subtitle="подключение заведений и Telegram‑ботов" />
 
       {error ? (
-        <div className="ui-surface-card mb-4 text-[13px] font-semibold text-red-600">
+        <div className="ui-surface-card mb-4 text-[13px] font-semibold text-[color:var(--danger)]">
           {String(error)}
         </div>
       ) : null}

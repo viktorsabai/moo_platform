@@ -81,7 +81,7 @@ export default function ProfilePromocodesPage() {
             <div className="mt-1 text-xs text-[color:var(--muted)]">
               {row.code ? `код: ${row.code} · ` : ''}{row.rewardType} · {row.targetType}
             </div>
-            {row.giftTitle ? <div className="mt-1 text-xs text-emerald-700">подарок: {row.giftTitle}</div> : null}
+            {row.giftTitle ? <div className="mt-1 text-xs text-[color:var(--ok)]">подарок: {row.giftTitle}</div> : null}
             {row.validTo ? <div className="mt-1 text-xs text-[color:var(--muted)]">до {new Date(row.validTo).toLocaleString('ru-RU')}</div> : null}
             <div className="mt-3 flex gap-2">
               <button type="button" onClick={() => applyPromo(row.code)} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">применить</button>

@@ -137,9 +137,9 @@ export default function AdminTeamPage() {
             сохранить
           </Button>
         </div>
-        {success ? <div className="mt-2 text-[12px] font-semibold text-emerald-700">{success}</div> : null}
+        {success ? <div className="mt-2 text-[12px] font-semibold text-[color:var(--ok)]">{success}</div> : null}
         {error ? (
-          <div className="mt-2 text-[12px] font-semibold text-red-600">
+          <div className="mt-2 text-[12px] font-semibold text-[color:var(--danger)]">
             {String(error).includes('user not found')
               ? 'пользователь не найден. пусть сотрудник откроет mini app один раз, потом повтори.'
               : error}
@@ -157,7 +157,7 @@ export default function AdminTeamPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[14px] font-semibold text-[color:var(--text)]">telegram {inv.invitedTelegramId}</div>
-                      <div className="mt-1 text-[12px] font-semibold text-amber-800/90">{inviteStatusLabel(inv)}</div>
+                      <div className="mt-1 text-[12px] font-semibold text-[color:var(--warn)]">{inviteStatusLabel(inv)}</div>
                       <div className="mt-0.5 text-[11px] font-medium text-[color:var(--muted)]">
                         роль: {inv.role === 'OWNER' ? 'владелец' : inv.role === 'ADMIN' ? 'админ' : 'персонал'}
                         {inv.createdBy?.name || inv.createdBy?.telegramUsername
@@ -165,7 +165,7 @@ export default function AdminTeamPage() {
                           : ''}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-900">
+                    <span className="shrink-0 rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--warn)]">
                       ожидает
                     </span>
                   </div>

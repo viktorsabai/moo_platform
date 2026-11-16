@@ -22,7 +22,7 @@ export function Button({
     variant === 'primary'
       ? 'btn-primary'
       : variant === 'dangerSoft'
-        ? 'border border-red-300/70 bg-red-500/10 text-red-200'
+        ? 'border border-[color:var(--stroke-strong)] bg-red-500/10 text-red-200'
       : variant === 'soft'
         ? 'btn-soft'
         : 'btn-ghost'

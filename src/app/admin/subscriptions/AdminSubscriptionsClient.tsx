@@ -235,7 +235,7 @@ function ClientsSubsSection({
                       type="button"
                       onClick={() => onDeleteSubscription(s.id)}
                       title="удалить подписку"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-red-600 transition hover:bg-red-50"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] transition hover:bg-[color:var(--danger-bg)]"
                     >
                       <IconTrash className="h-4 w-4" />
                     </button>
@@ -767,8 +767,8 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
       ) : (
         <>
           {settingsFetchFailed ? (
-            <div className={cn(cardClass, 'mb-4 border-amber-200 bg-amber-50/50')} style={cardStyle}>
-              <p className="text-[13px] font-semibold text-amber-900">
+            <div className={cn(cardClass, 'mb-4 border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)]')} style={cardStyle}>
+              <p className="text-[13px] font-semibold text-[color:var(--warn)]">
                 Не удалось загрузить настройки заведения. Откройте{' '}
                 <Link href="/admin/venue" className="underline">
                   настройки точки
@@ -787,7 +787,7 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
           ) : null}
           {plansLoadError ? (
             <div className={cn(cardClass, 'mb-4')} style={cardStyle}>
-              <p className="text-[13px] font-semibold text-red-600">{plansLoadError}</p>
+              <p className="text-[13px] font-semibold text-[color:var(--danger)]">{plansLoadError}</p>
               <p className="ui-muted mt-1 text-[12px]">
                 Клиентские подписки и переключатель ниже доступны. Шаблоны планов подгрузятся после исправления.
               </p>
@@ -936,7 +936,7 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                     добавить
                   </button>
                   {createPlanError ? (
-                    <p className="w-full text-[12px] font-semibold text-red-600">{createPlanError}</p>
+                    <p className="w-full text-[12px] font-semibold text-[color:var(--danger)]">{createPlanError}</p>
                   ) : null}
                 </div>
                 <details className="mt-4 rounded-xl border p-3" style={{ borderColor: 'var(--stroke)' }}>
@@ -1041,7 +1041,7 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                             }}
                             className={cn(
                               'btn rounded-full px-3 py-1.5 text-[11px] font-semibold',
-                              p.isActive ? 'btn-soft' : 'border border-amber-200/80 bg-amber-50 text-amber-900'
+                              p.isActive ? 'btn-soft' : 'border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] text-[color:var(--warn)]'
                             )}
                             style={{ borderRadius: 'var(--radius-pill)' }}
                           >
@@ -1093,7 +1093,7 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                               toast.error('Ошибка сети')
                             }
                           }}
-                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-red-600 hover:bg-red-50"
+                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
                           >
                             <IconTrash className="h-4 w-4" />
                           </button>
@@ -1166,7 +1166,7 @@ export function AdminSubscriptionsView({ initialClientSubscriptions = [] }: Admi
                       toast.error('Ошибка сети')
                     }
                   }}
-                  className="btn btn-soft rounded-full px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-50"
+                  className="btn btn-soft rounded-full px-3 py-1.5 text-[12px] font-semibold text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
                   сбросить все подписки

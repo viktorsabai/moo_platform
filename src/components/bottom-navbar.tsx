@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { AdminBottomNav } from '@/components/admin/AdminBottomNav'
 
 type NavItem = {
   href: string
@@ -85,23 +86,6 @@ function IconUser({ className }: { className?: string }) {
   )
 }
 
-function IconArrowLeft({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  )
-}
-
 const ALL_ITEMS: NavItem[] = [
   { href: '/', label: 'главная', icon: (p) => <IconHome {...p} /> },
   { href: '/menu', label: 'доставка', icon: (p) => <IconMenu {...p} /> },
@@ -128,29 +112,7 @@ export default function BottomNavbar() {
   }
 
   if (inOwnerContext) {
-    return (
-      <nav
-        aria-label="owner"
-        className="fixed bottom-0 left-0 right-0 z-[200] border-t border-[color:var(--stroke)] bg-[color:var(--bottom-bg)] backdrop-blur-xl"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
-        <div
-          style={{ ['--ufo-bottomnav-h' as any]: '72px' }}
-          className="mx-auto max-w-md px-4 py-3"
-        >
-          <Link
-            href="/profile"
-            prefetch={false}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[13px] font-semibold text-[color:var(--text)] transition active:opacity-80"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-            aria-label="назад в профиль"
-          >
-            <IconArrowLeft className="h-5 w-5 shrink-0" />
-            профиль
-          </Link>
-        </div>
-      </nav>
-    )
+    return <AdminBottomNav />
   }
 
   return (

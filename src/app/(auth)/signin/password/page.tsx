@@ -74,7 +74,7 @@ export default function SignInPasswordPage() {
               placeholder="пароль из профиля"
             />
           </div>
-          {error && <p className="text-[13px] text-red-600">{error}</p>}
+          {error && <p className="text-[13px] text-[color:var(--danger)]">{error}</p>}
           <p className="text-[12px] text-black/50">
             Забыли пароль? Откройте приложение в Telegram и задайте новый пароль в профиле.
           </p>

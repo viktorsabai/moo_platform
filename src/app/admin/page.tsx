@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
-import { AdminDashboardSections } from '@/app/admin/AdminDashboardSections'
+import { parsePaymentMethodsJson } from '@/lib/payment-methods'
 import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
 import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
+import { AdminKitchenToday } from '@/components/admin/AdminKitchenToday'
 import { Card } from '@/components/ui/Card'
 
 const ARCHIVE_CATEGORY_SLUG = '__archive'
@@ -49,7 +50,7 @@ export default async function AdminHomePage() {
   }
 
   type RestaurantRow = { id: string; name: string; slug: string } | null
-  type SettingsRow = { deliveryFee: number; freeDeliveryFrom: number; openTime: string; closeTime: string; menuEnabled: boolean; storeEnabled: boolean; subscriptionEnabled: boolean; isOpenOverride?: boolean | null } | null
+  type SettingsRow = { deliveryFee: number; freeDeliveryFrom: number; openTime: string; closeTime: string; menuEnabled: boolean; storeEnabled: boolean; subscriptionEnabled: boolean; isOpenOverride?: boolean | null; paymentMethodsJson?: unknown } | null
   type TeamMemberRow = { id: string; role: string; user?: { name: string | null; telegramUsername: string | null } }
   type DashboardCountsRow = {
     teamCount: number
@@ -103,6 +104,7 @@ export default async function AdminHomePage() {
         menuEnabled: true,
         storeEnabled: true,
         subscriptionEnabled: true,
+        paymentMethodsJson: true,
       },
     }),
     prisma.$queryRawUnsafe<DashboardCountsRow[]>(
@@ -163,6 +165,12 @@ export default async function AdminHomePage() {
        WHERE e."restaurantId" = $1
        ORDER BY e."createdAt" DESC
        LIMIT 5`,
+      admin.restaurantId
+    ),
+    prisma.$queryRawUnsafe<Array<{ zones: number; orders: number }>>(
+      `SELECT
+         (SELECT COUNT(*)::int FROM "DeliveryZone" WHERE "restaurantId" = $1 AND "isActive" = true) AS "zones",
+         (SELECT COUNT(*)::int FROM "Order" WHERE "restaurantId" = $1) AS "orders"`,
       admin.restaurantId
     ),
   ])
@@ -226,7 +234,7 @@ export default async function AdminHomePage() {
     closeTime: '22:00',
     deliveryFee: 100,
     freeDeliveryFrom: 500,
-    menuEnabled: false,
+    menuEnabled: true,
     storeEnabled: true,
     subscriptionEnabled: false,
     isOpenOverride: null as boolean | null,
@@ -307,158 +315,68 @@ export default async function AdminHomePage() {
 
   const isOpenNow = computeIsOpenNow()
 
-  const sectionsBase = [
-    {
-      group: 'venue' as const,
-      id: 'venue',
-      title: 'Профиль и режим',
-      hint: isOpenNow ? 'принимаем заказы' : 'на паузе или вне часов',
-      href: '/admin/venue',
-      summary: 'Название, часы, пауза, доставка.',
-      linkLabel: 'Настройки заведения',
-      icon: 'venue' as const,
-    },
-    {
-      group: 'venue' as const,
-      id: 'notifications',
-      title: 'Telegram',
-      hint: 'бот · уведомления · QR',
-      href: '/admin/qr',
-      summary: 'Подключение бота и кто получает алерты.',
-      linkLabel: 'Бот и QR',
-      icon: 'platform' as const,
-    },
-    {
-      group: 'venue' as const,
-      id: 'team',
-      title: 'Команда',
-      hint: teamCount > 1 ? `${teamCount} участников` : 'сотрудники',
-      href: '/admin/team',
-      summary: 'Роли и Telegram — без привязки уведомления в чат не придут.',
-      linkLabel: 'Управление командой',
-      icon: 'team' as const,
-    },
-    {
-      group: 'showcase' as const,
-      id: 'banners',
-      title: 'Главная',
-      hint:
-        activeCampaignsCount > 0
-          ? `${activeCampaignsCount} активных акций`
-          : bannersCount > 0
-            ? `${bannersCount} баннеров`
-            : 'баннеры и промокоды',
-      href: '/admin/banners',
-      summary: 'Баннеры на главной и публичные промокампании.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'banners' as const,
-      badgeCount: activeCampaignsCount,
-      badgeLabel: `активных акций: ${activeCampaignsCount}`,
-      badgeTone: 'info' as const,
-    },
-    {
-      group: 'showcase' as const,
-      id: 'store',
-      title: 'Меню и товары',
-      hint: availableDishesCount > 0 || activeStoreCount > 0
-        ? [availableDishesCount > 0 && `${availableDishesCount} блюд`, activeStoreCount > 0 && `${activeStoreCount} товаров`].filter(Boolean).join(' · ')
-        : 'товары и блюда',
-      href: '/admin/store',
-      summary: 'Готовые блюда и товары магазина. Категории, позиции, варианты.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'store' as const,
-    },
-    {
-      group: 'operations' as const,
-      id: 'orders',
-      title: 'Заказы',
-      hint:
-        pendingOrdersCount > 0
-          ? `${pendingOrdersCount} новых · ${activeOrdersCount} в работе`
-          : activeOrdersCount > 0
-            ? `${activeOrdersCount} активных`
-            : 'новые и в работе',
-      href: '/admin/orders',
-      summary: 'Список заказов, статусы и выручка.',
-      linkLabel: 'Перейти к деталям',
-      icon: 'orders' as const,
-    },
-    {
-      group: 'subscriptions' as const,
-      id: 'subscribers',
-      title: 'Подписчики',
-      hint: pendingSubscriptionsCount > 0
-        ? `${pendingSubscriptionsCount} на подтверждении`
-        : subscriptionsCount > 0
-          ? `${subscriptionsCount} подписок`
-          : 'CRM и сводка на кухню',
-      href: '/admin/subscriptions/clients',
-      summary: 'Клиенты с подписками: подтверждения, доставки, заказ на кухню.',
-      linkLabel: 'Открыть подписчиков',
-      icon: 'subscriptions' as const,
-    },
-    {
-      group: 'subscriptions' as const,
-      id: 'subscription-plans',
-      title: 'Планы подписки',
-      hint: settings?.subscriptionEnabled
-        ? `${subscriptionPlansCount} шаблонов`
-        : 'выключены в каталоге',
-      href: '/admin/subscriptions',
-      summary: 'Конструктор планов и экономика рационов.',
-      linkLabel: 'Конструктор планов',
-      icon: 'subscriptions' as const,
-    },
-    {
-      group: 'subscriptions' as const,
-      id: 'subscription-leads',
-      title: 'Запросы «хочу подписку»',
-      hint: newLeadsCount > 0 ? `${newLeadsCount} новых` : 'до оформления плана',
-      href: '/admin/subscription-leads',
-      summary:
-        'До оформления плана: гость нажал «хочу подписку». Отличается от «Подписчиков», где уже есть заявка PENDING или ACTIVE.',
-      linkLabel: 'Открыть запросы',
-      icon: 'leads' as const,
-    },
-    {
-      group: 'requests' as const,
-      id: 'leads',
-      title: 'Кейтеринг и события',
-      hint: newServiceLeadsCount > 0 ? `${newServiceLeadsCount} новых` : 'заявки и запросы',
-      href: '/admin/leads',
-      summary: 'Входящие заявки с главной: кейтеринг, банкеты, корпоративы и особые запросы.',
-      linkLabel: 'Перейти к заявкам',
-      icon: 'leads' as const,
-    },
-    {
-      group: 'analytics' as const,
-      id: 'visits',
-      title: 'Посещаемость',
-      hint: Number(activityStats.newViews ?? 0) > 0
-        ? `${Number(activityStats.newViews ?? 0)} новых за 24ч`
-        : Number(activityStats.views ?? 0) > 0
-          ? `${Number(activityStats.views ?? 0)} просмотров за 7 дней`
-        : 'просмотры, корзины, пользователи',
-      href: '/admin/visits',
-      summary: 'Кто заходил, какие страницы смотрели и где появлялись корзины.',
-      linkLabel: 'Открыть аналитику',
-      icon: 'analytics' as const,
-      badgeCount: Number(activityStats.newViews ?? 0),
-      badgeLabel: `новых посещений за 24 часа: ${Number(activityStats.newViews ?? 0)}`,
-      badgeTone: 'info' as const,
-    },
+  const methods = parsePaymentMethodsJson((settings as any)?.paymentMethodsJson)
+  const hasQr = methods.some((m) => m.enabled && m.slug.startsWith('QR') && m.qrImageUrl)
+  const extra = settled[6].status === 'fulfilled' ? settled[6].value?.[0] : null
+  const zonesCount = Number(extra?.zones ?? 0)
+  const ordersTotal = Number(extra?.orders ?? 0)
+  const checklist = [
+    { done: true, label: 'бот и заведение' },
+    { done: availableDishesCount > 0, label: 'есть доступные блюда', href: '/admin/store' },
+    { done: zonesCount > 0, label: 'зона доставки', href: '/admin/venue' },
+    { done: hasQr, label: 'QR для оплаты', href: '/admin/qr' },
+    { done: ordersTotal > 0, label: 'тестовый заказ', href: '/' },
   ]
-
-  const sections = sectionsBase
+  const doneCount = checklist.filter((c) => c.done).length
+  const nextStep = checklist.find((c) => !c.done)
+  const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ')
 
   return (
-    <main className="ui-container ui-screen !pb-20 min-w-0 max-w-full overflow-x-hidden">
-      <AdminOwnerInbox
-        subscriptionRequestLeads={newLeadsCount}
-        restaurantName={dashboardData.restaurantName}
-      />
-      <AdminDashboardSections sections={sections} dashboardData={dashboardData} />
+    <main className="ui-container ui-screen !pb-24 min-w-0 max-w-full overflow-x-hidden">
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-bold tracking-tight text-[color:var(--text)]">{dashboardData.restaurantName}</h1>
+          <div className="mt-0.5 text-[12.5px] text-[color:var(--muted)]">
+            {isOpenNow ? `открыто до ${resolvedSettings.closeTime}` : 'сейчас закрыто'}
+            {' · '}
+            <Link href="/admin/venue" prefetch={false} className="underline underline-offset-2">часы и пауза</Link>
+          </div>
+        </div>
+      </header>
+
+      {doneCount < checklist.length && nextStep ? (
+        <section className="mb-4 rounded-[20px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
+          <div className="flex items-baseline justify-between">
+            <div className="text-[15px] font-semibold text-[color:var(--text)]">до первого заказа — {checklist.length - doneCount} шага</div>
+            <div className="text-[12.5px] text-[color:var(--muted)]">{doneCount} из {checklist.length}</div>
+          </div>
+          <div className="mt-3 flex gap-1" aria-hidden>
+            {checklist.map((c, i) => (
+              <div key={i} className={`h-1.5 flex-1 rounded-full ${c.done ? 'bg-[color:var(--ok)]' : 'bg-[color:var(--stroke)]'}`} />
+            ))}
+          </div>
+          <ul className="mt-3 space-y-1 text-[13px] text-[color:var(--muted)]">
+            {checklist.map((c) => (
+              <li key={c.label}>{c.done ? '✓ ' : '○ '}{c.label}</li>
+            ))}
+          </ul>
+          <Link
+            href={nextStep.href ?? '/admin/venue'}
+            prefetch={false}
+            className="mt-3 flex h-11 w-full items-center justify-center rounded-[14px] bg-[color:var(--primary)] text-[14px] font-semibold text-[color:var(--on-primary,#fff)]"
+          >
+            {nextStep.label}
+          </Link>
+        </section>
+      ) : null}
+
+      <AdminOwnerInbox subscriptionRequestLeads={newLeadsCount} restaurantName={dashboardData.restaurantName} />
+
+      <AdminKitchenToday />
+
+      <p className="mt-4 text-center text-[12.5px] text-[color:var(--muted)]">
+        сегодня: {stats.ordersToday} заказов · {fmt(stats.revenueToday)} ฿ · {activeOrdersCount} в работе
+      </p>
     </main>
   )
 }
-

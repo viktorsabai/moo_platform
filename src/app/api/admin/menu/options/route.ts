@@ -6,8 +6,6 @@ import { slugifyOption } from '@/lib/menu-options'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-const SINGLE_TENANT_RESTAURANT_ID =
-  String(process.env.UFO_SINGLE_RESTAURANT_ID || '').trim()
 
 type PrismaLike = typeof prisma
 
@@ -202,7 +200,7 @@ export async function PUT(request: Request) {
     if (!groupId || !valueName) return NextResponse.json({ ok: false, error: 'Нужны groupId и valueName' }, { status: 400 })
 
     const group = await prisma.menuOptionGroup.findFirst({
-      where: SINGLE_TENANT_RESTAURANT_ID ? { id: groupId } : { id: groupId, restaurantId: ctx.restaurantId },
+      where: { id: groupId, restaurantId: ctx.restaurantId },
       select: { id: true },
     })
     if (!group) return NextResponse.json({ ok: false, error: 'Опция не найдена' }, { status: 404 })
@@ -258,7 +256,7 @@ export async function PATCH(request: Request) {
       const groupId = typeof body?.groupId === 'string' ? body.groupId : ''
       if (!groupId) return NextResponse.json({ ok: false, error: 'Нужен groupId' }, { status: 400 })
       const existing = await prisma.menuOptionGroup.findFirst({
-        where: SINGLE_TENANT_RESTAURANT_ID ? { id: groupId } : { id: groupId, restaurantId: ctx.restaurantId },
+        where: { id: groupId, restaurantId: ctx.restaurantId },
         select: { id: true, name: true },
       })
       if (!existing) return NextResponse.json({ ok: false, error: 'Опция не найдена' }, { status: 404 })
@@ -298,7 +296,7 @@ export async function PATCH(request: Request) {
       const valueId = typeof body?.valueId === 'string' ? body.valueId : ''
       if (!valueId) return NextResponse.json({ ok: false, error: 'Нужен valueId' }, { status: 400 })
       const existing = await prisma.menuOptionValue.findFirst({
-        where: SINGLE_TENANT_RESTAURANT_ID ? { id: valueId } : { id: valueId, restaurantId: ctx.restaurantId },
+        where: { id: valueId, restaurantId: ctx.restaurantId },
         select: { id: true, name: true, groupId: true },
       })
       if (!existing) return NextResponse.json({ ok: false, error: 'Значение не найдено' }, { status: 404 })
@@ -370,7 +368,7 @@ export async function DELETE(request: Request) {
     const hardDelete = mode === 'delete' || searchParams.get('hard') === '1'
     if (valueId) {
       const v = await prisma.menuOptionValue.findFirst({
-        where: SINGLE_TENANT_RESTAURANT_ID ? { id: valueId } : { id: valueId, restaurantId: ctx.restaurantId },
+        where: { id: valueId, restaurantId: ctx.restaurantId },
         select: { id: true },
       })
       if (!v) return NextResponse.json({ ok: false, error: 'Значение не найдено' }, { status: 404 })
@@ -392,7 +390,7 @@ export async function DELETE(request: Request) {
     }
     if (groupId) {
       const g = await prisma.menuOptionGroup.findFirst({
-        where: SINGLE_TENANT_RESTAURANT_ID ? { id: groupId } : { id: groupId, restaurantId: ctx.restaurantId },
+        where: { id: groupId, restaurantId: ctx.restaurantId },
         select: { id: true },
       })
       if (!g) return NextResponse.json({ ok: false, error: 'Опция не найдена' }, { status: 404 })

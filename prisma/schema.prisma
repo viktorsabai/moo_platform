@@ -128,7 +128,7 @@ model AppSettings {
   id              String   @id @default(cuid())
   restaurantId    String   @unique @default("default")
   // catalog toggles: готовые блюда (Dish), магазин (Store), подписки
-  menuEnabled      Boolean  @default(false)
+  menuEnabled      Boolean  @default(true)
   storeEnabled    Boolean  @default(true)
   subscriptionEnabled Boolean @default(true)
   // delivery fee rules
@@ -699,6 +699,9 @@ model SubscriptionDelivery {
   scheduledDate  DateTime
   deliveredAt    DateTime?
   status         DeliveryStatus @default(SCHEDULED)
+  /// Последняя ошибка автосборки заказа на кухню (видна владельцу); очищается при успехе
+  kitchenError   String?
+  kitchenErrorAt DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 

@@ -67,7 +67,7 @@ export function SubscriptionDishOptionsSheet({ line, dish, subConfig: _subConfig
               onRemove()
               onClose()
             }}
-            className="w-full rounded-2xl border-2 border-red-200 bg-red-50 py-3 text-[15px] font-bold text-red-700"
+            className="w-full rounded-2xl border-2 border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] py-3 text-[15px] font-bold text-[color:var(--danger)]"
           >
             убрать блюдо из рациона
           </button>

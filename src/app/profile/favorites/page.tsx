@@ -151,7 +151,7 @@ export default function ProfileFavoritesPage() {
       {loading ? (
         <div className="ui-surface p-4 text-[13px] text-[color:var(--muted)]">загрузка...</div>
       ) : error ? (
-        <div className="ui-surface p-4 text-[13px] font-semibold text-red-500">{error}</div>
+        <div className="ui-surface p-4 text-[13px] font-semibold text-[color:var(--danger)]">{error}</div>
       ) : favorites.length === 0 ? (
         <div className="ui-surface p-5">
           <div className="text-[16px] font-extrabold text-[color:var(--text)]">Пока пусто</div>

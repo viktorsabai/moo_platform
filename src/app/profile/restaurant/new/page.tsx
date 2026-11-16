@@ -79,7 +79,7 @@ export default function NewRestaurantPage() {
           </div>
         </div>
 
-        {error ? <p className="text-[13px] font-semibold text-red-600">{error}</p> : null}
+        {error ? <p className="text-[13px] font-semibold text-[color:var(--danger)]">{error}</p> : null}
         <button
           type="submit"
           disabled={loading || !name.trim() || !slug.trim()}

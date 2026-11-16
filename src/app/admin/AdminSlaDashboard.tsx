@@ -52,13 +52,13 @@ export function AdminSlaDashboard() {
       {data?.topOverdue?.length ? (
         <div className="mt-3 space-y-1">
           {data.topOverdue.slice(0, 3).map((o) => (
-            <div key={o.id} className="text-[12px] text-red-600">
+            <div key={o.id} className="text-[12px] text-[color:var(--danger)]">
               #{o.id.slice(-8)} · {o.status} · +{o.overdueMinutes} мин
             </div>
           ))}
         </div>
       ) : (
-        <div className="mt-3 text-[12px] text-emerald-600">Просрочек по SLA нет.</div>
+        <div className="mt-3 text-[12px] text-[color:var(--ok)]">Просрочек по SLA нет.</div>
       )}
     </div>
   )

@@ -203,7 +203,7 @@ export function SubscriptionCheckoutConfigPhase({
         <div className="px-3 pb-3 pt-2">
           <SubscriptionCheckoutSavingsBar quote={activeQuote} totalPrice={totalPrice} />
           {submitError ? (
-            <p className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-[13px] font-semibold leading-snug text-red-700">
+            <p className="mb-2 rounded-xl border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-2 text-center text-[13px] font-semibold leading-snug text-[color:var(--danger)]">
               {submitError}
             </p>
           ) : null}

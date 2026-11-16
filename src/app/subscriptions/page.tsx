@@ -128,7 +128,7 @@ function SubscriptionsPageContent() {
       <main className="ui-container ui-screen">
         <PageHeader title="подписка" compact className="mb-3" />
         <div className="ui-surface-card p-4 text-center" style={{ borderRadius: 'var(--radius-large)' }}>
-          <p className="text-[13px] font-semibold text-red-600">Не удалось загрузить настройки.</p>
+          <p className="text-[13px] font-semibold text-[color:var(--danger)]">Не удалось загрузить настройки.</p>
           <button type="button" onClick={() => refetchVenue()} className="btn btn-soft mt-4 rounded-full px-4 py-2.5 text-[13px] font-semibold">
             обновить
           </button>
@@ -184,9 +184,9 @@ function SubscriptionsPageContent() {
       {hubTab === 'list' ? <SubscriptionHubDraftBanner /> : null}
 
       {loadError && subscriptions.length === 0 && !refreshing ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-center">
-          <p className="text-[13px] font-medium text-red-700">{loadError}</p>
-          <button type="button" onClick={() => loadSubscriptions()} className="mt-2 text-[12px] font-semibold text-red-600 underline">
+        <div className="mb-4 rounded-xl border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-4 py-3 text-center">
+          <p className="text-[13px] font-medium text-[color:var(--danger)]">{loadError}</p>
+          <button type="button" onClick={() => loadSubscriptions()} className="mt-2 text-[12px] font-semibold text-[color:var(--danger)] underline">
             повторить
           </button>
         </div>

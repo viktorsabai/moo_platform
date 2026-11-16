@@ -881,7 +881,7 @@ export function AdminCampaigns() {
               <div className="p-2 text-[12px] text-[color:var(--muted)]">загружаю меню…</div>
             ) : giftSourceState === 'error' ? (
               <div className="flex items-center justify-between gap-2 p-2 text-[12px]">
-                <span className="text-amber-700">не удалось загрузить блюда</span>
+                <span className="text-[color:var(--warn)]">не удалось загрузить блюда</span>
                 <button type="button" onClick={load} className="rounded-full bg-[color:var(--surface-strong)] px-2 py-1 font-semibold">
                   обновить
                 </button>
@@ -1420,12 +1420,12 @@ export function AdminCampaigns() {
         {scenario ? (
           <div className="sticky bottom-0 z-20 -mx-4 border-t border-[color:var(--stroke)] bg-[color:var(--bottom-bg)]/98 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
             {campaignSaveError ? (
-              <div className="mb-3 rounded-[var(--radius-medium)] border border-red-200/90 bg-red-50/95 px-3 py-2 text-[12px] font-medium leading-snug text-red-900">
+              <div className="mb-3 rounded-[var(--radius-medium)] border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-2 text-[12px] font-medium leading-snug text-[color:var(--danger)]">
                 <div className="font-extrabold">не сохранилось</div>
                 <div className="mt-1">{campaignSaveError}</div>
                 <button
                   type="button"
-                  className="mt-2 text-[11px] font-bold uppercase tracking-wide text-red-800 underline"
+                  className="mt-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--danger)] underline"
                   onClick={() => setCampaignSaveError(null)}
                 >
                   скрыть
@@ -1446,7 +1446,7 @@ export function AdminCampaigns() {
             </p>
           </div>
         ) : (
-          <p className="rounded-[var(--radius-medium)] border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-center text-[12px] font-medium text-amber-900">
+          <p className="rounded-[var(--radius-medium)] border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-3 py-2 text-center text-[12px] font-medium text-[color:var(--warn)]">
             Сначала выберите цель акции выше (карточка сценария).
           </p>
         )}
@@ -1467,7 +1467,7 @@ export function AdminCampaigns() {
                     {row.kind === 'AUTO' ? 'авто · ' : ''}
                     {row.rewardType} · {row.targetType} · {Number(row._count?.redemptions ?? 0)} раз
                   </div>
-                  {row.giftTitle ? <div className="text-xs text-emerald-700">подарок: {row.giftTitle}</div> : null}
+                  {row.giftTitle ? <div className="text-xs text-[color:var(--ok)]">подарок: {row.giftTitle}</div> : null}
                   {row.minSubtotal ? <div className="text-xs text-[color:var(--muted)]">мин. чек: {Number(row.minSubtotal)} ฿</div> : null}
                 </div>
                 <div className="text-xs font-semibold text-[color:var(--muted)]">{row.status}</div>
@@ -1483,7 +1483,7 @@ export function AdminCampaigns() {
                 <button
                   type="button"
                   onClick={() => removeRow(row.id)}
-                  className="rounded-full border border-red-200/80 bg-red-50/90 px-3 py-1 text-xs font-semibold text-red-700"
+                  className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--danger)]"
                 >
                   удалить
                 </button>

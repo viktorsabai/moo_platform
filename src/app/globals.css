@@ -38,6 +38,12 @@
 
   --accent: #111827;          /* same as primary (clean) */
   --accent-strong: #0b1220;   /* hover */
+  --on-primary: #ffffff;
+
+  /* state tokens: use these instead of hard-coded green/amber/red */
+  --ok: #0b6b43;  --ok-bg: #e1f2e8;
+  --warn: #774c00; --warn-bg: #fbeed0;
+  --danger: #a8231b; --danger-bg: #fbe6e3;
 
   /* Spacing System (STRICT: 8/12/16/24 only) */
   --space-2: 8px;
@@ -67,23 +73,29 @@
 }
 
 html.dark {
-  --bg: #0e1117;              /* softer deep slate */
-  --surface: rgba(31, 36, 48, .74);
-  --surface-strong: rgba(36, 42, 56, .92);
+  /* warm graphite, derived from the light palette (no cold navy, not near-black) */
+  --bg: #24221f;
+  --surface: rgba(47, 45, 41, .78);
+  --surface-strong: rgba(47, 45, 41, .96);
   --stroke: rgba(255, 255, 255, .14);
   --stroke-strong: rgba(255, 255, 255, .22);
 
-  --text: rgba(245, 247, 255, .96);
-  --muted: rgba(226, 232, 245, .72);
-  --primary: #7f96ff;
-  --primary-strong: #6f86f0;
-  --accent: #7f96ff;
-  --accent-strong: #6f86f0;
+  --text: #f2efe9;
+  --muted: #b5b0a7;
+  --primary: #f2efe9;
+  --primary-strong: #ffffff;
+  --accent: #f2efe9;
+  --accent-strong: #ffffff;
+  --on-primary: #24221f;
 
-  --bg-grad-a: rgba(127, 157, 255, .10);
-  --bg-grad-b: rgba(88, 99, 255, .08);
-  --sticky-bg: rgba(17, 21, 30, .86);
-  --bottom-bg: rgba(19, 24, 34, .88);
+  --ok: #8fe0ae;  --ok-bg: #233a2b;
+  --warn: #f2c874; --warn-bg: #3d3320;
+  --danger: #ff9d94; --danger-bg: #47241f;
+
+  --bg-grad-a: rgba(255, 255, 255, .03);
+  --bg-grad-b: rgba(255, 255, 255, .02);
+  --sticky-bg: rgba(36, 34, 31, .9);
+  --bottom-bg: rgba(47, 45, 41, .92);
 
   /* Stronger elevation on dark bg (light-mode tokens are nearly invisible here) */
   --shadow-soft: 0 4px 22px rgba(0, 0, 0, .42);
@@ -136,6 +148,12 @@ html.dark {
   html.dark [class*=' border-black/'],
   html.dark [class^='border-black/'] {
     border-color: var(--stroke) !important;
+  }
+
+  /* white label on a primary fill must flip when primary becomes light */
+  html.dark [class*='bg-[color:var(--primary)]'].text-white,
+  html.dark [class*='bg-[color:var(--primary)]'] .text-white {
+    color: var(--on-primary) !important;
   }
 
   html.dark [class*=' bg-black/'],

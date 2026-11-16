@@ -312,9 +312,9 @@ export default function AdminVenuePage() {
         </div>
         {savedAt ? <p className="ui-muted mt-2 text-[12px]">настройки сохранены</p> : null}
         {error ? (
-          <div className="mt-3 rounded-xl border border-red-200 bg-red-50/80 p-3 dark:border-red-900/40 dark:bg-red-950/30">
-            <p className="text-[13px] font-semibold text-red-700 dark:text-red-300">{error}</p>
-            <p className="mt-1 text-[11px] text-red-600/80 dark:text-red-400/90">
+          <div className="mt-3 rounded-xl border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] p-3 dark:border-red-900/40 dark:bg-red-950/30">
+            <p className="text-[13px] font-semibold text-[color:var(--danger)] dark:text-red-300">{error}</p>
+            <p className="mt-1 text-[11px] text-[color:var(--danger)] dark:text-red-400/90">
               {error.includes('доступ') ? 'Убедитесь, что вы владелец или админ этого заведения.' : null}
               {error.includes('Войдите') ? 'Войдите через Telegram.' : null}
               {error.includes('базы данных') ? 'Проверьте DATABASE_URL в .env.' : null}

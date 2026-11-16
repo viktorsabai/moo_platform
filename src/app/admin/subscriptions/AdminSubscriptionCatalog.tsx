@@ -272,7 +272,7 @@ export function AdminSubscriptionCatalog() {
                     </span>
                     <span className="shrink-0 text-[color:var(--muted)]">{formatPrice(d.price)}</span>
                     {noCost ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                      <span className="rounded-full bg-[color:var(--warn-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--warn)]">
                         нет себест.
                       </span>
                     ) : null}
@@ -385,7 +385,7 @@ export function AdminSubscriptionCatalog() {
               {quote.missingCostCount > 0 ? ` · ${quote.missingCostCount} поз. без себестоимости` : ''}
             </p>
             {quote.offerable === false ? (
-              <p className="mt-1 text-[12px] font-semibold text-red-600">
+              <p className="mt-1 text-[12px] font-semibold text-[color:var(--danger)]">
                 {quote.blockReason === 'missing_cost'
                   ? 'Гость не сможет взять такой набор: у части блюд нет себестоимости'
                   : 'Гость не сможет взять такой набор: с мин. маржой он не выходит дешевле меню'}
