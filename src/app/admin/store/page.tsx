@@ -35,10 +35,10 @@ export default function AdminMenuPage() {
 
   const load = useCallback(async () => {
     const get = (u: string) => fetch(u, { cache: 'no-store', credentials: 'include' }).then((r) => r.json()).catch(() => null)
-    const [c, d, sc, sp] = await Promise.all([get('/api/admin/menu/categories'), get('/api/admin/menu/dishes'), get('/api/admin/store/categories'), get('/api/admin/store/products')])
+    const [c, d, sp] = await Promise.all([get('/api/admin/menu/categories'), get('/api/admin/menu/dishes'), get('/api/admin/store/products')])
     const nextCats: Cat[] = [
       ...((c?.categories ?? []) as any[]).map((x) => ({ key: `d:${x.id}`, id: x.id, name: x.name, kind: 'dish' as const })),
-      ...((sc?.categories ?? []) as any[]).map((x) => ({ key: `s:${x.id}`, id: x.id, name: x.name, kind: 'store' as const })),
+      ...((sp?.categories ?? []) as any[]).map((x) => ({ key: `s:${x.id}`, id: x.id, name: x.name, kind: 'store' as const })),
     ]
     const next: Item[] = [
       ...((d?.dishes ?? []) as any[]).map((x) => ({
