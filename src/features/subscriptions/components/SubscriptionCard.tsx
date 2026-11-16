@@ -142,7 +142,7 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
               type="button"
               onClick={handleCancel}
               disabled={isLoading}
-              className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[13px] font-semibold text-rose-600 transition active:scale-[0.98] disabled:opacity-40"
+              className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[13px] font-semibold text-[color:var(--danger)] transition active:scale-[0.98] disabled:opacity-40"
             >
               отменить
             </button>

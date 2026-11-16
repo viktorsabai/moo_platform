@@ -913,7 +913,7 @@ export default function CheckoutPage() {
           </div>
           {promoCode.trim() || promoCampaignId ? (
             promoState.ok ? (
-              <div className="ui-muted mt-2 text-[12px] text-emerald-700">
+              <div className="ui-muted mt-2 text-[12px] text-[color:var(--ok)]">
                 {promoState.discountAmount > 0 ? <span>скидка: -{formatPrice(promoState.discountAmount)}</span> : null}
                 {promoState.discountAmount > 0 && (promoState.giftTitle || promoState.giftDishId) ? <span> · </span> : null}
                 {promoState.giftTitle || promoState.giftDishId ? (
@@ -924,7 +924,7 @@ export default function CheckoutPage() {
                 ) : null}
               </div>
             ) : (
-              <div className="ui-muted mt-2 text-[12px] text-amber-700">
+              <div className="ui-muted mt-2 text-[12px] text-[color:var(--warn)]">
                 {promoState.validating ? 'проверяем акцию...' : 'акция не применена'}
               </div>
             )

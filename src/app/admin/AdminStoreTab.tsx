@@ -706,7 +706,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden space-y-5">
       {!storeEnabled && (
-        <div className="rounded-[18px] border border-amber-200 bg-amber-50/80 p-3 text-[13px] text-amber-900">
+        <div className="rounded-[18px] border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] p-3 text-[13px] text-[color:var(--warn)]">
           Включите «Магазин» в настройках заведения, чтобы товары видели гости.
         </div>
       )}
@@ -829,7 +829,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
           </button>
         </div>
         {exportStatus && (
-          <p className={cn('mt-2 text-[12px]', exportStatus.ok ? 'text-green-700' : 'text-amber-700')}>
+          <p className={cn('mt-2 text-[12px]', exportStatus.ok ? 'text-[color:var(--ok)]' : 'text-[color:var(--warn)]')}>
             {exportStatus.msg}
           </p>
         )}
@@ -968,7 +968,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                 <button
                   type="button"
                   onClick={() => setNewProduct((s) => ({ ...s, image: '' }))}
-                  className="rounded-full bg-red-50 px-4 py-2.5 text-[13px] font-semibold text-red-700"
+                  className="rounded-full bg-[color:var(--danger-bg)] px-4 py-2.5 text-[13px] font-semibold text-[color:var(--danger)]"
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
                   убрать фото
@@ -1078,7 +1078,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
         >
           сохранить
         </button>
-        {error ? <div className="mt-2 text-[12px] font-semibold text-red-600">{error}</div> : null}
+        {error ? <div className="mt-2 text-[12px] font-semibold text-[color:var(--danger)]">{error}</div> : null}
       </details>
 
       {/* Категории и товары по категориям */}
@@ -1144,7 +1144,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                 <button
                   type="button"
                   onClick={() => deleteCategory(cat.id)}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-black/40 transition hover:bg-red-50 hover:text-red-600"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-black/40 transition hover:bg-[color:var(--danger-bg)] hover:text-[color:var(--danger)]"
                   aria-label={`удалить ${cat.name}`}
                 >
                   ×
@@ -1164,7 +1164,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                 <button
                   type="button"
                   onClick={deleteSelectedCategories}
-                  className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-700 transition active:opacity-80"
+                  className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-1.5 text-[12px] font-semibold text-[color:var(--danger)] transition active:opacity-80"
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
                   × категории ({selectedCategoryIds.size})
@@ -1174,7 +1174,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                 <button
                   type="button"
                   onClick={deleteSelectedProducts}
-                  className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-700 transition active:opacity-80"
+                  className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-1.5 text-[12px] font-semibold text-[color:var(--danger)] transition active:opacity-80"
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
                   × товары ({selectedProductIds.size})
@@ -1265,7 +1265,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                       <button
                         type="button"
                         onClick={() => deleteCategory(cat.id)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--stroke)] text-[16px] leading-none text-[color:var(--muted)] transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--stroke)] text-[16px] leading-none text-[color:var(--muted)] transition hover:bg-[color:var(--danger-bg)] hover:border-[color:var(--stroke-strong)] hover:text-[color:var(--danger)]"
                         aria-label="удалить категорию"
                       >
                         ×
@@ -1323,7 +1323,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                           <button
                             type="button"
                             onClick={() => deleteProduct(p.id)}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-black/10 text-[14px] leading-none text-black/45 transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-black/10 text-[14px] leading-none text-black/45 transition hover:bg-[color:var(--danger-bg)] hover:border-[color:var(--stroke-strong)] hover:text-[color:var(--danger)]"
                             aria-label="удалить"
                           >
                             ×
@@ -1550,7 +1550,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                                             [p.id]: { ...(prev[p.id] || { name: p.name, categoryId: String(p.categoryId || ''), image: String(p.image || ''), description: String(p.description || ''), isActive: p.isActive !== false, optionValueIds: getStoreOptionIdsFromTags((p as any).tags) }), image: '' },
                                           }))
                                         }
-                                        className="rounded-full bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-red-700"
+                                        className="rounded-full bg-[color:var(--danger-bg)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--danger)]"
                                         style={{ borderRadius: 'var(--radius-pill)' }}
                                       >
                                         убрать фото
@@ -1733,7 +1733,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                                     <button
                                       type="button"
                                       onClick={() => deleteVariant(v.id)}
-                                      className="rounded p-1 text-black/40 transition hover:bg-red-100 hover:text-red-600"
+                                      className="rounded p-1 text-black/40 transition hover:bg-[color:var(--danger-bg)] hover:text-[color:var(--danger)]"
                                       aria-label="удалить вариант"
                                       title="Удалить вариант"
                                     >

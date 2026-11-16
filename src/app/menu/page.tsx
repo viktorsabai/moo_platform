@@ -1768,7 +1768,7 @@ function MenuPageInner() {
                       )}
                       {focusedLikePulse && (
                         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                          <div className="animate-[ufo-emoji-pop_.56s_ease-out] text-[86px] leading-none text-rose-500 drop-shadow-[0_16px_34px_rgba(244,63,94,0.28)]">
+                          <div className="animate-[ufo-emoji-pop_.56s_ease-out] text-[86px] leading-none text-[color:var(--danger)] drop-shadow-[0_16px_34px_rgba(244,63,94,0.28)]">
                             ♥
                           </div>
                         </div>

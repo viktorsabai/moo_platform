@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { buildWebAppUrl, escapeHtml, sendTelegramMessage } from '@/lib/telegram'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
+import { dayWindow } from '@/lib/subscription-kitchen'
+
+/** Лимиты ручных сценарных сообщений: 1 в день на гостя, 30 в день на ресторан. */
+const PER_GUEST_PER_DAY = 1
+const PER_RESTAURANT_PER_DAY = 30
+const SENT_TYPE = 'SCENARIO_SENT'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -84,6 +91,36 @@ export async function POST(request: Request) {
     const botToken = bot?.botToken || process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) return NextResponse.json({ ok: false, error: 'missing_bot_token' }, { status: 400 })
 
+    // Резервируем слот до отправки, затем считаем: два одновременных клика не пройдут оба.
+    const { start } = dayWindow()
+    const slotId = randomUUID()
+    await prisma.userActivityEvent.create({
+      data: { id: slotId, restaurantId: ctx.restaurantId, telegramId, type: SENT_TYPE, metadata: { scenario } },
+    })
+    const [forGuest, forRestaurant] = await Promise.all([
+      prisma.userActivityEvent.count({
+        where: { restaurantId: ctx.restaurantId, telegramId, type: SENT_TYPE, createdAt: { gte: start } },
+      }),
+      prisma.userActivityEvent.count({
+        where: { restaurantId: ctx.restaurantId, type: SENT_TYPE, createdAt: { gte: start } },
+      }),
+    ])
+    const release = () => prisma.userActivityEvent.delete({ where: { id: slotId } }).catch(() => undefined)
+    if (forGuest > PER_GUEST_PER_DAY) {
+      await release()
+      return NextResponse.json(
+        { ok: false, error: 'guest_limit', message: 'этому гостю сегодня уже писали — повторить можно завтра' },
+        { status: 429 }
+      )
+    }
+    if (forRestaurant > PER_RESTAURANT_PER_DAY) {
+      await release()
+      return NextResponse.json(
+        { ok: false, error: 'restaurant_limit', message: `лимит ${PER_RESTAURANT_PER_DAY} сообщений в день исчерпан` },
+        { status: 429 }
+      )
+    }
+
     const tpl = buildScenarioMessage({ scenario, dishName })
     const sent = await sendTelegramMessage(
       telegramId,
@@ -97,6 +134,7 @@ export async function POST(request: Request) {
       botToken
     )
     if (!sent.ok) {
+      await release()
       return NextResponse.json({ ok: false, error: 'telegram_send_failed' }, { status: 502 })
     }
     return NextResponse.json({ ok: true })

@@ -76,7 +76,7 @@ export default function AdminSignInPage() {
               placeholder="••••••••"
             />
           </div>
-          {error && <p className="text-[13px] text-red-600">{error}</p>}
+          {error && <p className="text-[13px] text-[color:var(--danger)]">{error}</p>}
           <button
             type="submit"
             disabled={loading}

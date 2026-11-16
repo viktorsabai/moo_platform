@@ -152,7 +152,7 @@ export function SubscriptionDayMealNest({
               <button
                 type="button"
                 onClick={() => onRemoveDayDelivery(activeWizardDay)}
-                className="shrink-0 text-[11px] font-bold text-red-600"
+                className="shrink-0 text-[11px] font-bold text-[color:var(--danger)]"
               >
                 без доставки
               </button>

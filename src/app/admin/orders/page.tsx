@@ -223,7 +223,7 @@ export default function AdminOrdersPage() {
               type="button"
               onClick={() => updateStatus(o.id, 'CANCELLED')}
               disabled={updatingId === o.id}
-              className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-[12px] font-semibold text-red-700 transition active:opacity-90 disabled:opacity-50"
+              className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-4 py-2 text-[12px] font-semibold text-[color:var(--danger)] transition active:opacity-90 disabled:opacity-50"
               style={{ borderRadius: 'var(--radius-pill)' }}
             >
               Отменить
@@ -244,7 +244,7 @@ export default function AdminOrdersPage() {
                 type="button"
                 onClick={() => reviewPayment(o.id, 'reject')}
                 disabled={updatingId === o.id}
-                className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-[12px] font-semibold text-red-700 transition active:opacity-90 disabled:opacity-50"
+                className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-4 py-2 text-[12px] font-semibold text-[color:var(--danger)] transition active:opacity-90 disabled:opacity-50"
                 style={{ borderRadius: 'var(--radius-pill)' }}
               >
                 {updatingId === o.id ? '…' : 'Отклонить оплату'}
@@ -310,7 +310,7 @@ export default function AdminOrdersPage() {
         </div>
       ) : error ? (
         <div className={cardClass} style={cardRadius}>
-          <div className="text-[13px] font-semibold text-red-600">{error}</div>
+          <div className="text-[13px] font-semibold text-[color:var(--danger)]">{error}</div>
         </div>
       ) : orders.length === 0 ? (
         <div className={cardClass} style={cardRadius}>

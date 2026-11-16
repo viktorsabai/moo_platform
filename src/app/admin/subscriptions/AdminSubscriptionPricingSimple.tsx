@@ -91,9 +91,9 @@ export function AdminSubscriptionPricingSimple({
       </div>
 
       {missingCostCount > 0 ? (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] leading-snug text-amber-900">
+        <div className="mt-3 rounded-xl border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-3 py-2.5 text-[12px] leading-snug text-[color:var(--warn)]">
           <p>
-            {missingCostCount} блюд в каталоге без себестоимости — подсказка «норм / мало» неполная.
+            {missingCostCount} блюд в каталоге без себестоимости — гости не смогут взять их в рацион.
           </p>
           {onOpenCostSheet ? (
             <button
@@ -104,7 +104,7 @@ export function AdminSubscriptionPricingSimple({
               добавить себестоимость
             </button>
           ) : null}
-          <p className="mt-2 text-[11px] text-amber-800/90">Необязательно — подписка работает и без этого.</p>
+          <p className="mt-2 text-[11px] text-[color:var(--warn)]">Себестоимость нужна, чтобы рацион не ушёл в минус.</p>
         </div>
       ) : null}
 

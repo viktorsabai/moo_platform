@@ -47,7 +47,7 @@ type RegistryResponse = {
 
 const AUDIENCE_TONE: Record<string, string> = {
   guest: 'bg-[color:var(--primary)]/10 text-[color:var(--primary)]',
-  owner: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  owner: 'bg-amber-500/10 text-[color:var(--warn)] dark:text-amber-300',
   platform: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
 }
 
@@ -228,7 +228,7 @@ export function AdminNotificationsCatalog() {
                         {event.callbackButtons?.map((b) => (
                           <code
                             key={b}
-                            className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-800 dark:text-amber-200"
+                            className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-[color:var(--warn)] dark:text-amber-200"
                           >
                             {b}
                           </code>
@@ -257,7 +257,7 @@ function SetupRow({
   hint: string
   optional?: boolean
 }) {
-  const tone = ok ? 'text-emerald-600 dark:text-emerald-400' : optional ? 'text-[color:var(--muted)]' : 'text-amber-600 dark:text-amber-400'
+  const tone = ok ? 'text-[color:var(--ok)] dark:text-emerald-400' : optional ? 'text-[color:var(--muted)]' : 'text-[color:var(--warn)] dark:text-amber-400'
   const icon = ok ? '✓' : optional ? '·' : '!'
   return (
     <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3">

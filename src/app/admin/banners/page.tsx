@@ -525,7 +525,7 @@ export default function AdminBannersPage() {
                   <button
                     type="button"
                     onClick={() => setDraft((s) => ({ ...s, image: '' }))}
-                    className="rounded-full bg-red-50 px-4 py-2.5 text-[13px] font-semibold text-red-700"
+                    className="rounded-full bg-[color:var(--danger-bg)] px-4 py-2.5 text-[13px] font-semibold text-[color:var(--danger)]"
                     style={{ borderRadius: 'var(--radius-pill)' }}
                   >
                     убрать фото
@@ -572,7 +572,7 @@ export default function AdminBannersPage() {
         >
           {saving ? 'сохраняю…' : editingBanner ? 'обновить' : 'сохранить'}
         </button>
-        {error ? <p className="mt-2 text-[12px] font-semibold text-red-600">{error}</p> : null}
+        {error ? <p className="mt-2 text-[12px] font-semibold text-[color:var(--danger)]">{error}</p> : null}
       </div>
 
       {/* Как на главной — превью и порядок */}
@@ -643,7 +643,7 @@ export default function AdminBannersPage() {
                           <button
                             type="button"
                             onClick={() => deleteBanner(b.id)}
-                            className="shrink-0 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700"
+                            className="shrink-0 rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--danger)]"
                           >
                             удалить
                           </button>
@@ -702,7 +702,7 @@ export default function AdminBannersPage() {
                             <button
                               type="button"
                               onClick={() => deleteBanner(b.id)}
-                              className="shrink-0 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700"
+                              className="shrink-0 rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--danger)]"
                             >
                               удалить
                             </button>

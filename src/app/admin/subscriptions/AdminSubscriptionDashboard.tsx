@@ -309,13 +309,13 @@ export function AdminSubscriptionDashboard() {
         </Link>
         <AdminSubscriptionNav />
         {dishes.length === 0 && totalCatalogDishes > 0 ? (
-          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-900">
+          <p className="mt-2 rounded-lg border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-3 py-2 text-[12px] font-medium text-[color:var(--warn)]">
             В меню нет блюд с флагом «доступно для подписки», но в каталоге уже {totalCatalogDishes} позиций — гости
             видят сохранённый набор.
           </p>
         ) : null}
         {isDirty ? (
-          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-900">
+          <p className="mt-2 rounded-lg border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--warn)]">
             {totalCatalogDishes} блюд · {slotDishCount} в {MEAL_SLOT_LABEL[activeSlot]} · не сохранено
           </p>
         ) : totalCatalogDishes > 0 ? (
@@ -383,7 +383,7 @@ export function AdminSubscriptionDashboard() {
                           <button
                             type="button"
                             onClick={() => setCostSheetOpen(true)}
-                            className="ml-1.5 font-semibold text-amber-800 underline"
+                            className="ml-1.5 font-semibold text-[color:var(--warn)] underline"
                           >
                             нет себест.
                           </button>
@@ -400,7 +400,7 @@ export function AdminSubscriptionDashboard() {
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {firstPick ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">первым у гостя</span>
+                      <span className="rounded-full bg-[color:var(--warn-bg)] px-2 py-0.5 text-[10px] font-bold text-[color:var(--warn)]">первым у гостя</span>
                     ) : (
                       <button
                         type="button"
@@ -462,13 +462,13 @@ export function AdminSubscriptionDashboard() {
       <div
         className={cn(
           'fixed inset-x-0 bottom-0 z-[110] border-t backdrop-blur-md',
-          isDirty ? 'border-amber-300 bg-amber-50/98' : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98'
+          isDirty ? 'border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)]' : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/98'
         )}
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
         <div className="ui-container space-y-2 px-4 py-3">
           {isDirty ? (
-            <p className="text-center text-[11px] font-semibold text-amber-900">
+            <p className="text-center text-[11px] font-semibold text-[color:var(--warn)]">
               готово? сохраните каталог — гости увидят изменения
             </p>
           ) : null}

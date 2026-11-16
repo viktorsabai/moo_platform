@@ -1,7 +1,6 @@
 'use client'
 
-import { CircleMarker, MapContainer, TileLayer } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
+import { LazyPhuketMap, RU_MAP_LABELS } from '@/components/maps/phuket/LazyPhuketMap'
 
 type Props = {
   lat: number
@@ -10,23 +9,17 @@ type Props = {
 
 export function ReadOnlyLocationMap({ lat, lng }: Props) {
   return (
-    <div className="h-44 overflow-hidden rounded-xl border border-[color:var(--stroke)]">
-      <MapContainer center={[lat, lng]} zoom={15} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <CircleMarker
-          center={[lat, lng]}
-          radius={7}
-          pathOptions={{
-            color: '#1d4ed8',
-            weight: 2,
-            fillColor: '#1d4ed8',
-            fillOpacity: 0.35,
-          }}
-        />
-      </MapContainer>
+    <div className="h-48 overflow-hidden rounded-[16px]">
+      <LazyPhuketMap
+        locale="ru"
+        pins={[]}
+        districts={[]}
+        fit={{ lat, lng, zoom: 4 }}
+        marker={{ lat, lng, label: 'вы здесь' }}
+        labels={RU_MAP_LABELS}
+        showGrid={false}
+        interactive
+      />
     </div>
   )
 }

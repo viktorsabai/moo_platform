@@ -1693,7 +1693,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden space-y-5">
       {!menuEnabled && (
-        <div className="rounded-[18px] border border-amber-200 bg-amber-50/80 p-3 text-[13px] text-amber-900">
+        <div className="rounded-[18px] border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] p-3 text-[13px] text-[color:var(--warn)]">
           Включите «Готовые блюда» в настройках заведения, чтобы меню видели гости.
         </div>
       )}
@@ -1827,17 +1827,17 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
           </button>
         </div>
         {exportStatus && (
-          <p className={cn('mt-2 text-[12px]', exportStatus.ok ? 'text-green-700' : 'text-amber-700')}>
+          <p className={cn('mt-2 text-[12px]', exportStatus.ok ? 'text-[color:var(--ok)]' : 'text-[color:var(--warn)]')}>
             {exportStatus.msg}
           </p>
         )}
         {importError && (
-          <p className="mt-2 text-[12px] font-medium text-red-600">
+          <p className="mt-2 text-[12px] font-medium text-[color:var(--danger)]">
             {importError}
           </p>
         )}
         {importResult && (
-          <p className="mt-2 text-[12px] font-medium text-green-700">
+          <p className="mt-2 text-[12px] font-medium text-[color:var(--ok)]">
             Загружено: {importResult.categories} категорий, {importResult.dishes} блюд. Обновите страницу, если не видите изменения.
           </p>
         )}
@@ -1880,12 +1880,12 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                   key={group.id}
                   className={cn(
                     'rounded-xl border p-2.5 bg-[color:var(--surface)]',
-                    group.isActive === false ? 'border-amber-200/90 bg-amber-50/25' : 'border-[color:var(--stroke)]'
+                    group.isActive === false ? 'border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)]' : 'border-[color:var(--stroke)]'
                   )}
                   style={{ borderRadius: 'var(--radius-medium)' }}
                 >
                   {group.isActive === false && (
-                    <div className="mb-2 rounded-lg border border-amber-200/80 bg-amber-50/60 px-2 py-1 text-[10px] font-semibold text-amber-950">
+                    <div className="mb-2 rounded-lg border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-2 py-1 text-[10px] font-semibold text-[color:var(--warn)]">
                       скрыто для гостей
                     </div>
                   )}
@@ -1921,7 +1921,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                           type="button"
                           disabled={!!optionEditBusy}
                           onClick={() => deleteMenuOptionGroup(group.id)}
-                          className="btn btn-soft rounded-full px-3 py-2 text-[11px] font-semibold text-amber-800 disabled:opacity-50"
+                          className="btn btn-soft rounded-full px-3 py-2 text-[11px] font-semibold text-[color:var(--warn)] disabled:opacity-50"
                           style={{ borderRadius: 'var(--radius-pill)' }}
                           title="Скрыть"
                         >
@@ -1932,7 +1932,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                           type="button"
                           disabled={!!optionEditBusy}
                           onClick={() => patchMenuOptionGroup(group.id, { isActive: true })}
-                          className="btn btn-soft rounded-full px-3 py-2 text-[11px] font-semibold text-emerald-800 disabled:opacity-50"
+                          className="btn btn-soft rounded-full px-3 py-2 text-[11px] font-semibold text-[color:var(--ok)] disabled:opacity-50"
                           style={{ borderRadius: 'var(--radius-pill)' }}
                           title="Вернуть"
                         >
@@ -1943,7 +1943,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                         type="button"
                         disabled={!!optionEditBusy}
                         onClick={() => hardDeleteMenuOptionGroup(group.id)}
-                        className="btn btn-soft rounded-full px-3 py-2 text-[11px] font-semibold text-red-700 disabled:opacity-50"
+                        className="btn btn-soft rounded-full px-3 py-2 text-[11px] font-semibold text-[color:var(--danger)] disabled:opacity-50"
                         style={{ borderRadius: 'var(--radius-pill)' }}
                         title="Удалить"
                       >
@@ -1957,11 +1957,11 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                         key={value.id}
                         className={cn(
                           'rounded-lg border border-[color:var(--stroke)]/70 bg-[color:var(--surface)] p-2 space-y-1.5',
-                          value.isActive === false && 'border-amber-200/70 bg-amber-50/20'
+                          value.isActive === false && 'border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)]'
                         )}
                       >
                         {value.isActive === false && (
-                          <div className="text-[10px] font-extrabold uppercase tracking-wide text-amber-900">вариант скрыт</div>
+                          <div className="text-[10px] font-extrabold uppercase tracking-wide text-[color:var(--warn)]">вариант скрыт</div>
                         )}
                         <div className="flex flex-wrap items-center gap-2">
                           <input
@@ -1991,7 +1991,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                 type="button"
                                 disabled={!!optionEditBusy}
                                 onClick={() => deleteMenuOptionValue(value.id)}
-                                className="btn btn-soft rounded-full px-2.5 py-1 text-[10px] font-semibold text-amber-800 disabled:opacity-50"
+                                className="btn btn-soft rounded-full px-2.5 py-1 text-[10px] font-semibold text-[color:var(--warn)] disabled:opacity-50"
                                 style={{ borderRadius: 'var(--radius-pill)' }}
                                 title="Скрыть"
                               >
@@ -2002,7 +2002,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                 type="button"
                                 disabled={!!optionEditBusy}
                                 onClick={() => patchMenuOptionValue(value.id, { isActive: true })}
-                                className="btn btn-soft rounded-full px-2.5 py-1 text-[10px] font-semibold text-emerald-800 disabled:opacity-50"
+                                className="btn btn-soft rounded-full px-2.5 py-1 text-[10px] font-semibold text-[color:var(--ok)] disabled:opacity-50"
                                 style={{ borderRadius: 'var(--radius-pill)' }}
                                 title="Вернуть"
                               >
@@ -2013,7 +2013,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                               type="button"
                               disabled={!!optionEditBusy}
                               onClick={() => hardDeleteMenuOptionValue(value.id)}
-                              className="btn btn-soft rounded-full px-2.5 py-1 text-[10px] font-semibold text-red-700 disabled:opacity-50"
+                              className="btn btn-soft rounded-full px-2.5 py-1 text-[10px] font-semibold text-[color:var(--danger)] disabled:opacity-50"
                               style={{ borderRadius: 'var(--radius-pill)' }}
                               title="Удалить"
                             >
@@ -2114,7 +2114,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
             <p
               className={cn(
                 'text-[12px] font-semibold',
-                optionGroupMessage.type === 'success' ? 'text-emerald-700' : 'text-red-600'
+                optionGroupMessage.type === 'success' ? 'text-[color:var(--ok)]' : 'text-[color:var(--danger)]'
               )}
             >
               {optionGroupMessage.text}
@@ -2270,7 +2270,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
             />
             <p className="mt-1 text-[11px] text-[color:var(--muted)]">или тапните по превью сверху, чтобы выбрать фото из галереи</p>
             {imageUploadError && (
-              <p className="mt-1 text-[11px] font-medium text-red-600">{imageUploadError}</p>
+              <p className="mt-1 text-[11px] font-medium text-[color:var(--danger)]">{imageUploadError}</p>
             )}
           </div>
           <div>
@@ -2386,7 +2386,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
           </div>
         </div>
         {categories.length === 0 && (
-          <p className="mt-2 text-[12px] text-amber-700">
+          <p className="mt-2 text-[12px] text-[color:var(--warn)]">
             Сначала создайте категорию — блюда добавляются только в существующие категории.
           </p>
         )}
@@ -2401,7 +2401,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
         </button>
       </details>
 
-      {error && <p className="text-[12px] font-semibold text-red-600">{error}</p>}
+      {error && <p className="text-[12px] font-semibold text-[color:var(--danger)]">{error}</p>}
 
       {/* Список по категориям */}
       <div>
@@ -2426,7 +2426,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                 <button
                   type="button"
                   onClick={deleteSelectedCategories}
-                  className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-700 transition active:opacity-80"
+                  className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-1.5 text-[12px] font-semibold text-[color:var(--danger)] transition active:opacity-80"
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
                   × категории ({selectedCategoryIds.size})
@@ -2436,7 +2436,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                 <button
                   type="button"
                   onClick={deleteSelectedDishes}
-                  className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-700 transition active:opacity-80"
+                  className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-1.5 text-[12px] font-semibold text-[color:var(--danger)] transition active:opacity-80"
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
                   × блюда ({selectedDishIds.size})
@@ -2471,7 +2471,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                 <button
                   type="button"
                   onClick={deleteAllMenu}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-red-50 hover:text-red-600"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--danger-bg)] hover:text-[color:var(--danger)]"
                   aria-label="удалить все категории"
                 >
                   ×
@@ -2518,7 +2518,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                   <button
                     type="button"
                     onClick={() => deleteCategory(cat.id)}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-red-50 hover:text-red-600"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--danger-bg)] hover:text-[color:var(--danger)]"
                     aria-label={`удалить ${cat.name}`}
                   >
                     ×
@@ -2694,7 +2694,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                     <button
                       type="button"
                       onClick={() => deleteCategory(cat.id)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--stroke)] text-[16px] leading-none text-[color:var(--muted)] transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--stroke)] text-[16px] leading-none text-[color:var(--muted)] transition hover:bg-[color:var(--danger-bg)] hover:border-[color:var(--stroke-strong)] hover:text-[color:var(--danger)]"
                       aria-label="удалить категорию"
                     >
                       ×
@@ -2813,7 +2813,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                       <span className="ml-2 text-[11px] text-[color:var(--muted)]">загрузка фото…</span>
                                     )}
                                     {imageUploadError && (
-                                      <p className="mt-1 text-[11px] font-medium text-red-600">{imageUploadError}</p>
+                                      <p className="mt-1 text-[11px] font-medium text-[color:var(--danger)]">{imageUploadError}</p>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1.5">
@@ -2964,7 +2964,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                       />
                                     </div>
                                     {imageUploadError && (
-                                      <p className="text-[11px] font-medium text-red-600 sm:col-span-2">{imageUploadError}</p>
+                                      <p className="text-[11px] font-medium text-[color:var(--danger)] sm:col-span-2">{imageUploadError}</p>
                                     )}
                                     <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
                                       <div className="flex items-center gap-1.5">
@@ -3184,7 +3184,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                                   className={cn(
                                                     'rounded-full px-2 py-0.5 text-[10px] font-semibold',
                                                     assigned.subscriptionEligible !== false
-                                                      ? 'bg-emerald-100 text-emerald-800'
+                                                      ? 'bg-[color:var(--ok-bg)] text-[color:var(--ok)]'
                                                       : 'bg-black/5 text-black/45'
                                                   )}
                                                 >
@@ -3297,7 +3297,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                           <button
                             type="button"
                             onClick={() => deleteDish(d.id)}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-full border border-black/10 text-[14px] leading-none text-black/45 transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-full border border-black/10 text-[14px] leading-none text-black/45 transition hover:bg-[color:var(--danger-bg)] hover:border-[color:var(--stroke-strong)] hover:text-[color:var(--danger)]"
                             disabled={isCategoryEditing}
                             aria-label="удалить"
                           >

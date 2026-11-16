@@ -188,9 +188,9 @@ function SubscriptionDetailCard({
               className={cn(
                 'rounded-full px-2 py-0.5 text-[10px] font-semibold',
                 sub.status === 'ACTIVE'
-                  ? 'bg-emerald-100 text-emerald-800'
+                  ? 'bg-[color:var(--ok-bg)] text-[color:var(--ok)]'
                   : sub.status === 'PENDING'
-                    ? 'bg-amber-100 text-amber-900'
+                    ? 'bg-[color:var(--warn-bg)] text-[color:var(--warn)]'
                     : 'bg-black/5 text-[color:var(--muted)]'
               )}
             >
@@ -209,7 +209,7 @@ function SubscriptionDetailCard({
           <button
             type="button"
             onClick={() => onDelete(sub.id)}
-            className="shrink-0 rounded-full p-2 text-red-600 hover:bg-red-50"
+            className="shrink-0 rounded-full p-2 text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
             title="удалить"
           >
             <IconTrash className="h-4 w-4" />
@@ -452,13 +452,13 @@ export function AdminSubscriptionClientsPanel({
         ) : tab === 'today' ? (
           <>
             {pendingSubs.length > 0 ? (
-              <section className="rounded-2xl border border-amber-300 bg-amber-50/90 p-3">
-                <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-amber-900">
+              <section className="rounded-2xl border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] p-3">
+                <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-[color:var(--warn)]">
                   ждут подтверждения · {pendingSubs.length}
                 </p>
                 <div className="space-y-3">
                   {pendingSubs.map((s) => (
-                    <div key={s.id} className="rounded-xl border border-amber-200 bg-white p-3">
+                    <div key={s.id} className="rounded-xl border border-[color:var(--stroke-strong)] bg-white p-3">
                       <GuestClientCard
                         client={guestClientFromSubscriptionUser(s.user)}
                         variant="row"

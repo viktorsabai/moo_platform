@@ -157,7 +157,7 @@ export function ProductRow({
               className={cn(
                 'inline-flex h-8 w-8 items-center justify-center rounded-full transition',
                 isFavorite
-                  ? 'bg-rose-50 text-rose-600'
+                  ? 'bg-[color:var(--danger-bg)] text-[color:var(--danger)]'
                   : 'bg-white/60 text-black/40 border border-black/10'
               )}
               aria-label={isFavorite ? 'удалить из избранного' : 'добавить в избранное'}

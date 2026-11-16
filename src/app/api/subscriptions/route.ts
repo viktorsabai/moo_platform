@@ -14,7 +14,7 @@ import { allowedModifierIdsByDish, filterModifierIdsForDish } from '@/lib/dish-m
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
 import { parseRequiredMealSlotsByDay, validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
-import { computeSubscriptionQuoteForRestaurant } from '@/lib/subscription-quote-server'
+import { computeSubscriptionQuoteForRestaurant, quoteBlockMessage } from '@/lib/subscription-quote-server'
 import { formatSubscriptionItemsNotifySummary } from '@/features/subscriptions/lib/subscription-notification-summary'
 
 export const runtime = 'nodejs'
@@ -313,21 +313,6 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-    const pricingMode = String(template.pricingMode || 'FIXED')
-    if (pricingMode === 'MENU' || pricingMode === 'MENU_DISCOUNT') {
-      const perDeliveryRetail = itemCreates.reduce((sum, it) => {
-        const d = existingDishes.find((x) => x.id === it.dishId)
-        return sum + Number(d?.price ?? 0) * it.quantity
-      }, 0)
-      const deliveriesPerWeek = Math.max(1, deliveryDays.length || rules.minDaysPerWeek || 1)
-      const monthlyRetail = perDeliveryRetail * deliveriesPerWeek * 4.33
-      const discountPct =
-        pricingMode === 'MENU_DISCOUNT'
-          ? Math.max(0, Math.min(90, Number(template.menuDiscountPercent ?? 0)))
-          : 0
-      const monthlyPrice = monthlyRetail * (1 - discountPct / 100)
-      price = Math.max(0, Number(monthlyPrice.toFixed(2)))
-    }
   }
   const hardOptionIds = Array.isArray((template as any)?.configuration?.hardOptionIds)
     ? new Set(((template as any).configuration.hardOptionIds as unknown[]).map((x) => String(x || '')).filter(Boolean))
@@ -348,7 +333,13 @@ export async function POST(request: Request) {
       personCount,
     })
     if (!quoteResult) {
-      return NextResponse.json({ ok: false, error: 'не удалось рассчитать цену подписки' }, { status: 400 })
+      return NextResponse.json({ ok: false, error: quoteBlockMessage(null) }, { status: 400 })
+    }
+    if (!quoteResult.quote.offerable) {
+      return NextResponse.json(
+        { ok: false, error: quoteBlockMessage(quoteResult.quote.blockReason), reason: quoteResult.quote.blockReason },
+        { status: 422 }
+      )
     }
     quoteForResponse = quoteResult
     price = quoteResult.quote.guestPrice

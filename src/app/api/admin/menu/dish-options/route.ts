@@ -5,8 +5,6 @@ import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-c
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-const SINGLE_TENANT_RESTAURANT_ID =
-  String(process.env.UFO_SINGLE_RESTAURANT_ID || '').trim()
 
 function logDishOptionsDebug(event: string, data: Record<string, unknown>) {
   try {
@@ -39,7 +37,7 @@ export async function PUT(request: Request) {
     if (!dishId) return NextResponse.json({ ok: false, error: 'dishId обязателен' }, { status: 400 })
 
     const dish = await prisma.dish.findFirst({
-      where: SINGLE_TENANT_RESTAURANT_ID ? { id: dishId } : { id: dishId, restaurantId: ctx.restaurantId },
+      where: { id: dishId, restaurantId: ctx.restaurantId },
       select: { id: true, restaurantId: true },
     })
     if (!dish) return NextResponse.json({ ok: false, error: 'блюдо не найдено' }, { status: 404 })
@@ -65,15 +63,13 @@ export async function PUT(request: Request) {
     const optionValueIds = [...new Set(normalized.map((v: any) => v.optionValueId))] as string[]
     const allowedValues = optionValueIds.length
       ? await prisma.menuOptionValue.findMany({
-          where: SINGLE_TENANT_RESTAURANT_ID
-            ? { id: { in: optionValueIds } }
-            : {
-                id: { in: optionValueIds },
-                OR: [
-                  { restaurantId: effectiveRestaurantId },
-                  { group: { restaurantId: effectiveRestaurantId } },
-                ],
-              },
+          where: {
+            id: { in: optionValueIds },
+            OR: [
+              { restaurantId: effectiveRestaurantId },
+              { group: { restaurantId: effectiveRestaurantId } },
+            ],
+          },
           select: { id: true },
         })
       : []

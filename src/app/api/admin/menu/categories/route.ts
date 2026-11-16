@@ -5,8 +5,6 @@ import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-c
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const ARCHIVE_CATEGORY_SLUG = '__archive'
-const SINGLE_TENANT_RESTAURANT_ID =
-  String(process.env.UFO_SINGLE_RESTAURANT_ID || '').trim()
 
 export async function GET() {
   try {
@@ -97,7 +95,7 @@ export async function PATCH(request: Request) {
     const id = typeof body?.id === 'string' ? body.id : ''
     if (!id) return NextResponse.json({ ok: false, error: 'id обязателен' }, { status: 400 })
     const existing = await prisma.category.findFirst({
-      where: SINGLE_TENANT_RESTAURANT_ID ? { id } : { id, restaurantId: ctx.restaurantId },
+      where: { id, restaurantId: ctx.restaurantId },
       select: { id: true },
     })
     if (!existing) return NextResponse.json({ ok: false, error: 'категория не найдена' }, { status: 404 })

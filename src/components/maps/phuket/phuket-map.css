@@ -1,0 +1,77 @@
+.phuket-map {
+  /* bridge to MOO tokens (light/dark come from globals.css) */
+  --border: var(--stroke);
+  --hair: var(--stroke);
+  --dim: var(--muted);
+  --free: var(--ok);
+  --surface-2: var(--surface-strong);
+  --surface-3: var(--stroke-strong);
+  --font-mono: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --r-ctl: 12px;
+  --r-card: 20px;
+}
+.phuket-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  font-family: var(--font-mono);
+  isolation: isolate;
+}
+.pm-svg { display: block; width: 100%; height: 100%; touch-action: none; outline: none; cursor: grab; }
+.phuket-map[data-dragging="true"] .pm-svg { cursor: grabbing; }
+.pm-svg:focus-visible { box-shadow: inset 0 0 0 2px var(--free); }
+.pm-water { fill: var(--bg); }
+.pm-grid line { stroke: var(--hair); stroke-width: 0.7; vector-effect: non-scaling-stroke; opacity: .58; }
+.pm-land { fill: var(--surface); stroke: none; }
+.pm-coast { fill: none; stroke: var(--text); stroke-width: 1.2; vector-effect: non-scaling-stroke; opacity: .78; filter: url(#pm-glow); }
+.pm-road { fill: none; stroke: var(--border); vector-effect: non-scaling-stroke; stroke-linecap: round; opacity: .7; }
+.pm-road-motorway, .pm-road-trunk { stroke: var(--free); stroke-width: 1.35; opacity: .72; }
+.pm-road-primary { stroke: var(--text); stroke-width: 1.05; }
+.pm-road-secondary { stroke: var(--dim); stroke-width: .85; }
+.pm-road-tertiary { stroke: var(--hair); stroke-width: .65; }
+.pm-sea-label, .pm-north text, .pm-scale text, .pm-attribution { fill: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; pointer-events: none; }
+.pm-sea-label { opacity: .78; font-size: 11px; }
+.pm-north path, .pm-scale line { fill: none; stroke: var(--text); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pm-district { cursor: pointer; outline: none; }
+.pm-district .pm-dot { fill: var(--bg); stroke: var(--dim); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pm-district .pm-hit { fill: transparent; stroke: none; }
+.pm-district .pm-home { fill: none; stroke: var(--text); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.pm-district.tone-free .pm-dot { fill: var(--ok); stroke: var(--ok); }
+.pm-district.tone-paid .pm-dot { fill: var(--warn); stroke: var(--warn); }
+.pm-district.tone-off { opacity: .5; }
+.pm-district text { fill: var(--text); font-size: 12px; letter-spacing: .02em; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+.pm-district.is-selected .pm-dot { stroke: var(--text); stroke-width: 2.5; }
+.pm-district.is-selected text { font-weight: 700; }
+.pm-district:focus-visible text { text-decoration: underline; text-decoration-color: var(--free); text-decoration-thickness: 2px; }
+.pm-pin { cursor: pointer; opacity: .96; transition: opacity 160ms ease, transform 160ms ease; }
+.pm-pin rect { fill: var(--surface-2); stroke: var(--free); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pm-pin text { fill: var(--text); font-size: 9px; font-weight: 600; letter-spacing: .03em; }
+.pm-pin-dot { fill: var(--free); }
+.pm-pin-reserved rect { stroke: var(--warn); }
+.pm-pin-reserved .pm-pin-dot { fill: var(--warn); }
+.pm-pin-closed { opacity: .42; }
+.pm-pin.is-hovered rect, .pm-pin:hover rect { fill: var(--surface-3); stroke-width: 1.6; }
+.pm-pin.is-hovered, .pm-pin:hover { opacity: 1; }
+.pm-marker circle:first-child { fill: var(--free); opacity: .18; stroke: var(--free); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pm-marker circle:nth-child(2) { fill: var(--free); }
+.pm-marker text { fill: var(--free); font-size: 10px; }
+.pm-scale text { font-size: 9px; }
+.pm-controls { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 5px; }
+.pm-controls { transform: translate(0, 0); }
+.pm-controls g { cursor: pointer; }
+.pm-controls g + g { transform: translateY(34px); }
+.pm-controls rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pm-controls text { fill: var(--text); font-size: 20px; pointer-events: none; }
+.pm-controls g:hover rect { fill: var(--surface-3); stroke: var(--free); }
+.pm-controls g:hover text { fill: var(--free); }
+.pm-controls g:focus-visible { outline: 2px solid var(--free); outline-offset: 2px; }
+.pm-attribution { font-size: 8px; letter-spacing: 0; opacity: .7; }
+.pm-cursor-readout { position: absolute; left: 14px; top: 12px; padding: 4px 7px; color: var(--dim); background: var(--surface-2); border: 1px solid var(--hair); border-radius: var(--r-ctl); font-size: 9px; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .pm-pin { transition: none; } .pm-marker circle:first-child { opacity: .22; } }
+[data-theme="dark"] .phuket-map, .phuket-map[data-theme="dark"] { --pm-contrast: var(--text); }

@@ -128,7 +128,7 @@ model AppSettings {
   id              String   @id @default(cuid())
   restaurantId    String   @unique @default("default")
   // catalog toggles: готовые блюда (Dish), магазин (Store), подписки
-  menuEnabled      Boolean  @default(false)
+  menuEnabled      Boolean  @default(true)
   storeEnabled    Boolean  @default(true)
   subscriptionEnabled Boolean @default(true)
   // delivery fee rules

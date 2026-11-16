@@ -2,7 +2,14 @@ import { prisma } from '@/lib/prisma'
 import { getPeriodDiscountPercent } from '@/lib/subscription-config'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
 import { parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
-import { calculateSubscriptionQuote, type SubscriptionQuoteResult } from '@/lib/subscription-pricing'
+import { calculateSubscriptionQuote, type QuoteBlockReason, type SubscriptionQuoteResult } from '@/lib/subscription-pricing'
+
+/** Текст для гостя, когда корзину нельзя продать как рацион. */
+export function quoteBlockMessage(reason: QuoteBlockReason | null): string {
+  if (reason === 'missing_cost') return 'одно из блюд пока недоступно в рационе'
+  if (reason === 'no_guest_benefit') return 'для этого набора рацион не выходит дешевле меню — уберите самые дорогие блюда'
+  return 'не удалось рассчитать цену подписки'
+}
 
 export type QuoteLineInput = {
   dishId: string
@@ -20,7 +27,12 @@ export async function computeSubscriptionQuoteForRestaurant(
     periodDays: number
     personCount: number
   }
-): Promise<{ quote: SubscriptionQuoteResult; config: Awaited<ReturnType<typeof loadSubscriptionConfig>> } | null> {
+): Promise<{
+  quote: SubscriptionQuoteResult
+  config: Awaited<ReturnType<typeof loadSubscriptionConfig>>
+  periodDays: number
+  personCount: number
+} | null> {
   const config = await loadSubscriptionConfig(restaurantId)
   const items = input.items
     .map((it) => ({
@@ -92,5 +104,5 @@ export async function computeSubscriptionQuoteForRestaurant(
     ownerPriceOverride: config.ownerPriceOverride ?? null,
   })
 
-  return { quote, config }
+  return { quote, config, periodDays, personCount: persons }
 }

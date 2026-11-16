@@ -3,8 +3,7 @@ import { headers } from 'next/headers'
 import { getConsumerRestaurantId } from '@/lib/restaurant-context'
 import { loadSubscriptionConfig } from '@/lib/subscription-config-load'
 import { prisma } from '@/lib/prisma'
-import { getPeriodDiscountPercent } from '@/lib/subscription-config'
-import { calculateSubscriptionQuote } from '@/lib/subscription-pricing'
+import { computeSubscriptionQuoteForRestaurant, quoteBlockMessage } from '@/lib/subscription-quote-server'
 import { parseMealSlot, type MealSlot } from '@/lib/subscription-meal-slots'
 import { parseRequiredMealSlotsByDay, validateSubscriptionItemsByMealSlots } from '@/lib/subscription-meal-slot-rules'
 import { resolveApiUser } from '@/lib/tg-auth-resolver'
@@ -60,22 +59,11 @@ export async function POST(request: Request) {
     const personCount = Number(body?.personCount ?? 1)
 
     const dishIds = [...new Set(items.map((it: { dishId: string }) => it.dishId))] as string[]
-    const modIds = [...new Set(items.flatMap((it: { modifierIds: string[] }) => it.modifierIds))] as string[]
 
-    const [dishes, modifiers, optionLinks] = await Promise.all([
-      prisma.dish.findMany({
-        where: { restaurantId, id: { in: dishIds } },
-        select: { id: true, price: true, costPrice: true, subscriptionEligible: true, isAvailable: true },
-      }),
-      prisma.dishModifier.findMany({
-        where: { id: { in: modIds }, dish: { restaurantId } },
-        select: { id: true, priceAdjust: true, costPrice: true, subscriptionEligible: true },
-      }),
-      prisma.dishOptionValue.findMany({
-        where: { restaurantId, optionValueId: { in: modIds } },
-        select: { optionValueId: true, priceAdjust: true, costPrice: true, subscriptionEligible: true },
-      }),
-    ])
+    const dishes = await prisma.dish.findMany({
+      where: { restaurantId, id: { in: dishIds } },
+      select: { id: true, subscriptionEligible: true, isAvailable: true },
+    })
 
     const eligibleIds = new Set(
       dishes.filter((d) => d.isAvailable && d.subscriptionEligible).map((d) => d.id)
@@ -100,38 +88,24 @@ export async function POST(request: Request) {
       )
     }
 
-    const persons = Math.max(config.minPersons, Math.min(config.maxPersons, personCount))
-
-    const dishMap = new Map(
-      dishes.map((d) => [d.id, { id: d.id, price: Number(d.price), costPrice: d.costPrice == null ? null : Number(d.costPrice) }])
-    )
-    const modMap = new Map<string, { id: string; priceAdjust: number; costPrice: number | null }>()
-    for (const m of modifiers) {
-      if (m.subscriptionEligible === false) continue
-      modMap.set(m.id, { id: m.id, priceAdjust: Number(m.priceAdjust), costPrice: m.costPrice == null ? null : Number(m.costPrice) })
-    }
-    for (const o of optionLinks) {
-      if (o.subscriptionEligible === false) continue
-      modMap.set(o.optionValueId, {
-        id: o.optionValueId,
-        priceAdjust: Number(o.priceAdjust),
-        costPrice: o.costPrice == null ? null : Number(o.costPrice),
-      })
-    }
-
-    const quote = calculateSubscriptionQuote({
+    const computed = await computeSubscriptionQuoteForRestaurant(restaurantId, {
       items,
-      deliveryDaysPerWeek,
-      deliveryDaysJs,
+      deliveryDays: deliveryDaysJs,
       periodDays,
-      personCount: persons,
-      commerce: config.commerce,
-      dishes: dishMap,
-      modifiers: modMap,
-      periodDiscountPercent: getPeriodDiscountPercent(config.periodDiscounts, periodDays),
+      personCount,
     })
+    if (!computed) {
+      return NextResponse.json({ ok: false, error: quoteBlockMessage(null) }, { status: 400 })
+    }
+    const { quote } = computed
+    if (!quote.offerable) {
+      return NextResponse.json(
+        { ok: false, error: quoteBlockMessage(quote.blockReason), reason: quote.blockReason },
+        { status: 422 }
+      )
+    }
 
-    return NextResponse.json({ ok: true, quote, guestPrice: quote.guestPrice, periodDays, personCount: persons })
+    return NextResponse.json({ ok: true, quote, guestPrice: quote.guestPrice, periodDays: computed.periodDays, personCount: computed.personCount })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }
