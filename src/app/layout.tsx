@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Providers } from '@/components/providers'
-import { HeaderCompact } from '@/components/layout/HeaderCompact'
 import Script from 'next/script'
 import BottomNavbar from '@/components/bottom-navbar'
 import { StickyCartBar } from '@/components/StickyCartBar'
@@ -72,14 +71,12 @@ export default async function RootLayout({
           <div
             className="ufo-shell"
             style={{
-              ['--ufo-header-h' as any]: '56px',
+              ['--ufo-header-h' as any]: '0px',
               ['--ufo-bottomnav-h' as any]: '72px',
               /* extra scroll pad so last content clears floating summary/CTA (outer main already reserves tab bar + safe) */
               ['--ufo-scroll-pad-floating' as any]: 'calc(5.75rem + 12px)',
             }}
           >
-            <HeaderCompact />
-
             <main
               className="ufo-main"
               style={{

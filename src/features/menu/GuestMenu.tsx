@@ -1,0 +1,488 @@
+'use client'
+
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCartStore } from '@/store/cart-store'
+import { useVenue } from '@/lib/venue-context'
+import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
+import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
+import { Badge, Btn, Chip, Empty, Sheet, Stepper, fmtThb } from '@/components/kit'
+import { cn } from '@/lib/utils'
+
+/* ---------- единая модель позиции: блюдо или товар ---------- */
+
+type OptionValue = { id: string; name: string; priceAdjust: number }
+type OptionGroup = { id: string; name: string; values: OptionValue[] }
+type Variant = { id: string; name: string; price: number; qty: number; isActive: boolean }
+
+type Item = {
+  key: string
+  kind: 'dish' | 'store'
+  id: string
+  name: string
+  description?: string
+  price: number
+  image?: string
+  categoryKey: string
+  available: boolean
+  tags: string[]
+  weightLabel?: string
+  optionGroups: OptionGroup[]
+  /** старые модификаторы блюда: один на выбор */
+  modifiers: OptionValue[]
+  /** варианты товара */
+  variants: Variant[]
+  maxQty?: number
+}
+
+type Cat = { key: string; name: string }
+type Banner = { id: string; title: string; href: string; type: string }
+type ActiveOrder = { id: string; status: string; etaLabel?: string }
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'ждёт подтверждения',
+  CONFIRMED: 'принят',
+  PREPARING: 'готовим',
+  READY: 'готов',
+  OUT_FOR_DELIVERY: 'курьер в пути',
+}
+
+function hasChoices(it: Item) {
+  return it.optionGroups.some((g) => g.values.length > 0) || it.modifiers.length > 0 || it.variants.length > 1
+}
+
+function lineId(it: Item, modifierIds: string[], variantId?: string) {
+  const base = it.kind === 'dish' ? it.id : String(variantId ?? it.variants[0]?.id ?? it.id)
+  return modifierIds.length ? `${base}_${[...modifierIds].sort().join(',')}` : base
+}
+
+export function GuestMenu() {
+  const { restaurantId, name: venueName, settings, isLoading: venueLoading } = useVenue()
+  const addItem = useCartStore((s) => s.addItem)
+  const updateQuantity = useCartStore((s) => s.updateQuantity)
+  const removeItem = useCartStore((s) => s.removeItem)
+  const cartItems = useCartStore((s) => s.items)
+
+  const [items, setItems] = useState<Item[]>([])
+  const [cats, setCats] = useState<Cat[]>([])
+  const [banners, setBanners] = useState<Banner[]>([])
+  const [open, setOpen] = useState<{ isOpen: boolean; until: string } | null>(null)
+  const [deliveryFrom, setDeliveryFrom] = useState<number | null>(null)
+  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [cat, setCat] = useState<string>('all')
+  const [q, setQ] = useState('')
+  const [focused, setFocused] = useState<Item | null>(null)
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
+
+  const headers = useMemo<Record<string, string>>(
+    () => ({
+      ...telegramInitHeaderRecord(),
+      ...(restaurantId && restaurantId !== 'default' ? { 'x-ufo-restaurant': restaurantId } : {}),
+    }),
+    [restaurantId]
+  )
+
+  const load = useCallback(async () => {
+    if (venueLoading) return
+    const get = (url: string) => fetch(url, { cache: 'no-store', credentials: 'include', headers }).then((r) => r.json()).catch(() => null)
+    const [c, d, sc, sp, b, s, o] = await Promise.all([
+      get('/api/categories'),
+      get('/api/dishes'),
+      settings.storeEnabled ? get('/api/store/categories') : null,
+      settings.storeEnabled ? get('/api/store/products') : null,
+      get('/api/banners?placement=home'),
+      get('/api/settings'),
+      get('/api/orders'),
+    ])
+
+    const nextCats: Cat[] = []
+    for (const x of Array.isArray(c) ? c : c?.categories ?? []) nextCats.push({ key: `d:${x.id}`, name: x.name })
+    for (const x of Array.isArray(sc) ? sc : sc?.categories ?? []) nextCats.push({ key: `s:${x.id}`, name: x.name })
+
+    const next: Item[] = []
+    for (const x of Array.isArray(d) ? d : d?.dishes ?? []) {
+      next.push({
+        key: `d:${x.id}`,
+        kind: 'dish',
+        id: x.id,
+        name: x.name,
+        description: x.description ?? undefined,
+        price: Number(x.price ?? 0),
+        image: x.image ?? undefined,
+        categoryKey: `d:${x.categoryId}`,
+        available: x.isAvailable !== false,
+        tags: Array.isArray(x.tags) ? x.tags : [],
+        weightLabel: x.weightLabel ?? undefined,
+        optionGroups: (x.optionGroups ?? []).map((g: any) => ({
+          id: g.id,
+          name: g.name,
+          values: (g.values ?? []).map((v: any) => ({ id: v.id, name: v.name, priceAdjust: Number(v.priceAdjust ?? 0) })),
+        })),
+        modifiers: (x.modifiers ?? []).map((m: any) => ({ id: m.id, name: m.name, priceAdjust: Number(m.priceAdjust ?? 0) })),
+        variants: [],
+        maxQty: x.maxOrderQuantity ?? x.category?.maxOrderQuantity ?? undefined,
+      })
+    }
+    for (const p of sp?.products ?? []) {
+      const variants: Variant[] = (p.variants ?? []).map((v: any) => ({
+        id: String(v.id),
+        name: String(v.name ?? ''),
+        price: Number(v.price ?? 0),
+        qty: Number(v.qty ?? 0),
+        isActive: v.isActive !== false,
+      }))
+      const live = variants.filter((v) => v.isActive && v.qty > 0)
+      next.push({
+        key: `s:${p.id}`,
+        kind: 'store',
+        id: p.id,
+        name: p.name,
+        description: p.description ?? undefined,
+        price: live[0]?.price ?? variants[0]?.price ?? 0,
+        image: p.image ?? undefined,
+        categoryKey: `s:${p.categoryId ?? p.category?.id}`,
+        available: live.length > 0,
+        tags: [],
+        optionGroups: (p.optionGroups ?? []).map((g: any) => ({
+          id: g.id,
+          name: g.name,
+          values: (g.values ?? []).map((v: any) => ({ id: v.id, name: v.name, priceAdjust: 0 })),
+        })),
+        modifiers: [],
+        variants: live.length ? live : variants,
+      })
+    }
+
+    setCats(nextCats.filter((x) => next.some((it) => it.categoryKey === x.key)))
+    setItems(next)
+    setBanners((b?.banners ?? []).filter((x: Banner) => x.type === 'chip').slice(0, 4))
+
+    const st = s?.settings ?? {}
+    const openTime = String(st.openTime ?? '10:00')
+    const closeTime = String(st.closeTime ?? '22:00')
+    const isOpen = (() => {
+      if (typeof st.isOpenOverride === 'boolean') return st.isOpenOverride
+      const [oh, om] = openTime.split(':').map(Number)
+      const [ch, cm] = closeTime.split(':').map(Number)
+      const now = new Date()
+      const m = now.getHours() * 60 + now.getMinutes()
+      const a = oh * 60 + om
+      const z = ch * 60 + cm
+      return a <= z ? m >= a && m < z : m >= a || m < z
+    })()
+    setOpen({ isOpen, until: closeTime })
+    setDeliveryFrom(Number.isFinite(Number(st.deliveryFee)) ? Number(st.deliveryFee) : null)
+
+    const orders: any[] = o?.orders ?? []
+    const live = orders.find((x) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'].includes(x.status))
+    setActiveOrder(live ? { id: live.id, status: live.status } : null)
+    setLoading(false)
+  }, [headers, settings.storeEnabled, venueLoading])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const qtyByLine = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const it of cartItems) m.set(String(it.id), Number(it.quantity ?? 0))
+    return m
+  }, [cartItems])
+
+  /** сколько единиц позиции в корзине (все её варианты и опции) */
+  const qtyOfItem = useCallback(
+    (it: Item) => {
+      let n = 0
+      for (const line of cartItems) {
+        const id = String(line.id)
+        if (it.kind === 'dish' && (line as any).dishId === it.id) n += Number(line.quantity ?? 0)
+        if (it.kind === 'store' && it.variants.some((v) => id === v.id || id.startsWith(`${v.id}_`))) n += Number(line.quantity ?? 0)
+      }
+      return n
+    },
+    [cartItems]
+  )
+
+  const visible = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return items.filter((it) => (cat === 'all' || it.categoryKey === cat) && (!needle || it.name.toLowerCase().includes(needle)))
+  }, [items, cat, q])
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Item[]>()
+    for (const it of visible) {
+      const arr = map.get(it.categoryKey) ?? []
+      arr.push(it)
+      map.set(it.categoryKey, arr)
+    }
+    return cats.filter((c) => map.has(c.key)).map((c) => ({ cat: c, items: map.get(c.key)! }))
+  }, [visible, cats])
+
+  const quickAdd = (it: Item) => {
+    if (hasChoices(it)) {
+      setFocused(it)
+      return
+    }
+    if (it.kind === 'dish') {
+      addItem({ dishId: it.id, name: it.name, description: it.description, price: it.price, quantity: 1, imageUrl: it.image }, restaurantId)
+    } else {
+      const v = it.variants[0]
+      if (!v) return
+      addItem({ storeVariantId: v.id, productId: it.id, name: it.name, variantName: v.name || undefined, price: v.price, quantity: 1, imageUrl: it.image }, restaurantId)
+    }
+  }
+
+  const quickChange = (it: Item, delta: number) => {
+    // без опций — одна строка в корзине; с опциями — открываем шторку
+    if (hasChoices(it)) {
+      setFocused(it)
+      return
+    }
+    const id = lineId(it, [])
+    const cur = qtyByLine.get(id) ?? 0
+    const nextQty = cur + delta
+    if (nextQty <= 0) removeItem(id, it.kind)
+    else if (cur === 0) quickAdd(it)
+    else updateQuantity(id, nextQty, it.kind)
+  }
+
+  const scrollToCat = (key: string) => {
+    setCat('all')
+    setTimeout(() => sectionRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30)
+  }
+
+  const closed = open && !open.isOpen
+
+  return (
+    <main className="mx-auto w-full max-w-md px-4 pb-28 pt-3">
+      <header className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-[22px] font-bold tracking-tight text-[color:var(--text)]">{venueName || '—'}</h1>
+          <div className={cn('mt-0.5 text-[12.5px] font-semibold', closed ? 'text-[color:var(--danger)]' : 'text-[color:var(--ok)]')}>
+            {open ? (open.isOpen ? `открыто до ${open.until}` : 'сейчас закрыто') : ' '}
+            {deliveryFrom !== null && open?.isOpen ? <span className="font-normal text-[color:var(--muted)]"> · доставка от {fmtThb(deliveryFrom)}</span> : null}
+          </div>
+        </div>
+        <label className="relative shrink-0">
+          <span className="sr-only">поиск по меню</span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="найти"
+            className="h-11 w-[120px] rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:w-[160px] focus:outline-none"
+          />
+        </label>
+      </header>
+
+      {activeOrder ? (
+        <Link
+          href="/orders"
+          prefetch={false}
+          className="mb-2 flex items-center gap-3 rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2.5"
+        >
+          <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--warn)]" aria-hidden />
+          <span className="flex-1 text-[13px] text-[color:var(--text)]">
+            <b className="font-semibold">заказ #{activeOrder.id.slice(-4)}</b> · {STATUS_LABEL[activeOrder.status] ?? activeOrder.status}
+          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-[color:var(--muted)]" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+        </Link>
+      ) : null}
+
+      {banners.length || settings.subscriptionEnabled ? (
+        <div className="-mx-4 mb-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+          {settings.subscriptionEnabled ? (
+            <Link href="/subscriptions" prefetch={false} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[color:var(--ok-bg)] px-3.5 text-[13px] font-semibold text-[color:var(--ok)]">
+              собрать на неделю · дешевле меню
+            </Link>
+          ) : null}
+          {banners.map((b) => (
+            <Link key={b.id} href={b.href || '/'} prefetch={false} className="flex h-9 shrink-0 items-center rounded-full bg-[color:var(--surface)] px-3.5 text-[13px] font-medium text-[color:var(--text)]">
+              {b.title}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      {cats.length > 1 ? (
+        <div className="sticky top-0 z-10 -mx-4 mb-2 flex gap-2 overflow-x-auto bg-[color:var(--bg)] px-4 py-2 [scrollbar-width:none]">
+          <Chip active={cat === 'all'} onClick={() => setCat('all')}>всё</Chip>
+          {cats.map((c) => (
+            <Chip key={c.key} active={cat === c.key} onClick={() => (cat === c.key ? setCat('all') : scrollToCat(c.key))}>
+              {c.name}
+            </Chip>
+          ))}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="grid grid-cols-2 gap-2.5" aria-busy>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-[214px] animate-pulse rounded-[18px] bg-[color:var(--surface)]" />
+          ))}
+        </div>
+      ) : !items.length ? (
+        <Empty title="меню пока пустое" hint="владелец ещё добавляет блюда" />
+      ) : !visible.length ? (
+        <Empty title="ничего не нашли" action={<Btn variant="secondary" onClick={() => { setQ(''); setCat('all') }}>показать всё</Btn>} />
+      ) : (
+        grouped.map(({ cat: c, items: list }) => (
+          <section key={c.key} ref={(el) => { if (el) sectionRefs.current.set(c.key, el) }} className="mb-4 scroll-mt-16">
+            {grouped.length > 1 ? <h2 className="mb-2 text-[16px] font-bold text-[color:var(--text)]">{c.name}</h2> : null}
+            <div className="grid grid-cols-2 gap-2.5">
+              {list.map((it) => {
+                const n = qtyOfItem(it)
+                const off = !it.available || Boolean(closed)
+                return (
+                  <article key={it.key} className={cn('flex flex-col gap-1.5 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-2 pb-3', off && 'opacity-60')}>
+                    <button type="button" onClick={() => setFocused(it)} className="relative block aspect-[4/3] w-full overflow-hidden rounded-[12px] bg-[color:var(--surface)] text-left" aria-label={it.name}>
+                      {it.image ? (
+                        <OptimizedImage src={it.image} alt="" sizes={IMAGE_SIZES.menuGrid} className="object-cover" />
+                      ) : null}
+                    </button>
+                    <button type="button" onClick={() => setFocused(it)} className="px-1 text-left">
+                      <div className="line-clamp-2 text-[14px] font-semibold leading-tight text-[color:var(--text)]">{it.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[color:var(--muted)]">
+                        <span className="text-[color:var(--text)]">{fmtThb(it.price)}</span>
+                        {it.weightLabel ? <span>· {it.weightLabel}</span> : null}
+                        {it.tags.includes('vegan') ? <span>· веган</span> : it.tags.includes('vegetarian') ? <span>· вег</span> : null}
+                        {it.tags.includes('spicy') ? <span>· остро</span> : null}
+                      </div>
+                    </button>
+                    <div className="px-0.5">
+                      {off ? (
+                        <div className="flex h-11 items-center justify-center rounded-[14px] bg-[color:var(--surface)] text-[13px] font-semibold text-[color:var(--muted)]">
+                          {closed ? 'закрыто' : 'на сегодня нет'}
+                        </div>
+                      ) : n > 0 && !hasChoices(it) ? (
+                        <Stepper value={n} onChange={(v) => quickChange(it, v - n)} max={it.maxQty ?? 99} />
+                      ) : (
+                        <Btn full onClick={() => quickAdd(it)}>
+                          {n > 0 ? `в корзине · ${n}` : hasChoices(it) ? 'выбрать' : 'в корзину'}
+                        </Btn>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        ))
+      )}
+
+      <ItemSheet item={focused} onClose={() => setFocused(null)} restaurantId={restaurantId} closed={Boolean(closed)} />
+    </main>
+  )
+}
+
+/* ---------- шторка позиции: описание, опции, количество ---------- */
+
+function ItemSheet({ item, onClose, restaurantId, closed }: { item: Item | null; onClose: () => void; restaurantId: string; closed: boolean }) {
+  const addItem = useCartStore((s) => s.addItem)
+  const [sel, setSel] = useState<Record<string, string>>({})
+  const [mod, setMod] = useState<string | null>(null)
+  const [variantId, setVariantId] = useState<string | null>(null)
+  const [qty, setQty] = useState(1)
+
+  useEffect(() => {
+    if (!item) return
+    const s: Record<string, string> = {}
+    for (const g of item.optionGroups) if (g.values[0]) s[g.id] = g.values[0].id
+    setSel(s)
+    setMod(item.optionGroups.length ? null : item.modifiers[0]?.id ?? null)
+    setVariantId(item.variants[0]?.id ?? null)
+    setQty(1)
+  }, [item])
+
+  if (!item) return null
+
+  const chosenValues = item.optionGroups.flatMap((g) => g.values.filter((v) => v.id === sel[g.id]))
+  const chosenMod = item.modifiers.find((m) => m.id === mod) ?? null
+  const variant = item.variants.find((v) => v.id === variantId) ?? item.variants[0] ?? null
+  const unit = (item.kind === 'store' ? variant?.price ?? item.price : item.price) + chosenValues.reduce((n, v) => n + v.priceAdjust, 0) + (chosenMod?.priceAdjust ?? 0)
+  const off = !item.available || closed
+
+  const submit = () => {
+    const modifierIds = [...chosenValues.map((v) => v.id), ...(chosenMod ? [chosenMod.id] : [])]
+    const modifierLabels = [...chosenValues.map((v) => v.name), ...(chosenMod ? [chosenMod.name] : [])]
+    if (item.kind === 'dish') {
+      addItem({ dishId: item.id, name: item.name, description: item.description, price: unit, quantity: qty, imageUrl: item.image, modifierIds, modifierLabels }, restaurantId)
+    } else if (variant) {
+      addItem({ storeVariantId: variant.id, productId: item.id, name: item.name, variantName: variant.name || undefined, price: unit, quantity: qty, imageUrl: item.image, modifierIds, modifierLabels }, restaurantId)
+    }
+    onClose()
+  }
+
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      footer={
+        off ? (
+          <Btn size="lg" full disabled>{closed ? 'сейчас закрыто' : 'на сегодня нет'}</Btn>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-[128px]"><Stepper value={qty} onChange={setQty} min={1} max={item.maxQty ?? 99} /></div>
+            <Btn size="lg" full onClick={submit}>в корзину · {fmtThb(unit * qty)}</Btn>
+          </div>
+        )
+      }
+    >
+      {item.image ? (
+        <div className="relative mb-3 aspect-[4/3] w-full overflow-hidden rounded-[16px] bg-[color:var(--surface)]">
+          <OptimizedImage src={item.image} alt="" sizes={IMAGE_SIZES.menuGrid} className="object-cover" />
+        </div>
+      ) : null}
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-[20px] font-bold leading-tight text-[color:var(--text)]">{item.name}</h2>
+        <div className="shrink-0 text-[18px] font-bold text-[color:var(--text)]">{fmtThb(unit)}</div>
+      </div>
+      {item.weightLabel || item.tags.length ? (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {item.weightLabel ? <Badge tone="muted">{item.weightLabel}</Badge> : null}
+          {item.tags.includes('vegan') ? <Badge tone="ok">веган</Badge> : null}
+          {item.tags.includes('vegetarian') ? <Badge tone="ok">вегетарианское</Badge> : null}
+          {item.tags.includes('spicy') ? <Badge tone="warn">остро</Badge> : null}
+        </div>
+      ) : null}
+      {item.description ? <p className="mt-2 text-[14px] leading-relaxed text-[color:var(--muted)]">{item.description}</p> : null}
+
+      {item.variants.length > 1 ? (
+        <OptionRow title="вариант">
+          {item.variants.map((v) => (
+            <Chip key={v.id} active={v.id === variant?.id} onClick={() => setVariantId(v.id)}>
+              {v.name || 'стандарт'} · {fmtThb(v.price)}
+            </Chip>
+          ))}
+        </OptionRow>
+      ) : null}
+      {item.optionGroups.filter((g) => g.values.length).map((g) => (
+        <OptionRow key={g.id} title={g.name}>
+          {g.values.map((v) => (
+            <Chip key={v.id} active={sel[g.id] === v.id} onClick={() => setSel((s) => ({ ...s, [g.id]: v.id }))}>
+              {v.name}{v.priceAdjust ? ` +${fmtThb(v.priceAdjust)}` : ''}
+            </Chip>
+          ))}
+        </OptionRow>
+      ))}
+      {item.modifiers.length ? (
+        <OptionRow title="на выбор">
+          {item.modifiers.map((m) => (
+            <Chip key={m.id} active={mod === m.id} onClick={() => setMod(mod === m.id ? null : m.id)}>
+              {m.name}{m.priceAdjust ? ` +${fmtThb(m.priceAdjust)}` : ''}
+            </Chip>
+          ))}
+        </OptionRow>
+      ) : null}
+    </Sheet>
+  )
+}
+
+function OptionRow({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-4">
+      <div className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">{title}</div>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  )
+}
