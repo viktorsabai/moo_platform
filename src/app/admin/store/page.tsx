@@ -28,7 +28,7 @@ const marginOf = (it: Item) => (it.cost && it.price > 0 ? Math.round((1 - it.cos
 export default function AdminMenuPage() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [cats, setCats] = useState<Cat[]>([])
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<Filter>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('filter') === 'nocost' ? 'nocost' : 'all'))
   const [cat, setCat] = useState<string>('all')
   const [q, setQ] = useState('')
   const [edit, setEdit] = useState<Item | 'new' | null>(null)
