@@ -68,9 +68,9 @@ export async function getOwnerInbox(restaurantId: string): Promise<{
     items.push({
       kind: 'order',
       id: o.id,
-      label: `Заказ · ${formatPrice(o.totalAmount)}`,
+      label: `заказ #${o.id.slice(-4)} · ${formatPrice(o.totalAmount)}`,
       subtitle: `${client} · ${o.itemsCount} поз.`,
-      href: '/admin/orders',
+      href: `/admin/orders/${o.id}`,
       createdAt: o.createdAt.toISOString(),
     })
   }
@@ -82,7 +82,7 @@ export async function getOwnerInbox(restaurantId: string): Promise<{
       id: s.id,
       label: `«${s.name}» · на подтверждении`,
       subtitle: `${client} · ${formatPrice(s.price)}/мес`,
-      href: `/admin/subscriptions/clients?subscriptionId=${s.id}`,
+      href: `/admin/rations?tab=requests&id=${s.id}`,
       createdAt: s.createdAt.toISOString(),
     })
   }
@@ -93,7 +93,7 @@ export async function getOwnerInbox(restaurantId: string): Promise<{
       id: l.id,
       label: l.title?.trim() || 'Заявка на кейтеринг',
       subtitle: `${l.name} · ${l.type}`,
-      href: '/admin/leads',
+      href: '/admin/requests',
       createdAt: l.createdAt.toISOString(),
     })
   }
