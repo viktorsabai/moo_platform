@@ -16,6 +16,8 @@ export type SubscriptionCommerceConfig = {
   targetMarginPercent: number
   subscriptionDiscountPercent: number
   minMarginPercent: number
+  /** Минимальная выгода гостя против меню, %. Цена рациона не выше «меню минус это». */
+  minGuestDiscountPercent: number
   priceRoundTo: number
 }
 
@@ -69,6 +71,7 @@ export const DEFAULT_COMMERCE: SubscriptionCommerceConfig = {
   targetMarginPercent: 35,
   subscriptionDiscountPercent: 12,
   minMarginPercent: 20,
+  minGuestDiscountPercent: 5,
   priceRoundTo: 50,
 }
 
@@ -153,6 +156,7 @@ function parseCommerce(raw: unknown): SubscriptionCommerceConfig {
     targetMarginPercent: num('targetMarginPercent', 0, 90),
     subscriptionDiscountPercent: num('subscriptionDiscountPercent', 0, 90),
     minMarginPercent: num('minMarginPercent', 0, 90),
+    minGuestDiscountPercent: num('minGuestDiscountPercent', 0, 50),
     priceRoundTo: num('priceRoundTo', 1, 1000),
   }
 }
