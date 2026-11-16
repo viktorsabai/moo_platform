@@ -699,9 +699,6 @@ model SubscriptionDelivery {
   scheduledDate  DateTime
   deliveredAt    DateTime?
   status         DeliveryStatus @default(SCHEDULED)
-  /// Последняя ошибка автосборки заказа на кухню (видна владельцу); очищается при успехе
-  kitchenError   String?
-  kitchenErrorAt DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { notifySubscriptionKitchenOrderToOwner, notifyOwnersKitchenSummary } from '@/lib/notifications'
 
@@ -30,6 +31,22 @@ export type KitchenResult =
 
 class DuplicateKitchenOrder extends Error {}
 
+/** След ошибки автосборки: событие KITCHEN_ERROR (без изменений схемы БД), видно владельцу на «Сегодня». */
+export const KITCHEN_ERROR_TYPE = 'KITCHEN_ERROR'
+
+async function recordKitchenError(restaurantId: string, deliveryId: string, error: string) {
+  await prisma.userActivityEvent
+    .create({
+      data: {
+        id: randomUUID(),
+        restaurantId,
+        type: KITCHEN_ERROR_TYPE,
+        metadata: { deliveryId, error: error.slice(0, 300) },
+      },
+    })
+    .catch(() => undefined)
+}
+
 /**
  * Один заказ на кухню на одну доставку. Защита от дублей:
  * обновление доставки идёт только при `orderId IS NULL`; параллельный запуск
@@ -40,9 +57,7 @@ export async function createKitchenOrderForDelivery(
   restaurantId: string
 ): Promise<KitchenResult> {
   const fail = async (error: string): Promise<KitchenResult> => {
-    await prisma.subscriptionDelivery
-      .update({ where: { id: deliveryId }, data: { kitchenError: error.slice(0, 300), kitchenErrorAt: new Date() } })
-      .catch(() => undefined)
+    await recordKitchenError(restaurantId, deliveryId, error)
     return { ok: false, deliveryId, error }
   }
 
@@ -124,7 +139,7 @@ export async function createKitchenOrderForDelivery(
         })
         const claimed = await tx.subscriptionDelivery.updateMany({
           where: { id: deliveryId, orderId: null },
-          data: { orderId: created.id, status: 'CONFIRMED', kitchenError: null, kitchenErrorAt: null },
+          data: { orderId: created.id, status: 'CONFIRMED' },
         })
         if (claimed.count !== 1) throw new DuplicateKitchenOrder()
         return created

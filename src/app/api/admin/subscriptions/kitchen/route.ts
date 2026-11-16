@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
-import { dayWindow, runKitchenForDay } from '@/lib/subscription-kitchen'
+import { KITCHEN_ERROR_TYPE, dayWindow, runKitchenForDay } from '@/lib/subscription-kitchen'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,14 +17,30 @@ export async function GET() {
         status: { in: ['SCHEDULED', 'CONFIRMED'] },
         subscription: { restaurantId: ctx.restaurantId, status: 'ACTIVE' },
       },
-      select: { orderId: true, kitchenError: true },
+      select: { id: true, orderId: true },
     })
+    const pendingIds = new Set(rows.filter((r) => !r.orderId).map((r) => r.id))
+    const events = pendingIds.size
+      ? await prisma.userActivityEvent.findMany({
+          where: { restaurantId: ctx.restaurantId, type: KITCHEN_ERROR_TYPE, createdAt: { gte: start } },
+          orderBy: { createdAt: 'desc' },
+          select: { metadata: true },
+        })
+      : []
+    // последняя ошибка на каждую всё ещё несобранную доставку
+    const lastByDelivery = new Map<string, string>()
+    for (const e of events) {
+      const m = (e.metadata ?? {}) as { deliveryId?: string; error?: string }
+      if (m.deliveryId && pendingIds.has(m.deliveryId) && !lastByDelivery.has(m.deliveryId)) {
+        lastByDelivery.set(m.deliveryId, String(m.error ?? ''))
+      }
+    }
     return NextResponse.json({
       ok: true,
       total: rows.length,
       pending: rows.filter((r) => !r.orderId).length,
-      failed: rows.filter((r) => !r.orderId && r.kitchenError).length,
-      lastError: rows.find((r) => !r.orderId && r.kitchenError)?.kitchenError ?? null,
+      failed: lastByDelivery.size,
+      lastError: [...lastByDelivery.values()][0] ?? null,
     })
   } catch (e: unknown) {
     const status = Number((e as { statusCode?: number })?.statusCode || 500)
