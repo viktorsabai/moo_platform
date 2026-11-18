@@ -37,7 +37,7 @@ export function EmojiCarousel({ value, onChange, className }: EmojiCarouselProps
               'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[18px] transition',
               value === emoji
                 ? 'bg-black/15 ring-2 ring-black/20'
-                : 'bg-black/[0.06] active:bg-black/10'
+                : 'bg-black/[0.06] active:bg-[color:var(--stroke-strong)]'
             )}
             style={{ borderRadius: 'var(--radius-pill)' }}
             aria-label={emoji}

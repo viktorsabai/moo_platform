@@ -812,7 +812,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
           <input
             type="file"
             accept=".csv,text/csv"
-            className="text-[12px] file:mr-2 file:rounded-full file:border-0 file:bg-black/10 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold"
+            className="text-[12px] file:mr-2 file:rounded-full file:border-0 file:bg-[color:var(--stroke)] file:px-3 file:py-1.5 file:text-[12px] file:font-semibold"
             onChange={(e) => {
               setImportFile(e.target.files?.[0] ?? null)
               setImportResult(null)
@@ -1418,7 +1418,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                                       const details = e.currentTarget.closest('details')
                                       if (details && details instanceof HTMLDetailsElement) details.open = false
                                     }}
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 text-[16px] leading-none text-black/50 transition hover:bg-black/5 active:opacity-70"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 text-[16px] leading-none text-black/50 transition hover:bg-[color:var(--stroke)] active:opacity-70"
                                     aria-label="закрыть"
                                   >
                                     ×
@@ -1489,7 +1489,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                                           await load({ preferCache: false })
                                           toast.success('Цена сохранена')
                                         }}
-                                        className="rounded-full border border-[color:var(--stroke)] px-3 py-2 text-[11px] font-semibold text-[color:var(--text)] transition hover:bg-black/5"
+                                        className="rounded-full border border-[color:var(--stroke)] px-3 py-2 text-[11px] font-semibold text-[color:var(--text)] transition hover:bg-[color:var(--stroke)]"
                                         style={{ borderRadius: 'var(--radius-pill)' }}
                                       >
                                         сохранить цену
@@ -1725,7 +1725,7 @@ export function AdminStoreTab({ storeEnabled }: { storeEnabled: boolean }) {
                                         await load({ preferCache: false })
                                         toast.success('Вариант сохранён')
                                       }}
-                                      className="rounded-full border border-[color:var(--stroke)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--text)] transition hover:bg-black/5"
+                                      className="rounded-full border border-[color:var(--stroke)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--text)] transition hover:bg-[color:var(--stroke)]"
                                       style={{ borderRadius: 'var(--radius-pill)' }}
                                     >
                                       сохранить

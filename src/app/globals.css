@@ -134,7 +134,13 @@ html.dark {
     accent-color: var(--primary);
   }
 
-  /* Emergency dark-mode compatibility for legacy Tailwind classes. */
+  /* Emergency dark-mode compatibility for legacy Tailwind classes.
+     Deliberately does NOT catch a modifier-prefixed variant (hover:bg-black/5,
+     active:text-black/60, file:bg-black/10 ...): some components pair those
+     with an intentional dark: override of their own (e.g. SectionBadge's
+     `dark:bg-black/25`), and a blanket ':bg-black/' substring match would
+     clobber that intentional value too. Those are fixed at the call site
+     instead — see the audit in the PR/commit that added this comment. */
   html.dark [class*=' text-black'],
   html.dark [class^='text-black'] {
     color: var(--text) !important;
