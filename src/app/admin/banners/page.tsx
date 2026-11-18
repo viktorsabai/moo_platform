@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { BannerPreviewCard } from '@/components/ui/BannerPreviewCard'
 import { AdminCampaigns } from '@/components/admin/AdminCampaigns'
+import { Screen, Card, Btn, Chip, Badge, Segmented, Sheet, Empty } from '@/components/kit'
 
 type BannerType = 'chip' | 'reel'
 type BannerTargetType = 'menu' | 'menu_category' | 'lead' | 'subscriptions' | 'orders' | 'custom'
@@ -74,6 +74,7 @@ export default function AdminBannersPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<BannerDraft>(emptyDraft)
   const [section, setSection] = useState<'banners' | 'campaigns'>('banners')
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   const editingBanner = useMemo(() => banners.find((b) => b.id === editingId) || null, [banners, editingId])
   const canSave = Boolean(
@@ -146,6 +147,11 @@ export default function AdminBannersPage() {
     setError(null)
   }
 
+  function openNewBanner() {
+    resetDraft()
+    setSheetOpen(true)
+  }
+
   function editBanner(b: Banner) {
     const hrefCategorySlug = (() => {
       try {
@@ -176,7 +182,7 @@ export default function AdminBannersPage() {
       showOnHome: b.showOnHome !== false,
       showOnSubscriptions: Boolean(b.showOnSubscriptions),
     })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setSheetOpen(true)
   }
 
   async function uploadImage(file: File) {
@@ -242,6 +248,7 @@ export default function AdminBannersPage() {
         return
       }
       resetDraft()
+      setSheetOpen(false)
       await load()
       toast.success(editingId ? 'Баннер обновлён' : 'Баннер добавлен')
     } catch {
@@ -313,423 +320,269 @@ export default function AdminBannersPage() {
     }
   }
 
-  const cardClass = 'overflow-hidden border border-black/[0.06] bg-[color:var(--surface-strong)] shadow-[var(--shadow-soft)] p-4'
-  const cardRadius = { borderRadius: 'var(--radius-large)' } as const
+  const chips = banners.filter((b) => b.type === 'chip').sort((a, z) => a.order - z.order)
+  const reels = banners.filter((b) => b.type === 'reel').sort((a, z) => a.order - z.order)
 
-  return (
-    <main className="ui-container ui-screen !pb-20">
-      <div className={cn('mt-5', cardClass)} style={cardRadius}>
-        <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-black/[0.04] p-1">
+  function BannerRow({ b, group, idx, arr }: { b: Banner; group: 'chip' | 'reel'; idx: number; arr: Banner[] }) {
+    return (
+      <div className="flex items-start gap-2">
+        <div className="flex shrink-0 flex-col gap-1 pt-1">
           <button
             type="button"
-            onClick={() => setSection('banners')}
-            className={cn(
-              'rounded-full px-3 py-2.5 text-[13px] font-semibold transition',
-              section === 'banners' ? 'bg-white text-black shadow-sm' : 'text-black/55'
-            )}
+            onClick={() => moveBanner(b, 'up', group)}
+            disabled={idx === 0}
+            aria-label="вверх"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--surface)] text-[12px] text-[color:var(--text)] disabled:opacity-30"
           >
-            баннеры
+            ↑
           </button>
           <button
             type="button"
-            onClick={() => setSection('campaigns')}
-            className={cn(
-              'rounded-full px-3 py-2.5 text-[13px] font-semibold transition',
-              section === 'campaigns' ? 'bg-white text-black shadow-sm' : 'text-black/55'
-            )}
+            onClick={() => moveBanner(b, 'down', group)}
+            disabled={idx === arr.length - 1}
+            aria-label="вниз"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--surface)] text-[12px] text-[color:var(--text)] disabled:opacity-30"
           >
-            акции
+            ↓
           </button>
         </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {b.showOnHome !== false ? <Badge tone="muted">главная</Badge> : null}
+            {b.showOnSubscriptions ? <Badge tone="ok">подписка</Badge> : null}
+          </div>
+          <BannerPreviewCard
+            type={group}
+            title={b.title}
+            description={b.description}
+            image={b.image}
+            cta={b.cta}
+            isActive={b.isActive}
+            onToggle={() => toggleActive(b)}
+            className="max-w-none"
+          />
+          <div className="mt-1.5 flex gap-2">
+            <button type="button" onClick={() => editBanner(b)} className="text-[12px] font-semibold text-[color:var(--text)] underline underline-offset-2">
+              править
+            </button>
+            <button type="button" onClick={() => deleteBanner(b.id)} className="text-[12px] font-semibold text-[color:var(--danger)] underline underline-offset-2">
+              удалить
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Screen title="Акции и баннеры">
+      <div className="mb-4">
+        <Segmented
+          value={section}
+          onChange={setSection}
+          options={[
+            { value: 'banners', label: 'баннеры' },
+            { value: 'campaigns', label: 'акции' },
+          ]}
+        />
       </div>
 
       {section === 'banners' ? (
-        <>
-      <div className={cn('mt-5 overflow-visible', cardClass)} style={cardRadius}>
-        <div className="flex items-center justify-between gap-3">
+        <div className="space-y-4">
+          <Btn full onClick={openNewBanner}>
+            + добавить баннер
+          </Btn>
+
+          {loading ? (
+            <Card>
+              <span className="text-[13px] text-[color:var(--muted)]">загрузка…</span>
+            </Card>
+          ) : banners.length === 0 ? (
+            <Empty title="Пока нет баннеров" hint="Добавьте первый — кнопка выше." />
+          ) : (
+            <>
+              {chips.length > 0 ? (
+                <Card>
+                  <div className="mb-3 text-[12.5px] font-semibold text-[color:var(--muted)]">широкие</div>
+                  <div className="space-y-4">
+                    {chips.map((b, i, arr) => (
+                      <BannerRow key={b.id} b={b} group="chip" idx={i} arr={arr} />
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+              {reels.length > 0 ? (
+                <Card>
+                  <div className="mb-3 text-[12.5px] font-semibold text-[color:var(--muted)]">высокие</div>
+                  <div className="space-y-4">
+                    {reels.map((b, i, arr) => (
+                      <BannerRow key={b.id} b={b} group="reel" idx={i} arr={arr} />
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : (
+        <AdminCampaigns />
+      )}
+
+      <Sheet
+        open={sheetOpen}
+        onClose={() => {
+          setSheetOpen(false)
+          resetDraft()
+        }}
+        title={editingBanner ? 'редактировать баннер' : 'новый баннер'}
+        footer={
+          <>
+            <Btn full onClick={saveBanner} disabled={!canSave || saving}>
+              {saving ? 'сохраняю…' : editingBanner ? 'обновить' : 'сохранить'}
+            </Btn>
+            {error ? <p className="mt-2 text-[12px] font-semibold text-[color:var(--danger)]">{error}</p> : null}
+          </>
+        }
+      >
+        <div className="space-y-4 pb-2">
           <div>
-            <div className="text-[13px] font-extrabold tracking-tight text-black/70">
-              {editingBanner ? 'редактировать баннер' : 'добавить баннер'}
+            <div className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">где показывать</div>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={draft.showOnHome} onClick={() => setDraft((s) => ({ ...s, showOnHome: !s.showOnHome }))}>
+                главная
+              </Chip>
+              <Chip
+                active={draft.showOnSubscriptions}
+                onClick={() => setDraft((s) => ({ ...s, showOnSubscriptions: !s.showOnSubscriptions }))}
+              >
+                подписка
+              </Chip>
             </div>
-            <p className="ui-muted mt-1 text-[12px]">Куда ведёт, фото и короткий текст.</p>
           </div>
-          {editingBanner ? (
-            <button
-              type="button"
-              onClick={resetDraft}
-              className="shrink-0 rounded-full bg-black/[0.06] px-3 py-2 text-[12px] font-semibold text-black/60"
-            >
-              новый
-            </button>
+
+          <div>
+            <div className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">ведёт на</div>
+            <div className="flex flex-wrap gap-2">
+              {targetPresets.map((item) => (
+                <Chip key={item.type} active={draft.targetType === item.type} onClick={() => setTarget(item.type)}>
+                  {item.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">заголовок</span>
+            <input
+              className="w-full rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[15px] text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]"
+              placeholder="например: Бизнес-ланч"
+              value={draft.title}
+              onChange={(e) => setDraft((s) => ({ ...s, title: e.target.value }))}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">подпись</span>
+            <input
+              className="w-full rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[15px] text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]"
+              placeholder="короткая продающая строка"
+              value={draft.description}
+              onChange={(e) => setDraft((s) => ({ ...s, description: e.target.value }))}
+            />
+          </label>
+
+          <div>
+            <div className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">формат</div>
+            <Segmented
+              value={draft.type}
+              onChange={(v) => setDraft((s) => ({ ...s, type: v }))}
+              options={[
+                { value: 'chip', label: 'широкая' },
+                { value: 'reel', label: 'вертикальная' },
+              ]}
+            />
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">кнопка</span>
+            <input
+              className="w-full rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[15px] text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]"
+              placeholder="например: Открыть"
+              value={draft.cta}
+              onChange={(e) => setDraft((s) => ({ ...s, cta: e.target.value }))}
+            />
+          </label>
+
+          {draft.targetType === 'custom' ? (
+            <label className="block">
+              <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">ссылка</span>
+              <input
+                className="w-full rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[15px] text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]"
+                placeholder="/menu, /subscriptions/new или внешняя ссылка"
+                value={draft.href}
+                onChange={(e) => setDraft((s) => ({ ...s, href: e.target.value }))}
+              />
+            </label>
           ) : null}
-        </div>
 
-        <div className="mt-4">
-          <label className="mb-2 block text-[12px] font-semibold text-black/70">где показывать</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setDraft((s) => ({ ...s, showOnHome: !s.showOnHome }))}
-              className={cn(
-                'rounded-full px-4 py-2.5 text-[13px] font-semibold transition',
-                draft.showOnHome
-                  ? 'bg-[color:var(--accent)] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
-                  : 'bg-black/[0.06] text-black/65'
-              )}
-              style={{ borderRadius: 'var(--radius-pill)' }}
-            >
-              главная
-            </button>
-            <button
-              type="button"
-              onClick={() => setDraft((s) => ({ ...s, showOnSubscriptions: !s.showOnSubscriptions }))}
-              className={cn(
-                'rounded-full px-4 py-2.5 text-[13px] font-semibold transition',
-                draft.showOnSubscriptions
-                  ? 'bg-[color:var(--accent)] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
-                  : 'bg-black/[0.06] text-black/65'
-              )}
-              style={{ borderRadius: 'var(--radius-pill)' }}
-            >
-              подписка
-            </button>
-          </div>
-          <p className="mt-1.5 text-[11px] font-medium text-black/45">
-            Те же баннеры из БД: на главной и/или в разделе «Подписка» → обзор.
-          </p>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {targetPresets.map((item) => (
-            <button
-              key={item.type}
-              type="button"
-              onClick={() => setTarget(item.type)}
-              className={cn(
-                'rounded-full px-4 py-2.5 text-[13px] font-semibold transition',
-                draft.targetType === item.type
-                  ? 'bg-[color:var(--accent)] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
-                  : 'bg-black/[0.06] text-black/65 active:bg-black/[0.1]'
-              )}
-              style={{ borderRadius: 'var(--radius-pill)' }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-[12px] font-semibold text-black/70">Заголовок</label>
-              <input
-                className="input input--pill"
-                placeholder="например: Бизнес-ланч"
-                value={draft.title}
-                onChange={(e) => setDraft((s) => ({ ...s, title: e.target.value }))}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-[12px] font-semibold text-black/50">Подпись</label>
-              <input
-                className="input input--pill"
-                placeholder="короткая продающая строка"
-                value={draft.description}
-                onChange={(e) => setDraft((s) => ({ ...s, description: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-black/70">Формат</label>
-              <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-black/[0.04] p-1">
-                {[
-                  { value: 'chip', label: 'широкая' },
-                  { value: 'reel', label: 'вертикальная' },
-                ].map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => setDraft((s) => ({ ...s, type: item.value as BannerType }))}
-                    className={cn(
-                      'rounded-full px-3 py-2.5 text-[12px] font-semibold transition',
-                      draft.type === item.value ? 'bg-white text-black shadow-sm' : 'text-black/55'
-                    )}
-                  >
-                    {item.label}
-                  </button>
+          {draft.targetType === 'menu_category' ? (
+            <label className="block">
+              <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">категория меню</span>
+              <select
+                className="w-full rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-2.5 text-[15px] text-[color:var(--text)] outline-none"
+                value={draft.targetId}
+                onChange={(e) => setMenuCategory(e.target.value)}
+              >
+                <option value="">выберите категорию</option>
+                {menuCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-black/70">Кнопка</label>
-              <input
-                className="input input--pill"
-                placeholder="например: Открыть"
-                value={draft.cta}
-                onChange={(e) => setDraft((s) => ({ ...s, cta: e.target.value }))}
-              />
-            </div>
-            {draft.targetType === 'custom' ? (
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-[12px] font-semibold text-black/70">Ссылка</label>
-                <input
-                  className="input input--pill"
-                  placeholder="/menu, /subscriptions/new или внешняя ссылка"
-                  value={draft.href}
-                  onChange={(e) => setDraft((s) => ({ ...s, href: e.target.value }))}
-                />
-              </div>
-            ) : null}
-            {draft.targetType === 'menu_category' ? (
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-[12px] font-semibold text-black/70">Категория меню</label>
-                <select
-                  className="input input--pill"
-                  value={draft.targetId}
-                  onChange={(e) => setMenuCategory(e.target.value)}
-                >
-                  <option value="">выберите категорию</option>
-                  {menuCategories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[11px] font-medium text-black/45">
-                  Владелец выбирает категорию из списка, ссылка заполнится автоматически.
-                </p>
-              </div>
-            ) : null}
-            <div className="sm:col-span-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) uploadImage(file)
-                  e.currentTarget.value = ''
-                }}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="rounded-full bg-black/[0.06] px-4 py-2.5 text-[13px] font-semibold text-black/70 disabled:opacity-50"
-                  style={{ borderRadius: 'var(--radius-pill)' }}
-                >
-                  {uploading ? 'загружаю…' : draft.image ? 'заменить фото' : 'добавить фото'}
-                </button>
-                {draft.image ? (
-                  <button
-                    type="button"
-                    onClick={() => setDraft((s) => ({ ...s, image: '' }))}
-                    className="rounded-full bg-[color:var(--danger-bg)] px-4 py-2.5 text-[13px] font-semibold text-[color:var(--danger)]"
-                    style={{ borderRadius: 'var(--radius-pill)' }}
-                  >
-                    убрать фото
-                  </button>
-                ) : null}
-              </div>
+              </select>
+            </label>
+          ) : null}
+
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) uploadImage(file)
+                e.currentTarget.value = ''
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Btn variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                {uploading ? 'загружаю…' : draft.image ? 'заменить фото' : 'добавить фото'}
+              </Btn>
+              {draft.image ? (
+                <Btn variant="danger" onClick={() => setDraft((s) => ({ ...s, image: '' }))}>
+                  убрать фото
+                </Btn>
+              ) : null}
             </div>
           </div>
 
-          <div className="min-w-0">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-black/45">превью</div>
-            {draft.type === 'chip' ? (
-              <BannerPreviewCard
-                type="chip"
-                title={draft.title || 'Новый баннер'}
-                description={draft.description}
-                image={draft.image}
-                cta={draft.cta || 'Открыть'}
-                isActive
-                onToggle={() => {}}
-                showToggle={false}
-                className="max-w-none"
-              />
-            ) : (
-              <BannerPreviewCard
-                type="reel"
-                title={draft.title || 'Новый баннер'}
-                description={draft.description}
-                image={draft.image}
-                cta={draft.cta || 'Открыть'}
-                isActive
-                onToggle={() => {}}
-                showToggle={false}
-              />
-            )}
+          <div>
+            <div className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">превью</div>
+            <BannerPreviewCard
+              type={draft.type}
+              title={draft.title || 'Новый баннер'}
+              description={draft.description}
+              image={draft.image}
+              cta={draft.cta || 'Открыть'}
+              isActive
+              onToggle={() => {}}
+              showToggle={false}
+              className="max-w-none"
+            />
           </div>
         </div>
-        <button
-          type="button"
-          onClick={saveBanner}
-          disabled={!canSave || saving}
-          className="btn btn-primary mt-4 w-full rounded-full py-2.5 text-[13px] font-semibold disabled:opacity-50"
-          style={{ borderRadius: 'var(--radius-pill)' }}
-        >
-          {saving ? 'сохраняю…' : editingBanner ? 'обновить' : 'сохранить'}
-        </button>
-        {error ? <p className="mt-2 text-[12px] font-semibold text-[color:var(--danger)]">{error}</p> : null}
-      </div>
-
-      {/* Как на главной — превью и порядок */}
-      {!loading && banners.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-2 text-[13px] font-extrabold tracking-tight text-black/70">опубликованные</div>
-          <p className="ui-muted mb-3 text-[12px]">Порядок: ↑↓</p>
-          <div className={cn('overflow-x-auto pb-2', cardClass)} style={cardRadius}>
-            <div className="flex min-w-0 flex-col gap-4">
-              {banners.filter((b) => b.type === 'chip').length > 0 && (
-                <div>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-black/45">широкие</div>
-                  <div className="flex flex-wrap gap-3">
-                    {banners
-                      .filter((b) => b.type === 'chip')
-                      .map((b, i, arr) => (
-                        <div key={b.id} className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveBanner(b, 'up', 'chip')}
-                              disabled={i === 0}
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-[12px] disabled:opacity-40"
-                              aria-label="вверх"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveBanner(b, 'down', 'chip')}
-                              disabled={i === arr.length - 1}
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-[12px] disabled:opacity-40"
-                              aria-label="вниз"
-                            >
-                              ↓
-                            </button>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <div className="flex flex-wrap gap-1">
-                              {b.showOnHome !== false ? (
-                                <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[10px] font-bold text-black/55">
-                                  главная
-                                </span>
-                              ) : null}
-                              {b.showOnSubscriptions ? (
-                                <span className="rounded-full bg-[color:var(--accent)]/15 px-2 py-0.5 text-[10px] font-bold text-black/70">
-                                  подписка
-                                </span>
-                              ) : null}
-                            </div>
-                            <BannerPreviewCard
-                              type="chip"
-                              title={b.title}
-                              description={b.description}
-                              image={b.image}
-                              cta={b.cta}
-                              isActive={b.isActive}
-                              onToggle={() => toggleActive(b)}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => editBanner(b)}
-                            className="shrink-0 rounded-full bg-black/[0.06] px-2.5 py-1 text-[11px] font-semibold text-black/65"
-                          >
-                            править
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteBanner(b.id)}
-                            className="shrink-0 rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--danger)]"
-                          >
-                            удалить
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-              {banners.filter((b) => b.type === 'reel').length > 0 && (
-                <div>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-black/45">высокие</div>
-                  <div className="flex flex-wrap gap-4">
-                    {banners
-                      .filter((b) => b.type === 'reel')
-                      .map((b, i, arr) => (
-                        <div key={b.id} className="flex flex-col items-start gap-2 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-2">
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveBanner(b, 'up', 'reel')}
-                              disabled={i === 0}
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-[11px] disabled:opacity-40"
-                              aria-label="вверх"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveBanner(b, 'down', 'reel')}
-                              disabled={i === arr.length - 1}
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-[11px] disabled:opacity-40"
-                              aria-label="вниз"
-                            >
-                              ↓
-                            </button>
-                          </div>
-                          <div className="flex items-end gap-2">
-                            <BannerPreviewCard
-                              type="reel"
-                              title={b.title}
-                              description={b.description}
-                              image={b.image}
-                              cta={b.cta}
-                              isActive={b.isActive}
-                              onToggle={() => toggleActive(b)}
-                            />
-                          </div>
-                          <div className="flex w-full items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => editBanner(b)}
-                              className="shrink-0 rounded-full bg-black/[0.06] px-2.5 py-1 text-[11px] font-semibold text-black/65"
-                            >
-                              править
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteBanner(b.id)}
-                              className="shrink-0 rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--danger)]"
-                            >
-                              удалить
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className={cn('mt-5', cardClass)} style={cardRadius}>
-          <span className="ui-muted text-[13px]">загрузка…</span>
-        </div>
-      )}
-      {!loading && banners.length === 0 && (
-        <div className={cn('mt-5', cardClass)} style={cardRadius}>
-          <p className="ui-muted text-[13px]">Пока нет баннеров. Добавьте первый выше.</p>
-        </div>
-      )}
-        </>
-      ) : null}
-      {section === 'campaigns' ? <AdminCampaigns /> : null}
-    </main>
+      </Sheet>
+    </Screen>
   )
 }

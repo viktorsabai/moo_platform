@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { parseGuestCrmSeg, type GuestCrmSeg } from '@/lib/guest-crm'
 import { cn } from '@/lib/utils'
+import { Card, Btn, Badge, Sheet, Toggle, BottomBar, fmtThb } from '@/components/kit'
 
 type CampaignRow = {
   id: string
@@ -949,42 +950,26 @@ export function AdminCampaigns() {
   )
 
   return (
-    <section className={cn(cardClass, 'relative mt-5 overflow-hidden')}>
-      {rewardConfirm ? (
-        <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/40 p-4 sm:items-center">
-          <div
-            className="w-full max-w-[360px] rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4 shadow-[var(--shadow-card)]"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="reward-change-title"
-          >
-            <p id="reward-change-title" className="text-[16px] font-extrabold text-[color:var(--text)]">
-              Сменить тип награды?
-            </p>
-            <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--muted)]">
-              Предыдущие значения для текущего типа будут сброшены и заменены на дефолты нового типа.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                className="btn btn-soft h-11 flex-1 rounded-full text-[14px] font-semibold"
-                style={{ borderRadius: 'var(--radius-pill)' }}
-                onClick={() => setRewardConfirm(null)}
-              >
-                отмена
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary h-11 flex-1 rounded-full text-[14px] font-extrabold"
-                style={{ borderRadius: 'var(--radius-pill)' }}
-                onClick={() => rewardConfirm && applyRewardType(rewardConfirm)}
-              >
-                продолжить
-              </button>
-            </div>
+    <Card className="relative mt-5 overflow-hidden !p-0">
+      <Sheet
+        open={Boolean(rewardConfirm)}
+        onClose={() => setRewardConfirm(null)}
+        title="Сменить тип награды?"
+        footer={
+          <div className="flex gap-2">
+            <Btn variant="secondary" full onClick={() => setRewardConfirm(null)}>
+              отмена
+            </Btn>
+            <Btn full onClick={() => rewardConfirm && applyRewardType(rewardConfirm)}>
+              продолжить
+            </Btn>
           </div>
-        </div>
-      ) : null}
+        }
+      >
+        <p className="text-[13px] leading-relaxed text-[color:var(--muted)]">
+          Предыдущие значения для текущего типа будут сброшены и заменены на дефолты нового типа.
+        </p>
+      </Sheet>
 
       <div className="border-b border-[color:var(--stroke)] bg-[color:var(--surface)]/60 px-4 py-4 backdrop-blur-md">
         <h3 className="text-[22px] font-extrabold tracking-tight text-[color:var(--text)]">Создать акцию</h3>
@@ -1066,23 +1051,11 @@ export function AdminCampaigns() {
                   </p>
                   <div className="flex items-center justify-between gap-3 rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]/90 px-3 py-2.5">
                     <div className="text-[13px] font-semibold text-[color:var(--text)]">уведомить при запуске</div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={draft.notifyOnPublish}
-                      onClick={() => setDraft((d) => ({ ...d, notifyOnPublish: !d.notifyOnPublish }))}
-                      className={cn(
-                        'relative h-7 w-12 shrink-0 rounded-full transition',
-                        draft.notifyOnPublish ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--stroke)]',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition',
-                          draft.notifyOnPublish ? 'left-5' : 'left-0.5',
-                        )}
-                      />
-                    </button>
+                    <Toggle
+                      checked={draft.notifyOnPublish}
+                      onChange={(v) => setDraft((d) => ({ ...d, notifyOnPublish: v }))}
+                      label="уведомить при запуске"
+                    />
                   </div>
                 </div>
               ) : null}
@@ -1093,23 +1066,11 @@ export function AdminCampaigns() {
                     <div className="text-[13px] font-semibold text-[color:var(--text)]">уведомить гостей в Telegram</div>
                     <div className="text-[11px] text-[color:var(--muted)]">только публичные акции с флажком</div>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={draft.notifyOnPublish}
-                    onClick={() => setDraft((d) => ({ ...d, notifyOnPublish: !d.notifyOnPublish }))}
-                    className={cn(
-                      'relative h-7 w-12 shrink-0 rounded-full transition',
-                      draft.notifyOnPublish ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--stroke)]',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition',
-                        draft.notifyOnPublish ? 'left-5' : 'left-0.5',
-                      )}
-                    />
-                  </button>
+                  <Toggle
+                    checked={draft.notifyOnPublish}
+                    onChange={(v) => setDraft((d) => ({ ...d, notifyOnPublish: v }))}
+                    label="уведомить гостей в Telegram"
+                  />
                 </div>
               ) : null}
 
@@ -1373,15 +1334,14 @@ export function AdminCampaigns() {
               </div>
             ) : null}
 
-            <label className="flex items-center justify-between gap-3 rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2.5">
               <span className="text-[12px] font-medium text-[color:var(--text)]">уведомление при публикации</span>
-              <input
-                type="checkbox"
+              <Toggle
                 checked={draft.notifyOnPublish}
-                onChange={(e) => setDraft((s) => ({ ...s, notifyOnPublish: e.target.checked }))}
-                className="h-5 w-5"
+                onChange={(v) => setDraft((s) => ({ ...s, notifyOnPublish: v }))}
+                label="уведомление при публикации"
               />
-            </label>
+            </div>
 
             <button
               type="button"
@@ -1418,7 +1378,7 @@ export function AdminCampaigns() {
         ) : null}
 
         {scenario ? (
-          <div className="sticky bottom-0 z-20 -mx-4 border-t border-[color:var(--stroke)] bg-[color:var(--bottom-bg)]/98 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
+          <BottomBar>
             {campaignSaveError ? (
               <div className="mb-3 rounded-[var(--radius-medium)] border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-2 text-[12px] font-medium leading-snug text-[color:var(--danger)]">
                 <div className="font-extrabold">не сохранилось</div>
@@ -1432,19 +1392,13 @@ export function AdminCampaigns() {
                 </button>
               </div>
             ) : null}
-            <button
-              type="button"
-              onClick={createCampaign}
-              disabled={saving}
-              className="btn btn-primary flex h-12 w-full items-center justify-center gap-2 rounded-full text-[15px] font-extrabold shadow-[var(--shadow-card)] transition disabled:opacity-45"
-              style={{ borderRadius: 'var(--radius-pill)' }}
-            >
+            <Btn full size="lg" onClick={createCampaign} disabled={saving}>
               {saving ? 'запускаем…' : '🚀 Запустить акцию'}
-            </button>
+            </Btn>
             <p className="mt-2 text-center text-[11px] font-medium text-[color:var(--muted)]">
               Акция станет активной сразу после сохранения. Расширенные настройки не обязательны.
             </p>
-          </div>
+          </BottomBar>
         ) : (
           <p className="rounded-[var(--radius-medium)] border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-3 py-2 text-center text-[12px] font-medium text-[color:var(--warn)]">
             Сначала выберите цель акции выше (карточка сценария).
@@ -1458,9 +1412,9 @@ export function AdminCampaigns() {
           {loading ? <div className="text-sm text-[color:var(--muted)]">загрузка...</div> : null}
           {!loading && rows.length === 0 ? <div className="text-sm text-[color:var(--muted)]">акций пока нет</div> : null}
           {rows.map((row) => (
-            <div key={row.id} className="rounded-[var(--radius-medium)] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3">
+            <Card key={row.id} tone="muted" className="!p-3">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-semibold text-[color:var(--text)]">{row.name}</div>
                   <div className="text-xs text-[color:var(--muted)]">
                     {row.code ? `код ${row.code} · ` : ''}
@@ -1468,30 +1422,22 @@ export function AdminCampaigns() {
                     {row.rewardType} · {row.targetType} · {Number(row._count?.redemptions ?? 0)} раз
                   </div>
                   {row.giftTitle ? <div className="text-xs text-[color:var(--ok)]">подарок: {row.giftTitle}</div> : null}
-                  {row.minSubtotal ? <div className="text-xs text-[color:var(--muted)]">мин. чек: {Number(row.minSubtotal)} ฿</div> : null}
+                  {row.minSubtotal ? <div className="text-xs text-[color:var(--muted)]">мин. чек: {fmtThb(Number(row.minSubtotal))}</div> : null}
                 </div>
-                <div className="text-xs font-semibold text-[color:var(--muted)]">{row.status}</div>
+                <Badge tone={row.status === 'ACTIVE' ? 'ok' : 'muted'}>{row.status === 'ACTIVE' ? 'активна' : row.status === 'PAUSED' ? 'пауза' : row.status}</Badge>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => pauseOrActivate(row)}
-                  className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-1 text-xs font-semibold"
-                >
+                <Btn variant="secondary" size="md" className="h-8 px-3 text-xs" onClick={() => pauseOrActivate(row)}>
                   {row.status === 'ACTIVE' ? 'пауза' : 'активировать'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeRow(row.id)}
-                  className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--danger)]"
-                >
+                </Btn>
+                <Btn variant="danger" size="md" className="h-8 border border-[color:var(--stroke-strong)] bg-[color:var(--danger-bg)] px-3 text-xs" onClick={() => removeRow(row.id)}>
                   удалить
-                </button>
+                </Btn>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       </div>
-    </section>
+    </Card>
   )
 }
