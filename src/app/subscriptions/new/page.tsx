@@ -6,7 +6,7 @@ import { SubscriptionCheckoutFlow } from '@/features/subscriptions/components/Su
 import { SubscriptionWizard } from '@/features/subscriptions/components/SubscriptionWizard'
 import { useVenue } from '@/lib/venue-context'
 import { SubscriptionUnavailableCard } from '@/components/subscriptions/SubscriptionUnavailableCard'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen } from '@/components/kit'
 
 function NewSubscriptionContent() {
   const searchParams = useSearchParams()
@@ -23,10 +23,9 @@ export default function NewSubscriptionPage() {
 
   if (!settings.subscriptionEnabled) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader title="оформление" backHref="/subscriptions" subtitle="новая подписка" compact className="mb-3" />
+      <Screen title="оформление" back="/subscriptions" subtitle="новая подписка">
         <SubscriptionUnavailableCard />
-      </main>
+      </Screen>
     )
   }
 

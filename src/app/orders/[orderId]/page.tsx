@@ -5,8 +5,7 @@ import { useParams } from 'next/navigation'
 import { useOrderStore } from '@/store/order-store'
 import { formatDateTime, formatPrice } from '@/lib/utils'
 import { ORDER_STATUSES } from '@/lib/constants'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { Card } from '@/components/ui/Card'
+import { Screen, Card } from '@/components/kit'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 
 export default function OrderDetailsPage() {
@@ -53,30 +52,29 @@ export default function OrderDetailsPage() {
   const statusLabel = order ? (ORDER_STATUSES as any)[String(order.status ?? '').toUpperCase()] ?? String(order.status ?? '') : ''
 
   return (
-    <main className="ui-container ui-screen">
-      <PageHeader backHref="/orders" title="заказ" subtitle={order ? `#${String(order.id).slice(-8)}` : undefined} />
+    <Screen back="/orders" title="заказ" subtitle={order ? `#${String(order.id).slice(-8)}` : undefined}>
       {!loaded ? (
-        <Card variant="surfaceStrong" className="p-4">
-          <div className="ui-body">загружаем заказ...</div>
+        <Card>
+          <div className="text-[13px] text-[color:var(--text)]">загружаем заказ...</div>
         </Card>
       ) : !order ? (
-        <Card variant="surfaceStrong" className="p-4">
-          <div className="ui-body">заказ не найден</div>
+        <Card>
+          <div className="text-[13px] text-[color:var(--text)]">заказ не найден</div>
         </Card>
       ) : (
         <div className="space-y-3">
-          <Card variant="surfaceStrong" className="p-4">
-            <div className="ui-muted text-[12px]">статус</div>
-            <div className="ui-h2 mt-1">{statusLabel}</div>
-            <div className="ui-muted mt-2 text-[12px]">создан: {formatDateTime(order.createdAt)}</div>
-            <div className="ui-muted mt-1 text-[12px]">итого: {formatPrice(order.totalAmount)}</div>
+          <Card>
+            <div className="text-[12px] text-[color:var(--muted)]">статус</div>
+            <div className="mt-1 text-[17px] font-semibold text-[color:var(--text)]">{statusLabel}</div>
+            <div className="mt-2 text-[12px] text-[color:var(--muted)]">создан: {formatDateTime(order.createdAt)}</div>
+            <div className="mt-1 text-[12px] text-[color:var(--muted)]">итого: {formatPrice(order.totalAmount)}</div>
           </Card>
-          <Card variant="surfaceStrong" className="p-4">
-            <div className="ui-muted text-[12px]">адрес</div>
-            <div className="ui-body mt-1">{String(order?.address?.street ?? '—')}</div>
+          <Card>
+            <div className="text-[12px] text-[color:var(--muted)]">адрес</div>
+            <div className="mt-1 text-[13px] text-[color:var(--text)]">{String(order?.address?.street ?? '—')}</div>
           </Card>
-          <Card variant="surfaceStrong" className="p-4">
-            <div className="ui-muted text-[12px]">позиции</div>
+          <Card>
+            <div className="text-[12px] text-[color:var(--muted)]">позиции</div>
             <div className="mt-2 space-y-1">
               {Array.isArray(order.items) && order.items.length > 0 ? (
                 order.items.map((it: any) => (
@@ -95,12 +93,12 @@ export default function OrderDetailsPage() {
                   </div>
                 ))
               ) : (
-                <div className="ui-muted text-[12px]">нет данных по позициям</div>
+                <div className="text-[12px] text-[color:var(--muted)]">нет данных по позициям</div>
               )}
             </div>
           </Card>
         </div>
       )}
-    </main>
+    </Screen>
   )
 }

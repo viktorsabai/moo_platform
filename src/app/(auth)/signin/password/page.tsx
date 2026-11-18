@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { BackLink } from '@/components/ui/BackLink'
+import Link from 'next/link'
+import { Screen, Card, Btn } from '@/components/kit'
 
 export default function SignInPasswordPage() {
   const router = useRouter()
@@ -46,13 +46,11 @@ export default function SignInPasswordPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[420px] px-4 pt-5 pb-28">
-      <PageHeader backHref="/signin" title="Войти с паролем" subtitle="Логин — ваш Telegram ID. Пароль задаётся в профиле в mini app." className="mb-5" />
-
-      <section className="rounded-[18px] border border-black/10 bg-white/70 p-4">
+    <Screen back="/signin" title="Войти с паролем" subtitle="Логин — ваш Telegram ID. Пароль задаётся в профиле в mini app.">
+      <Card>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-[12px] font-semibold text-black/70">Логин (ваш Telegram ID)</label>
+            <label className="mb-1 block text-[12px] font-semibold text-[color:var(--muted)]">Логин (ваш Telegram ID)</label>
             <input
               type="text"
               inputMode="numeric"
@@ -64,7 +62,7 @@ export default function SignInPasswordPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-[12px] font-semibold text-black/70">Пароль</label>
+            <label className="mb-1 block text-[12px] font-semibold text-[color:var(--muted)]">Пароль</label>
             <input
               type="password"
               autoComplete="current-password"
@@ -75,22 +73,20 @@ export default function SignInPasswordPage() {
             />
           </div>
           {error && <p className="text-[13px] text-[color:var(--danger)]">{error}</p>}
-          <p className="text-[12px] text-black/50">
+          <p className="text-[12px] text-[color:var(--muted)]">
             Забыли пароль? Откройте приложение в Telegram и задайте новый пароль в профиле.
           </p>
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-full bg-[color:var(--accent)] px-6 text-[13px] font-semibold text-white shadow-[0_12px_26px_rgba(0,0,0,0.14)] transition active:scale-[0.98] disabled:opacity-60"
-          >
+          <Btn type="submit" full size="lg" disabled={loading} className="mt-2">
             {loading ? 'Вход…' : 'Войти'}
-          </button>
+          </Btn>
         </form>
 
         <div className="mt-4 flex justify-center">
-          <BackLink href="/signin" label="к входу" />
+          <Link href="/signin" className="text-[13px] font-semibold text-[color:var(--muted)] underline underline-offset-2">
+            к входу
+          </Link>
         </div>
-      </section>
-    </main>
+      </Card>
+    </Screen>
   )
 }

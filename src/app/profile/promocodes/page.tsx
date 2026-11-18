@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Card, Btn } from '@/components/kit'
 import { useVenue } from '@/lib/venue-context'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 
@@ -70,28 +70,27 @@ export default function ProfilePromocodesPage() {
   }
 
   return (
-    <main className="ui-container ui-screen">
-      <PageHeader backHref="/profile" title="мои промокоды" />
+    <Screen back="/profile" title="мои промокоды">
       <div className="space-y-3">
-        {loading ? <div className="ui-muted text-sm">загрузка...</div> : null}
-        {!loading && rows.length === 0 ? <div className="ui-muted text-sm">доступных промокодов пока нет</div> : null}
+        {loading ? <div className="text-sm text-[color:var(--muted)]">загрузка...</div> : null}
+        {!loading && rows.length === 0 ? <div className="text-sm text-[color:var(--muted)]">доступных промокодов пока нет</div> : null}
         {rows.map((row) => (
-          <div key={row.id} className="rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
-            <div className="text-[15px] font-semibold">{row.name}</div>
+          <Card key={row.id}>
+            <div className="text-[15px] font-semibold text-[color:var(--text)]">{row.name}</div>
             <div className="mt-1 text-xs text-[color:var(--muted)]">
               {row.code ? `код: ${row.code} · ` : ''}{row.rewardType} · {row.targetType}
             </div>
             {row.giftTitle ? <div className="mt-1 text-xs text-[color:var(--ok)]">подарок: {row.giftTitle}</div> : null}
             {row.validTo ? <div className="mt-1 text-xs text-[color:var(--muted)]">до {new Date(row.validTo).toLocaleString('ru-RU')}</div> : null}
             <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => applyPromo(row.code)} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">применить</button>
-              <Link href={`/checkout?promo=${encodeURIComponent(String(row.code || ''))}`} className="rounded-full border border-[color:var(--stroke)] px-3 py-1.5 text-xs font-semibold">
-                в чекаут
+              <Btn size="md" className="h-8 px-3 text-xs" onClick={() => applyPromo(row.code)}>применить</Btn>
+              <Link href={`/checkout?promo=${encodeURIComponent(String(row.code || ''))}`}>
+                <Btn variant="secondary" size="md" className="h-8 px-3 text-xs">в чекаут</Btn>
               </Link>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
-    </main>
+    </Screen>
   )
 }
