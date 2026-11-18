@@ -8,7 +8,7 @@ import { cn, formatPrice } from '@/lib/utils'
 import { useSubscriptionStore } from '@/store/subscription-store'
 import toast from 'react-hot-toast'
 import { InlineCounter } from '@/components/ui/InlineCounter'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Btn, Stepper } from '@/components/kit'
 import { IconBell, IconCard, IconCart, IconChevronDown, IconChevronLeft, IconMapPin, IconPencil, IconPlus, IconReceipt } from '@/components/ui/icons'
 import Link from 'next/link'
 import { getDefaultPlanBySlug, getPrefilledDishesForPlan } from '@/lib/subscription-plans'
@@ -1124,12 +1124,11 @@ export function SubscriptionWizard() {
 
   if (isEditMode && !editLoaded) {
     return (
-      <div className="flex flex-col">
-        <PageHeader
-          backHref={compositionId ? `/subscriptions/${compositionId}` : '/subscriptions'}
-          title="изменить состав"
-          subtitle="загрузка…"
-        />
+      <Screen
+        title="изменить состав"
+        subtitle="загрузка…"
+        back={compositionId ? `/subscriptions/${compositionId}` : '/subscriptions'}
+      >
         <div
           className="mt-6 overflow-hidden border border-black/[0.06] bg-[color:var(--surface)] p-6"
           style={{ borderRadius: 'var(--radius-large)' }}
@@ -1140,29 +1139,25 @@ export function SubscriptionWizard() {
             <div className="h-20 rounded bg-black/10" />
           </div>
         </div>
-      </div>
+      </Screen>
     )
   }
 
   if (isEditMode && editError) {
     return (
-      <div className="flex flex-col">
-        <PageHeader backHref="/subscriptions" title="изменить состав" subtitle="ошибка" />
+      <Screen title="изменить состав" subtitle="ошибка" back="/subscriptions">
         <div
           className="mt-6 overflow-hidden border border-black/[0.06] bg-[color:var(--surface)] p-6 text-center"
           style={{ borderRadius: 'var(--radius-large)' }}
         >
           <p className="ui-body">Не удалось загрузить подписку.</p>
-          <Link
-            href={compositionId ? `/subscriptions/${compositionId}` : '/subscriptions'}
-            prefetch={false}
-            className="btn btn-soft mt-3 inline-flex rounded-full px-4 py-2"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          >
-            назад
+          <Link href={compositionId ? `/subscriptions/${compositionId}` : '/subscriptions'} prefetch={false}>
+            <Btn variant="secondary" className="mt-3">
+              назад
+            </Btn>
           </Link>
         </div>
-      </div>
+      </Screen>
     )
   }
 
@@ -1170,15 +1165,11 @@ export function SubscriptionWizard() {
     'pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+12.5rem)]'
 
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col', isUnifiedCreate && unifiedBottomPad)}>
-      {isEditMode ? (
-        <PageHeader
-          backHref={compositionId ? `/subscriptions/${compositionId}` : '/subscriptions'}
-          title="изменить состав"
-        />
-      ) : (
-        <PageHeader backHref="/subscriptions" title="создать подписку" compact className="mb-1" />
-      )}
+    <Screen
+      title={isEditMode ? 'изменить состав' : 'создать подписку'}
+      back={isEditMode ? (compositionId ? `/subscriptions/${compositionId}` : '/subscriptions') : '/subscriptions'}
+      className={cn('flex min-h-0 flex-1 flex-col', isUnifiedCreate && unifiedBottomPad)}
+    >
       {isEditMode ? (
         <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
           <h2 className="ui-h2 text-[16px]">состав подписки</h2>
@@ -1367,15 +1358,15 @@ export function SubscriptionWizard() {
             </div>
           </details>
           {!isUnifiedCreate ? (
-            <button
-              type="button"
+            <Btn
+              size="lg"
+              full
+              className="mt-auto shrink-0"
               onClick={goNext}
               disabled={(hasPlans && buildMode === 'from_plan' && !selectedTemplateId) || (!hasPlans && buildMode === 'from_plan')}
-              className="btn btn-primary mt-auto w-full shrink-0 rounded-full py-3 text-[14px] font-semibold disabled:opacity-50"
-              style={{ borderRadius: 'var(--radius-pill)' }}
             >
               дальше
-            </button>
+            </Btn>
           ) : null}
         </div>
       )}
@@ -1418,22 +1409,13 @@ export function SubscriptionWizard() {
             </div>
             <label className="block text-[12px]">
               <span className="font-semibold text-[color:var(--muted)]">персон</span>
-              <div className="mt-1 flex items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-soft h-9 w-9 rounded-full text-[16px]"
-                  onClick={() => setPersonCount((n) => Math.max(subConfig.minPersons, n - 1))}
-                >
-                  −
-                </button>
-                <span className="min-w-[2ch] text-center text-[15px] font-bold tabular-nums">{personCount}</span>
-                <button
-                  type="button"
-                  className="btn btn-soft h-9 w-9 rounded-full text-[16px]"
-                  onClick={() => setPersonCount((n) => Math.min(subConfig.maxPersons, n + 1))}
-                >
-                  +
-                </button>
+              <div className="mt-1 w-[120px]">
+                <Stepper
+                  value={personCount}
+                  onChange={(n) => setPersonCount(n)}
+                  min={subConfig.minPersons}
+                  max={subConfig.maxPersons}
+                />
               </div>
             </label>
             <div className="block text-[12px]">
@@ -1518,15 +1500,9 @@ export function SubscriptionWizard() {
               <button type="button" onClick={goBack} className="ui-back-button shrink-0" aria-label="назад">
                 <IconChevronLeft className="h-5 w-5" />
               </button>
-              <button
-                type="button"
-                onClick={goNext}
-                disabled={selectedDays.length < minDays}
-                className="btn btn-primary flex-1 rounded-full py-3 disabled:opacity-50 transition-all duration-200"
-                style={{ borderRadius: 'var(--radius-pill)' }}
-              >
+              <Btn className="flex-1" onClick={goNext} disabled={selectedDays.length < minDays}>
                 дальше
-              </button>
+              </Btn>
             </div>
           ) : null}
         </div>
@@ -1786,8 +1762,8 @@ export function SubscriptionWizard() {
               <button type="button" onClick={goBack} className="ui-back-button shrink-0" aria-label="назад">
                 <IconChevronLeft className="h-5 w-5" />
               </button>
-              <button
-                type="button"
+              <Btn
+                className="flex-1"
                 onClick={goNext}
                 disabled={
                   dishesLoading ||
@@ -1795,11 +1771,9 @@ export function SubscriptionWizard() {
                   selectedCount < minDishesPerDelivery ||
                   selectedCount > maxDishesPerDelivery
                 }
-                className="btn btn-primary flex-1 rounded-full py-3 disabled:opacity-50"
-                style={{ borderRadius: 'var(--radius-pill)' }}
               >
                 дальше
-              </button>
+              </Btn>
             </div>
           ) : null}
         </div>
@@ -1929,8 +1903,9 @@ export function SubscriptionWizard() {
             }}
           >
             {quoteError && <p className="mb-2 text-center text-[13px] font-medium text-[color:var(--danger)]">{quoteError}</p>}
-            <button
-              type="button"
+            <Btn
+              full
+              size="lg"
               onClick={onCreate}
               disabled={
                 isCreating ||
@@ -1938,17 +1913,16 @@ export function SubscriptionWizard() {
                 subscriptionPrice.dishesPerDelivery === 0 ||
                 (!isEditMode && !subscriptionName.trim())
               }
-              className="btn btn-primary w-full rounded-full py-4 text-[15px] font-semibold disabled:opacity-50"
-              style={{ borderRadius: 'var(--radius-pill)' }}
             >
               {isCreating ? (isEditMode ? 'сохраняем…' : 'оформляем…') : isEditMode ? 'сохранить состав' : 'оформить подписку'}
-            </button>
+            </Btn>
             {createError && (
               <div className="mt-2 text-center">
                 <p className="text-[13px] font-medium text-[color:var(--danger)]">{createError}</p>
                 {(createError.includes('Telegram') || createError.includes('Войдите')) && typeof window !== 'undefined' && (window as any)?.Telegram?.WebApp?.initData && (
-                  <button
-                    type="button"
+                  <Btn
+                    variant="secondary"
+                    className="mt-2"
                     onClick={async () => {
                       setCreateError(null)
                       const initData = (window as any).Telegram?.WebApp?.initData
@@ -1956,11 +1930,9 @@ export function SubscriptionWizard() {
                       await signIn('telegram', { initData, redirect: false })
                       toast.success('Вход выполнен. Нажмите «оформить подписку» снова.')
                     }}
-                    className="btn btn-soft mt-2 rounded-full px-4 py-2 text-[13px] font-semibold"
-                    style={{ borderRadius: 'var(--radius-pill)' }}
                   >
                     повторить вход
-                  </button>
+                  </Btn>
                 )}
               </div>
             )}
@@ -1981,6 +1953,6 @@ export function SubscriptionWizard() {
           dishCount={selectedCount}
         />
       ) : null}
-    </div>
+    </Screen>
   )
 }
