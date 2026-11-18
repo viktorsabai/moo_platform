@@ -5,24 +5,25 @@ import { parsePaymentMethodsJson } from '@/lib/payment-methods'
 import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
 import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
 import { AdminKitchenToday } from '@/components/admin/AdminKitchenToday'
-import { Card } from '@/components/ui/Card'
+import { AdminOpenToggle } from '@/components/admin/AdminOpenToggle'
+import { Screen, Card, Btn } from '@/components/kit'
 
 const ARCHIVE_CATEGORY_SLUG = '__archive'
 
 function AdminNoAccess() {
   return (
-    <main className="ui-container ui-screen !pb-20">
-      <Card variant="surfaceStrong" className="p-5">
+    <Screen title="кабинет" className="!pb-20">
+      <Card>
         <div className="text-[14px] font-semibold text-[color:var(--text)]">нет доступа</div>
         <div className="mt-1 text-[13px] font-medium text-[color:var(--muted)]">у этого аккаунта нет прав на управление заведением</div>
         <p className="mt-3 text-[12px] text-[color:var(--muted)]">
           Если вы владелец: создайте заведение в приложении (Профиль → Создать заведение) или попросите добавить вас в команду заведения.
         </p>
-        <Link href="/profile" prefetch={false} scroll={false} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 text-[14px] font-semibold text-white transition active:opacity-90">
-          в профиль
+        <Link href="/profile" prefetch={false} scroll={false}>
+          <Btn full className="mt-4">в профиль</Btn>
         </Link>
       </Card>
-    </main>
+    </Screen>
   )
 }
 
@@ -332,20 +333,20 @@ export default async function AdminHomePage() {
   const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ')
 
   return (
-    <main className="ui-container ui-screen !pb-24 min-w-0 max-w-full overflow-x-hidden">
-      <header className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-bold tracking-tight text-[color:var(--text)]">{dashboardData.restaurantName}</h1>
-          <div className="mt-0.5 text-[12.5px] text-[color:var(--muted)]">
-            {isOpenNow ? `открыто до ${resolvedSettings.closeTime}` : 'сейчас закрыто'}
-            {' · '}
-            <Link href="/admin/restaurant" prefetch={false} className="underline underline-offset-2">часы и пауза</Link>
-          </div>
-        </div>
-      </header>
-
+    <Screen
+      title={dashboardData.restaurantName}
+      subtitle={
+        <>
+          {isOpenNow ? `открыто до ${resolvedSettings.closeTime}` : 'сейчас закрыто'}
+          {' · '}
+          <Link href="/admin/restaurant" prefetch={false} className="underline underline-offset-2">часы и пауза</Link>
+        </>
+      }
+      right={<AdminOpenToggle initialOpen={isOpenNow} />}
+      className="!pb-24 min-w-0 max-w-full overflow-x-hidden"
+    >
       {doneCount < checklist.length && nextStep ? (
-        <section className="mb-4 rounded-[20px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-4">
+        <Card className="mb-4">
           <div className="flex items-baseline justify-between">
             <div className="text-[15px] font-semibold text-[color:var(--text)]">до первого заказа — {checklist.length - doneCount} шага</div>
             <div className="text-[12.5px] text-[color:var(--muted)]">{doneCount} из {checklist.length}</div>
@@ -360,23 +361,19 @@ export default async function AdminHomePage() {
               <li key={c.label}>{c.done ? '✓ ' : '○ '}{c.label}</li>
             ))}
           </ul>
-          <Link
-            href={nextStep.href ?? '/admin/restaurant'}
-            prefetch={false}
-            className="mt-3 flex h-11 w-full items-center justify-center rounded-[14px] bg-[color:var(--primary)] text-[14px] font-semibold text-[color:var(--on-primary,#fff)]"
-          >
-            {nextStep.label}
+          <Link href={nextStep.href ?? '/admin/restaurant'} prefetch={false}>
+            <Btn full className="mt-3">{nextStep.label}</Btn>
           </Link>
-        </section>
+        </Card>
       ) : null}
 
-      <AdminOwnerInbox subscriptionRequestLeads={newLeadsCount} restaurantName={dashboardData.restaurantName} />
+      <AdminOwnerInbox subscriptionRequestLeads={newLeadsCount} />
 
       <AdminKitchenToday />
 
       <p className="mt-4 text-center text-[12.5px] text-[color:var(--muted)]">
         сегодня: {stats.ordersToday} заказов · {fmt(stats.revenueToday)} ฿ · {activeOrdersCount} в работе
       </p>
-    </main>
+    </Screen>
   )
 }
