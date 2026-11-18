@@ -80,7 +80,7 @@ export function CustomSelect({
                 'block w-full px-4 py-2.5 text-left text-[14px] font-medium transition',
                 opt.value === value
                   ? 'bg-black/[0.06] text-[color:var(--text)]'
-                  : 'text-[color:var(--text)] hover:bg-black/[0.04] active:bg-black/[0.06]'
+                  : 'text-[color:var(--text)] hover:bg-[color:var(--stroke)] active:bg-[color:var(--stroke-strong)]'
               )}
             >
               {opt.label}

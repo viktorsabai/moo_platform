@@ -1799,7 +1799,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
           <input
             type="file"
             accept=".csv,text/csv"
-            className="text-[12px] file:mr-2 file:rounded-full file:border-0 file:bg-black/10 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold"
+            className="text-[12px] file:mr-2 file:rounded-full file:border-0 file:bg-[color:var(--stroke)] file:px-3 file:py-1.5 file:text-[12px] file:font-semibold"
             onChange={(e) => {
               setImportFile(e.target.files?.[0] ?? null)
               setImportResult(null)
@@ -2375,7 +2375,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                   className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition ${
                     newDish.tags.includes(t.value)
                       ? 'bg-black/15 text-black/90'
-                      : 'bg-black/[0.06] text-black/50 hover:bg-black/10'
+                      : 'bg-black/[0.06] text-black/50 hover:bg-[color:var(--stroke-strong)]'
                   }`}
                   style={{ borderRadius: 'var(--radius-pill)' }}
                 >
@@ -2800,7 +2800,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                     <input
                                       type="file"
                                       accept="image/*"
-                                      className="text-[12px] file:mr-2 file:rounded-full file:border-0 file:bg-black/10 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold"
+                                      className="text-[12px] file:mr-2 file:rounded-full file:border-0 file:bg-[color:var(--stroke)] file:px-3 file:py-1.5 file:text-[12px] file:font-semibold"
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0]
                                         if (!file) return
@@ -2941,7 +2941,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number, preserveAlp
                                           return next
                                         })
                                       }}
-                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 text-[16px] leading-none text-black/50 transition hover:bg-black/5 active:opacity-70"
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 text-[16px] leading-none text-black/50 transition hover:bg-[color:var(--stroke)] active:opacity-70"
                                       aria-label="закрыть"
                                     >
                                       ×
