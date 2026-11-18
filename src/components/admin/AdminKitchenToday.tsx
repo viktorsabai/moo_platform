@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Card, Btn } from '@/components/kit'
 
 type Summary = { total: number; pending: number; failed: number; lastError: string | null }
 
@@ -39,21 +40,16 @@ export function AdminKitchenToday() {
       : `${s.pending} из ${s.total} ждут сборки`
 
   return (
-    <section className="mt-3 rounded-[20px] bg-[color:var(--surface)] p-4">
+    <Card tone="muted" className="mt-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-[15px] font-semibold text-[color:var(--text)]">кухня на сегодня</div>
           <div className="text-[13px] text-[color:var(--muted)]">{sub}</div>
         </div>
         {s && s.pending > 0 ? (
-          <button
-            type="button"
-            onClick={run}
-            disabled={busy}
-            className="h-11 rounded-[14px] bg-[color:var(--primary)] px-4 text-[14px] font-semibold text-[color:var(--on-primary)] disabled:opacity-60"
-          >
+          <Btn onClick={run} disabled={busy}>
             {busy ? '…' : 'собрать'}
-          </button>
+          </Btn>
         ) : null}
       </div>
       {s && s.failed > 0 && !msg ? (
@@ -62,6 +58,6 @@ export function AdminKitchenToday() {
         </div>
       ) : null}
       {msg ? <div className="mt-2 text-[13px] text-[color:var(--muted)]" role="status">{msg}</div> : null}
-    </section>
+    </Card>
   )
 }

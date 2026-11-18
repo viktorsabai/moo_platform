@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useVenue } from '@/lib/venue-context'
 import { cn } from '@/lib/utils'
+import { Card } from '@/components/kit'
 import {
   filterUnseenInboxItems,
   markOwnerInboxSeen,
@@ -19,10 +20,8 @@ const ACTION_LABEL: Record<OwnerInboxItemClient['kind'], string> = {
 
 export function AdminOwnerInbox({
   subscriptionRequestLeads = 0,
-  restaurantName,
 }: {
   subscriptionRequestLeads?: number
-  restaurantName?: string
 }) {
   const { restaurantId } = useVenue()
   const [items, setItems] = useState<OwnerInboxItemClient[]>([])
@@ -90,14 +89,10 @@ export function AdminOwnerInbox({
   }
 
   return (
-    <section id="inbox" className="mb-4 overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]">
+    <div id="inbox">
+    <Card className="mb-4 !p-0 overflow-hidden">
       <div className="px-4 pt-4 pb-3">
-        {restaurantName ? (
-          <div className="text-[22px] font-extrabold leading-tight tracking-[-0.03em] text-[color:var(--text)]">
-            {restaurantName}
-          </div>
-        ) : null}
-        <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
             {loading ? 'задачи…' : taskCount > 0 ? `задачи · ${taskCount}` : 'задачи · всё чисто'}
           </h2>
@@ -127,7 +122,7 @@ export function AdminOwnerInbox({
                 href={item.href}
                 prefetch={false}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-3 transition active:bg-black/[0.03]',
+                  'flex items-center gap-3 px-4 py-3 transition active:bg-[color:var(--stroke)]',
                   hasUnseen && displayNew.some((u) => u.id === item.id && u.kind === item.kind)
                     ? 'bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]'
                     : ''
@@ -147,6 +142,7 @@ export function AdminOwnerInbox({
           ))}
         </ul>
       ) : null}
-    </section>
+    </Card>
+    </div>
   )
 }
