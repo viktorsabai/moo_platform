@@ -21,7 +21,7 @@ function TipsFirstVisit() {
   const pathname = usePathname() || ''
   const { setOpen } = useTips()
 
-  const routeId = pathname === '/admin' ? 'admin' : pathname.startsWith('/admin/venue') ? 'admin/venue' : null
+  const routeId = pathname === '/admin' ? 'admin' : pathname.startsWith('/admin/restaurant') ? 'admin/restaurant' : null
 
   React.useEffect(() => {
     if (!routeId) return

@@ -25,7 +25,7 @@ const TIPS: Record<string, TipsCard> = {
       'Карточки — настройки, товары, команда, заказы.',
     ],
   },
-  'admin/venue': {
+  'admin/restaurant': {
     title: 'Настройки заведения',
     body: [
       'Чек-лист из 5 шагов — пройди по порядку.',
