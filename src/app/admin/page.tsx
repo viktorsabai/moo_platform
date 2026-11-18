@@ -323,7 +323,7 @@ export default async function AdminHomePage() {
   const checklist = [
     { done: true, label: 'бот и заведение' },
     { done: availableDishesCount > 0, label: 'есть доступные блюда', href: '/admin/store' },
-    { done: zonesCount > 0, label: 'зона доставки', href: '/admin/venue' },
+    { done: zonesCount > 0, label: 'зона доставки', href: '/admin/restaurant' },
     { done: hasQr, label: 'QR для оплаты', href: '/admin/qr' },
     { done: ordersTotal > 0, label: 'тестовый заказ', href: '/' },
   ]
@@ -339,7 +339,7 @@ export default async function AdminHomePage() {
           <div className="mt-0.5 text-[12.5px] text-[color:var(--muted)]">
             {isOpenNow ? `открыто до ${resolvedSettings.closeTime}` : 'сейчас закрыто'}
             {' · '}
-            <Link href="/admin/venue" prefetch={false} className="underline underline-offset-2">часы и пауза</Link>
+            <Link href="/admin/restaurant" prefetch={false} className="underline underline-offset-2">часы и пауза</Link>
           </div>
         </div>
       </header>
@@ -361,7 +361,7 @@ export default async function AdminHomePage() {
             ))}
           </ul>
           <Link
-            href={nextStep.href ?? '/admin/venue'}
+            href={nextStep.href ?? '/admin/restaurant'}
             prefetch={false}
             className="mt-3 flex h-11 w-full items-center justify-center rounded-[14px] bg-[color:var(--primary)] text-[14px] font-semibold text-[color:var(--on-primary,#fff)]"
           >

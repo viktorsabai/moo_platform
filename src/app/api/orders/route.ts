@@ -396,7 +396,14 @@ export async function POST(request: Request) {
       ...(campaignApply?.campaignId ? { campaign: { connect: { id: campaignApply.campaignId } } } : {}),
       ...(campaignApply?.campaignCode ? { campaignCode: campaignApply.campaignCode } : {}),
       ...(campaignApply ? { discountAmount: new Prisma.Decimal(String(campaignApply.discountAmount || 0)) } : {}),
-      ...(campaignApply ? { discountDetailsJson: { ...(campaignApply.details as any), gift: campaignApply.gift || null } } : {}),
+      ...(campaignApply || notes
+        ? {
+            discountDetailsJson: {
+              ...(campaignApply ? { ...(campaignApply.details as any), gift: campaignApply.gift || null } : {}),
+              ...(notes ? { guestNote: notes } : {}),
+            },
+          }
+        : {}),
       itemsCount: Math.max(0, validItemsCount),
       totalAmount: new Prisma.Decimal(String(trustedTotal)),
       deliveryTime: deliveryTime && !Number.isNaN(deliveryTime.getTime()) ? deliveryTime : undefined,

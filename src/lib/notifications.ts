@@ -498,7 +498,7 @@ export async function notifySubscriptionCreatedToOwner(params: {
     {
       text: 'Заявка в админке',
       web_app: {
-        url: buildWebAppUrl(`/admin/subscriptions/clients?subscriptionId=${subscriptionId}`),
+        url: buildWebAppUrl(`/admin/rations?tab=requests&id=${subscriptionId}`),
       },
     },
     { text: 'Панель владельца', web_app: { url: buildWebAppUrl('/admin') } },
@@ -638,7 +638,7 @@ export async function notifySubscriptionKitchenOrderToOwner(params: {
             [
               {
                 text: 'Подписчики',
-                web_app: { url: buildWebAppUrl(`/admin/subscriptions/clients?subscriptionId=${subscriptionId}`) },
+                web_app: { url: buildWebAppUrl(`/admin/rations?tab=requests&id=${subscriptionId}`) },
               },
             ],
           ],
@@ -835,7 +835,7 @@ export async function notifySubscriptionStatusChangedToOwner(params: {
               {
                 text: 'Клиенты и заявки',
                 web_app: {
-                  url: buildWebAppUrl(`/admin/subscriptions/clients?subscriptionId=${subscriptionId}`),
+                  url: buildWebAppUrl(`/admin/rations?tab=requests&id=${subscriptionId}`),
                 },
               },
             ],
@@ -874,7 +874,7 @@ export async function notifySubscriptionRequestToOps(params: {
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Клиенты и заявки', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } }],
+            [{ text: 'Клиенты и заявки', web_app: { url: buildWebAppUrl('/admin/rations?tab=requests') } }],
           ],
         },
       },
@@ -922,7 +922,7 @@ export async function notifyServiceLeadCreatedToOps(params: {
         text,
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [[{ text: 'Открыть заявки', web_app: { url: buildWebAppUrl('/admin/leads') } }]],
+          inline_keyboard: [[{ text: 'Открыть заявки', web_app: { url: buildWebAppUrl('/admin/requests') } }]],
         },
       },
       botToken
@@ -1133,7 +1133,7 @@ export async function notifyOwnersKitchenSummary(params: {
         text,
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [[{ text: 'Подписчики', web_app: { url: buildWebAppUrl('/admin/subscriptions/clients') } }]],
+          inline_keyboard: [[{ text: 'Подписчики', web_app: { url: buildWebAppUrl('/admin/rations?tab=requests') } }]],
         },
       },
       botToken

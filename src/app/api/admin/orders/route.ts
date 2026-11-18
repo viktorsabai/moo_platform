@@ -29,6 +29,8 @@ export const dynamic = 'force-dynamic'
 const DEFAULT_LIMIT = 50
 
 export async function GET(request: Request) {
+  const detailId = new URL(request.url).searchParams.get('id')
+  if (detailId) return getOrderDetail(detailId)
   try {
     const ctx = requireRestaurantAdmin(await getRestaurantContext())
     try {
@@ -251,5 +253,89 @@ export async function PATCH(request: Request) {
       { ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' },
       { status }
     )
+  }
+}
+
+
+/** Карточка заказа для кабинета: позиции с названиями и опциями, адрес, заметка гостя, контакт. */
+async function getOrderDetail(id: string) {
+  try {
+    const ctx = requireRestaurantAdmin(await getRestaurantContext())
+    const o = await prisma.order.findFirst({
+      where: { id, restaurantId: ctx.restaurantId },
+      select: {
+        id: true,
+        status: true,
+        totalAmount: true,
+        discountAmount: true,
+        discountDetailsJson: true,
+        paymentStatus: true,
+        paymentOptionSlug: true,
+        paymentAmountRub: true,
+        receiptUrl: true,
+        receiptUploadedAt: true,
+        deliveryTime: true,
+        createdAt: true,
+        userId: true,
+        user: { select: { name: true, telegramFirstName: true, telegramUsername: true, phone: true } },
+        address: { select: { street: true, city: true } },
+        items: {
+          select: {
+            id: true,
+            quantity: true,
+            price: true,
+            modifierIds: true,
+            dish: { select: { name: true } },
+            storeVariant: { select: { name: true, product: { select: { name: true } } } },
+          },
+        },
+      },
+    })
+    if (!o) return NextResponse.json({ ok: false, error: 'не найден' }, { status: 404 })
+    const modIds = [...new Set(o.items.flatMap((it) => it.modifierIds ?? []))]
+    const [values, legacy] = modIds.length
+      ? await Promise.all([
+          prisma.menuOptionValue.findMany({ where: { id: { in: modIds } }, select: { id: true, name: true } }),
+          prisma.dishModifier.findMany({ where: { id: { in: modIds } }, select: { id: true, name: true } }).catch(() => []),
+        ])
+      : [[], []]
+    const labelById = new Map<string, string>([...values, ...legacy].map((v) => [v.id, v.name]))
+    const details = (o.discountDetailsJson ?? {}) as Record<string, unknown>
+    const prior = await prisma.order.count({ where: { restaurantId: ctx.restaurantId, userId: o.userId } })
+    return NextResponse.json({
+      ok: true,
+      order: {
+        id: o.id,
+        status: o.status,
+        totalAmount: Number(o.totalAmount),
+        discountAmount: o.discountAmount != null ? Number(o.discountAmount) : 0,
+        paymentStatus: o.paymentStatus,
+        paymentOptionSlug: o.paymentOptionSlug,
+        paymentAmountRub: o.paymentAmountRub != null ? Number(o.paymentAmountRub) : null,
+        receiptUrl: o.receiptUrl,
+        receiptUploadedAt: o.receiptUploadedAt,
+        deliveryTime: o.deliveryTime,
+        createdAt: o.createdAt,
+        guestNote: typeof details.guestNote === 'string' ? details.guestNote : (typeof details.note === 'string' ? details.note : null),
+        source: details.source === 'subscription' ? 'subscription' : 'order',
+        customer: {
+          name: o.user?.name ?? o.user?.telegramFirstName ?? '—',
+          username: o.user?.telegramUsername ?? null,
+          phone: o.user?.phone ?? null,
+          ordersCount: prior,
+        },
+        address: o.address,
+        items: o.items.map((it) => ({
+          id: it.id,
+          name: it.dish?.name ?? [it.storeVariant?.product?.name, it.storeVariant?.name].filter(Boolean).join(' · ') ?? '—',
+          quantity: it.quantity,
+          price: Number(it.price),
+          options: (it.modifierIds ?? []).map((m) => labelById.get(m)).filter(Boolean),
+        })),
+      },
+    })
+  } catch (e: any) {
+    const status = Number(e?.statusCode || 500)
+    return NextResponse.json({ ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' }, { status })
   }
 }

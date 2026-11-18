@@ -87,9 +87,8 @@ function IconUser({ className }: { className?: string }) {
 }
 
 const ALL_ITEMS: NavItem[] = [
-  { href: '/', label: 'главная', icon: (p) => <IconHome {...p} /> },
-  { href: '/menu', label: 'доставка', icon: (p) => <IconMenu {...p} /> },
-  { href: '/subscriptions', label: 'подписка', icon: (p) => <IconRepeat {...p} /> },
+  { href: '/', label: 'меню', icon: (p) => <IconMenu {...p} /> },
+  { href: '/orders', label: 'заказы', icon: (p) => <IconRepeat {...p} /> },
   { href: '/profile', label: 'профиль', icon: (p) => <IconUser {...p} /> },
 ]
 
@@ -131,7 +130,7 @@ export default function BottomNavbar() {
             style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}
           >
             {items.map((it) => {
-              const active = pathname === it.href || (it.href !== '/' && pathname.startsWith(it.href))
+              const active = it.href === '/' ? pathname === '/' || pathname.startsWith('/menu') || pathname.startsWith('/store') : pathname.startsWith(it.href)
               return (
                 <Link
                   key={it.href}

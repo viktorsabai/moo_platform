@@ -121,7 +121,7 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     audience: 'owner',
     trigger: 'PATCH /api/admin/subscriptions/deliveries/{id}',
     setup: [NOTIFICATION_SETUP.bot, NOTIFICATION_SETUP.opsTeam],
-    webAppButtons: ['/admin/orders', '/admin/subscriptions/clients'],
+    webAppButtons: ['/admin/orders', '/admin/rations?tab=requests'],
     handler: 'notifySubscriptionKitchenOrderToOwner',
   },
   {
@@ -143,7 +143,7 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     audience: 'owner',
     trigger: 'POST /api/subscriptions',
     setup: [NOTIFICATION_SETUP.bot, NOTIFICATION_SETUP.opsTeam],
-    webAppButtons: ['/admin/subscriptions/clients?subscriptionId=', '/admin'],
+    webAppButtons: ['/admin/rations?tab=requests&id=', '/admin'],
     callbackButtons: ['sub_confirm_*', 'sub_reject_*'],
     handler: 'notifySubscriptionCreatedToOwner',
   },
@@ -177,7 +177,7 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     audience: 'owner',
     trigger: 'PATCH admin/subscriptions · webhook sub_*',
     setup: [NOTIFICATION_SETUP.opsTeam],
-    webAppButtons: ['/admin/subscriptions/clients?subscriptionId='],
+    webAppButtons: ['/admin/rations?tab=requests&id='],
     handler: 'notifySubscriptionStatusChangedToOwner',
   },
   {
@@ -199,7 +199,7 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     audience: 'owner',
     trigger: 'POST /api/subscription-requests',
     setup: [NOTIFICATION_SETUP.opsTeam],
-    webAppButtons: ['/admin/subscriptions/clients'],
+    webAppButtons: ['/admin/rations?tab=requests'],
     handler: 'notifySubscriptionRequestToOps',
   },
   {
@@ -221,7 +221,7 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     audience: 'owner',
     trigger: 'POST /api/leads',
     setup: [NOTIFICATION_SETUP.opsTeam],
-    webAppButtons: ['/admin/leads'],
+    webAppButtons: ['/admin/requests'],
     handler: 'notifyServiceLeadCreatedToOps',
   },
   {
