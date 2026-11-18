@@ -1,10 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { Screen, Card, Btn } from '@/components/kit'
 
 type RestaurantInfo = {
   id: string
@@ -85,25 +83,13 @@ export default function AdminQrPage() {
   }
 
   return (
-    <main className="ui-container ui-screen !pb-20">
-      <div className="mb-4">
-        <Link
-          href="/admin"
-          className="text-[13px] font-medium text-[color:var(--muted)] hover:text-[color:var(--text)]"
-        >
-          ← панель владельца
-        </Link>
-      </div>
+    <Screen title="QR и бот" back="/admin" className="!pb-20">
       {loading ? (
-        <Card variant="surfaceStrong" className="p-5 text-[13px] font-semibold text-[color:var(--muted)]">
-          загрузка…
-        </Card>
+        <Card className="text-[13px] font-semibold text-[color:var(--muted)]">загрузка…</Card>
       ) : error ? (
-        <Card variant="surfaceStrong" className="p-5 text-[13px] font-semibold text-red-400">
-          {error}
-        </Card>
+        <Card className="text-[13px] font-semibold text-[color:var(--danger)]">{error}</Card>
       ) : !link ? (
-        <Card variant="surfaceStrong" className="p-5">
+        <Card>
           <div className="text-[14px] font-semibold text-[color:var(--text)]">подключить Telegram‑бота</div>
           <div className="mt-1 text-[13px] font-medium text-[color:var(--muted)]">
             Username бота (без @) — для ссылки и QR. Токен — по желанию, для расширенных функций.
@@ -123,18 +109,13 @@ export default function AdminQrPage() {
               type="password"
               autoComplete="off"
             />
-            <Button
-              type="button"
-              onClick={saveBot}
-              disabled={saving || !botUsername.trim()}
-              className="h-11 w-full rounded-full text-[14px]"
-            >
+            <Btn full size="lg" onClick={saveBot} disabled={saving || !botUsername.trim()}>
               {saving ? '…' : 'сохранить'}
-            </Button>
+            </Btn>
           </div>
         </Card>
       ) : (
-        <Card variant="surfaceStrong" className="p-5">
+        <Card>
           {showEdit && (
             <div className="mb-4 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-4">
               <div className="text-[13px] font-semibold text-[color:var(--text)]">данные бота</div>
@@ -153,14 +134,9 @@ export default function AdminQrPage() {
                   type="password"
                   autoComplete="off"
                 />
-                <Button
-                  type="button"
-                  onClick={saveBot}
-                  disabled={saving}
-                  className="h-10 rounded-full px-4 text-[13px] font-semibold"
-                >
+                <Btn size="md" onClick={saveBot} disabled={saving}>
                   {saving ? '…' : 'сохранить'}
-                </Button>
+                </Btn>
               </div>
               {link && (
                 <button
@@ -188,21 +164,11 @@ export default function AdminQrPage() {
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Button
-              type="button"
-              onClick={() => navigator.clipboard?.writeText(link).catch(() => {})}
-              variant="soft"
-              className="h-11 w-full rounded-full text-[14px]"
-            >
+            <Btn variant="secondary" full onClick={() => navigator.clipboard?.writeText(link).catch(() => {})}>
               копировать ссылку
-            </Button>
-            <a
-              href={link}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 text-[14px] font-semibold text-white transition active:opacity-90"
-            >
-              открыть в Telegram
+            </Btn>
+            <a href={link} target="_blank" rel="noreferrer" className="contents">
+              <Btn full>открыть в Telegram</Btn>
             </a>
           </div>
 
@@ -220,7 +186,7 @@ export default function AdminQrPage() {
           </div>
         </Card>
       )}
-    </main>
+    </Screen>
   )
 }
 

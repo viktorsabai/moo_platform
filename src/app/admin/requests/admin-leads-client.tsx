@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { cn } from '@/lib/utils'
+import { Screen, Card, Chip, Badge, Empty } from '@/components/kit'
 import { formatTelegramContact, telegramUserUrl } from '@/lib/telegram-contact'
 
 type LeadStatus = 'NEW' | 'IN_PROGRESS' | 'DONE'
@@ -100,29 +99,22 @@ export function AdminLeadsClient() {
   }), [leads])
 
   return (
-    <main className="ui-container ui-screen !pb-20">
-      <PageHeader backHref="/admin" title="заявки" subtitle="кейтеринг, банкеты, корпоративы и особые запросы" />
-
+    <Screen title="заявки" subtitle="кейтеринг, банкеты, корпоративы и особые запросы" back="/admin" className="!pb-20">
       {loading ? (
-        <div className="ui-surface p-4 text-[13px] text-[color:var(--muted)]">загрузка...</div>
+        <Card className="text-[13px] text-[color:var(--muted)]">загрузка...</Card>
       ) : error ? (
-        <div className="ui-surface p-4 text-[13px] font-semibold text-[color:var(--danger)]">{error}</div>
+        <Card className="text-[13px] font-semibold text-[color:var(--danger)]">{error}</Card>
       ) : leads.length === 0 ? (
-        <div className="ui-surface p-4">
-          <div className="text-[14px] font-semibold text-[color:var(--text)]">Пока нет заявок</div>
-          <p className="ui-muted mt-1 text-[13px]">Добавьте баннер “заявка” на главную, чтобы пользователи оставляли запросы.</p>
-        </div>
+        <Empty title="Пока нет заявок" hint="Добавьте баннер «заявка» на главную, чтобы пользователи оставляли запросы." />
       ) : (
         <div className="space-y-4">
           {(['NEW', 'IN_PROGRESS', 'DONE'] as const).map((status) => (
-            <section key={status} className="ui-surface p-4">
+            <Card key={status}>
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-[13px] font-bold text-[color:var(--text)]">
                   {STATUS_LABEL[status]}
                 </div>
-                <span className="rounded-full bg-black/[0.06] px-2.5 py-1 text-[11px] font-bold text-black/55">
-                  {grouped[status].length}
-                </span>
+                <Badge tone="muted">{grouped[status].length}</Badge>
               </div>
               <div className="space-y-2">
                 {grouped[status].map((lead) => {
@@ -149,14 +141,8 @@ export function AdminLeadsClient() {
                             <div className="text-[13px] font-extrabold text-[color:var(--text)]">{contact}</div>
                           )}
                           <div className="mt-1 flex flex-wrap gap-1.5">
-                            <span className="rounded-full bg-black/[0.06] px-2 py-1 text-[11px] font-bold text-black/55">
-                              {TYPE_LABEL[lead.type] ?? lead.type}
-                            </span>
-                            {lead.guestCount ? (
-                              <span className="rounded-full bg-black/[0.06] px-2 py-1 text-[11px] font-bold text-black/55">
-                                {lead.guestCount} гостей
-                              </span>
-                            ) : null}
+                            <Badge tone="muted">{TYPE_LABEL[lead.type] ?? lead.type}</Badge>
+                            {lead.guestCount ? <Badge tone="muted">{lead.guestCount} гостей</Badge> : null}
                           </div>
                         </div>
                         <div className="shrink-0 text-right text-[11px] font-medium text-black/40">
@@ -172,30 +158,24 @@ export function AdminLeadsClient() {
                       {lead.note ? <div className="mt-2 text-[12px] leading-snug text-[color:var(--text)]">{lead.note}</div> : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {NEXT[lead.status].map((nextStatus) => (
-                          <button
+                          <Chip
                             key={nextStatus}
-                            type="button"
-                            disabled={updatingId === lead.id}
+                            active={nextStatus !== 'DONE'}
                             onClick={() => setStatus(lead.id, nextStatus)}
-                            className={cn(
-                              'rounded-full px-3 py-1.5 text-[12px] font-semibold transition disabled:opacity-50',
-                              nextStatus === 'DONE'
-                                ? 'bg-black/[0.06] text-black/60'
-                                : 'bg-[color:var(--primary)] text-white'
-                            )}
+                            className={updatingId === lead.id ? 'pointer-events-none opacity-50' : undefined}
                           >
                             {STATUS_LABEL[nextStatus]}
-                          </button>
+                          </Chip>
                         ))}
                       </div>
                     </div>
                   )
                 })}
               </div>
-            </section>
+            </Card>
           ))}
         </div>
       )}
-    </main>
+    </Screen>
   )
 }

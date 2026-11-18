@@ -8,12 +8,11 @@ import { useVenue } from '@/lib/venue-context'
 import { SUBSCRIPTION_STATUS_TO_FILTER } from '@/lib/constants'
 import { SubscriptionListCard } from '@/components/ui/SubscriptionListCard'
 import { FilterBar } from '@/components/ui/FilterBar'
-import { Chip } from '@/components/ui/Chip'
 import { SubscriptionUnavailableCard } from '@/components/subscriptions/SubscriptionUnavailableCard'
 import { SubscriptionHubTabs, type SubscriptionHubTab } from '@/features/subscriptions/components/SubscriptionHubTabs'
 import { SubscriptionHubOverview } from '@/features/subscriptions/components/SubscriptionHubOverview'
 import { SubscriptionHubDraftBanner } from '@/features/subscriptions/components/SubscriptionHubDraftBanner'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Card, Btn, Chip, Empty } from '@/components/kit'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { type SubscriptionConfig } from '@/lib/subscription-config'
 
@@ -125,60 +124,47 @@ function SubscriptionsPageContent() {
 
   if (venueError && venueLoading) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader title="подписка" compact className="mb-3" />
-        <div className="ui-surface-card p-4 text-center" style={{ borderRadius: 'var(--radius-large)' }}>
+      <Screen title="подписка">
+        <Card className="text-center">
           <p className="text-[13px] font-semibold text-[color:var(--danger)]">Не удалось загрузить настройки.</p>
-          <button type="button" onClick={() => refetchVenue()} className="btn btn-soft mt-4 rounded-full px-4 py-2.5 text-[13px] font-semibold">
+          <Btn variant="secondary" className="mt-4" onClick={() => refetchVenue()}>
             обновить
-          </button>
-        </div>
-      </main>
+          </Btn>
+        </Card>
+      </Screen>
     )
   }
 
   if (venueLoading) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader title="подписка" compact className="mb-3" />
+      <Screen title="подписка">
         <p className="py-8 text-center text-[13px] text-[color:var(--muted)]">загрузка…</p>
-      </main>
+      </Screen>
     )
   }
 
   if (!settings.subscriptionEnabled) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader title="подписка" compact className="mb-3" />
+      <Screen title="подписка">
         <SubscriptionUnavailableCard />
-      </main>
+      </Screen>
     )
   }
 
   return (
-    <main className="ui-container ui-screen">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <PageHeader title="подписка" compact className="min-w-0 flex-1" />
-        <div className="flex shrink-0 items-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => loadSubscriptions()}
-            disabled={refreshing}
-            className="btn btn-soft rounded-full px-3 py-2 text-[12px] font-semibold disabled:opacity-50"
-            aria-label="обновить"
-          >
+    <Screen
+      title="подписка"
+      right={
+        <div className="flex shrink-0 items-center gap-2">
+          <Btn variant="secondary" onClick={() => loadSubscriptions()} disabled={refreshing} aria-label="обновить">
             {refreshing ? '…' : '↻'}
-          </button>
-          <Link
-            href="/subscriptions/new"
-            prefetch={false}
-            className="btn btn-primary rounded-full px-3.5 py-2 text-[12px] font-bold"
-          >
-            + новая
+          </Btn>
+          <Link href="/subscriptions/new" prefetch={false}>
+            <Btn>+ новая</Btn>
           </Link>
         </div>
-      </div>
-
+      }
+    >
       <SubscriptionHubTabs tab={hubTab} onTab={setHubTab} listCount={subscriptions.length} />
 
       {hubTab === 'list' ? <SubscriptionHubDraftBanner /> : null}
@@ -203,7 +189,7 @@ function SubscriptionsPageContent() {
                   {STATUS_OPTIONS.map((opt) => (
                     <Chip
                       key={opt.value}
-                      accent={statusFilter === opt.value}
+                      active={statusFilter === opt.value}
                       onClick={() => setStatusFilter(opt.value)}
                       className="whitespace-nowrap"
                     >
@@ -219,28 +205,20 @@ function SubscriptionsPageContent() {
             {refreshing && subscriptions.length === 0 ? (
               <p className="py-6 text-center text-[13px] text-[color:var(--muted)]">загрузка…</p>
             ) : filtered.length === 0 ? (
-              <div className="ui-surface-card p-5 text-center">
-                <p className="ui-muted text-[13px]">
-                  {subscriptions.length === 0 ? 'Подписок пока нет' : 'Нет подписок с этим статусом'}
-                </p>
-                {subscriptions.length === 0 ? (
-                  <Link
-                    href="/subscriptions/new"
-                    prefetch={false}
-                    className="btn btn-primary mt-4 inline-flex rounded-full px-5 py-2.5 text-[13px] font-bold"
-                  >
-                    собрать подписку
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setStatusFilter('all')}
-                    className="btn btn-soft mt-3 rounded-full px-4 py-2 text-[13px] font-semibold"
-                  >
-                    показать все
-                  </button>
-                )}
-              </div>
+              <Empty
+                title={subscriptions.length === 0 ? 'Подписок пока нет' : 'Нет подписок с этим статусом'}
+                action={
+                  subscriptions.length === 0 ? (
+                    <Link href="/subscriptions/new" prefetch={false}>
+                      <Btn>собрать подписку</Btn>
+                    </Link>
+                  ) : (
+                    <Btn variant="secondary" onClick={() => setStatusFilter('all')}>
+                      показать все
+                    </Btn>
+                  )
+                }
+              />
             ) : (
               filtered.map((s) => (
                 <SubscriptionListCard
@@ -254,7 +232,7 @@ function SubscriptionsPageContent() {
           </div>
         </>
       )}
-    </main>
+    </Screen>
   )
 }
 
@@ -262,9 +240,9 @@ export default function SubscriptionsPage() {
   return (
     <Suspense
       fallback={
-        <main className="ui-container ui-screen">
-          <div className="ui-muted p-4 text-[13px]">загрузка…</div>
-        </main>
+        <Screen title="подписка">
+          <div className="text-[13px] text-[color:var(--muted)]">загрузка…</div>
+        </Screen>
       }
     >
       <SubscriptionsPageContent />

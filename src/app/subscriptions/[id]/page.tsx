@@ -7,9 +7,9 @@ import { useSubscriptionStore } from '@/store/subscription-store'
 import { formatPrice, getNearestEventLabel } from '@/lib/utils'
 import { SUBSCRIPTION_STATUSES } from '@/lib/constants'
 import { canEditSubscription, getDeliveryCutoff } from '@/lib/subscription-rules'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
+import { Screen, Card, Btn, Badge, Empty } from '@/components/kit'
 
 const WEEKDAYS_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
@@ -137,32 +137,26 @@ export default function SubscriptionDetailsPage() {
 
   if (loaded && !subscription && fetchedById) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader backHref="/subscriptions" title="подписка" />
-        <div className="ui-surface-card mt-6 text-center">
-          <p className="ui-body">Подписка не найдена</p>
-          <Link
-            href="/subscriptions"
-            prefetch={false}
-            scroll={false}
-            className="btn btn-soft mt-3 inline-flex rounded-full px-4"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          >
-            мои подписки
-          </Link>
-        </div>
-      </main>
+      <Screen title="подписка" back="/subscriptions">
+        <Empty
+          title="Подписка не найдена"
+          action={
+            <Link href="/subscriptions" prefetch={false} scroll={false}>
+              <Btn variant="secondary">мои подписки</Btn>
+            </Link>
+          }
+        />
+      </Screen>
     )
   }
 
   if (!subscription) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader backHref="/subscriptions" title="подписка" />
-        <div className="ui-surface-card mt-6 text-center">
-          <p className="ui-muted text-[14px]">Загрузка…</p>
-        </div>
-      </main>
+      <Screen title="подписка" back="/subscriptions">
+        <Card className="mt-2 text-center">
+          <p className="text-[14px] text-[color:var(--muted)]">Загрузка…</p>
+        </Card>
+      </Screen>
     )
   }
 
@@ -201,28 +195,16 @@ export default function SubscriptionDetailsPage() {
   const nextDay = nextDate?.getDay() ?? -1
 
   return (
-    <main className="ui-container ui-screen">
-      {/* Шапка: компактно — назад, название, статус, цена */}
-      <PageHeader
-        backHref="/subscriptions"
-        title={subscription.name}
-        action={
-          <div className="flex flex-col items-end gap-0.5">
-            <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-              style={{
-                background: 'color-mix(in srgb, var(--text) 8%, transparent)',
-                borderRadius: 'var(--radius-pill)',
-                color: 'var(--text)',
-              }}
-            >
-              {statusLabel}
-            </span>
-            <span className="text-[13px] font-bold tabular-nums">{formatPrice(subscription.price)}</span>
-          </div>
-        }
-      />
-
+    <Screen
+      title={subscription.name}
+      back="/subscriptions"
+      right={
+        <div className="flex flex-col items-end gap-0.5">
+          <Badge tone="muted">{statusLabel}</Badge>
+          <span className="text-[13px] font-bold tabular-nums text-[color:var(--text)]">{formatPrice(subscription.price)}</span>
+        </div>
+      }
+    >
       {subscription.status === 'PENDING' ? (
         <div className="mt-3 rounded-2xl border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-4 py-3">
           <p className="text-[14px] font-bold text-[color:var(--warn)]">Ожидает подтверждения заведения</p>
@@ -241,8 +223,8 @@ export default function SubscriptionDetailsPage() {
       ) : null}
 
       {/* Визуальный timeline: дни недели, доставки, следующий, выходные */}
-      <div className="ui-surface-card mt-4">
-        <p className="ui-muted mb-3 text-[11px] font-semibold uppercase tracking-wide">расписание</p>
+      <Card className="mt-4">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">расписание</p>
         <div className="flex justify-between gap-1">
           {[0, 1, 2, 3, 4, 5, 6].map((d) => {
             const isDeliveryDay = days.includes(d)
@@ -288,21 +270,21 @@ export default function SubscriptionDetailsPage() {
             )
           })}
         </div>
-        <p className="ui-muted mt-2 text-[12px]">
+        <p className="mt-2 text-[12px] text-[color:var(--muted)]">
           {nearestEvent}
           {timeLabel ? ` · ${timeLabel}` : ''}
         </p>
-      </div>
+      </Card>
 
       {/* Прогресс: нативный прогресс-бар */}
       {totalDeliveries > 0 && (
         <section className="mt-4" aria-label="прогресс">
-          <div className="ui-surface-card">
+          <Card>
             <div className="flex items-center justify-between gap-3">
-              <p className="ui-h2 text-[13px]">прогресс</p>
+              <p className="text-[13px] font-bold text-[color:var(--text)]">прогресс</p>
               <span className="tabular-nums" style={{ color: 'var(--text)' }}>
                 <span className="font-bold" style={{ color: 'var(--accent)' }}>{received.length}</span>
-                <span className="ui-muted text-[12px]">/{totalDeliveries}</span>
+                <span className="text-[12px] text-[color:var(--muted)]">/{totalDeliveries}</span>
               </span>
             </div>
             <div
@@ -321,13 +303,13 @@ export default function SubscriptionDetailsPage() {
                 }}
               />
             </div>
-          </div>
+          </Card>
         </section>
       )}
 
       {/* Карусель: дата + состав (по дням если есть рационность) */}
       <section className="mt-4" aria-label="доставки и состав">
-        <p className="ui-h2 mb-2 text-[13px]">
+        <p className="mb-2 text-[13px] font-bold text-[color:var(--text)]">
           {itemsByDay
             ? `рацион по дням · ${itemsCount} порц.`
             : items.length > 0
@@ -387,7 +369,7 @@ export default function SubscriptionDetailsPage() {
             })}
           </div>
         ) : items.length > 0 ? (
-          <div className="ui-surface-card">
+          <Card>
             {itemsByDay ? (
               <div className="space-y-4">
                 {Array.from(itemsByDay.entries())
@@ -416,12 +398,12 @@ export default function SubscriptionDetailsPage() {
                   ))}
               </ul>
             )}
-          </div>
+          </Card>
         ) : null}
       </section>
 
       {canChange && (
-        <p className="ui-muted mt-4 text-[12px]">
+        <p className="mt-4 text-[12px] text-[color:var(--muted)]">
           {cutoffHint
             ? `${cutoffHint}. Изменения применяются к будущим доставкам.`
             : 'Изменения применяются только к будущим доставкам.'}
@@ -430,23 +412,18 @@ export default function SubscriptionDetailsPage() {
 
       <div className="mt-6 flex flex-col gap-3">
         {canChange && (
-          <Link
-            href={`/subscriptions/new?composition=${subscription.id}`}
-            prefetch={false}
-            scroll={false}
-            className="btn btn-soft block w-full rounded-full py-2.5 text-center text-[14px] font-semibold"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          >
-            изменить состав
+          <Link href={`/subscriptions/new?composition=${subscription.id}`} prefetch={false} scroll={false}>
+            <Btn variant="secondary" full>
+              изменить состав
+            </Btn>
           </Link>
         )}
 
         {subscription.status === 'ACTIVE' && (
-          <button
-            type="button"
+          <Btn
+            variant="secondary"
+            full
             disabled={cancelLoading}
-            className="btn btn-soft block w-full rounded-full py-2.5 text-[14px] font-semibold disabled:opacity-60"
-            style={{ borderRadius: 'var(--radius-pill)', color: 'var(--text)' }}
             onClick={async () => {
               if (!confirm('Отменить подписку? Изменения вступают в силу после текущего периода.')) return
               setCancelLoading(true)
@@ -472,21 +449,15 @@ export default function SubscriptionDetailsPage() {
             }}
           >
             {cancelLoading ? 'отмена…' : 'отменить подписку'}
-          </button>
+          </Btn>
         )}
 
         {(subscription.status === 'ACTIVE' || subscription.status === 'EXPIRED') && (
-          <Link
-            href="/subscriptions/new"
-            prefetch={false}
-            scroll={false}
-            className="btn btn-primary block w-full rounded-full py-2.5 text-center text-[14px] font-semibold"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          >
-            продлить / оформить заново
+          <Link href="/subscriptions/new" prefetch={false} scroll={false}>
+            <Btn full>продлить / оформить заново</Btn>
           </Link>
         )}
       </div>
-    </main>
+    </Screen>
   )
 }
