@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import type { Dish } from '@/types'
-import { cn, formatPrice } from '@/lib/utils'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { IconChevronLeft, IconChevronUp } from '@/components/ui/icons'
+import { formatPrice } from '@/lib/utils'
+import { IconChevronUp } from '@/components/ui/icons'
+import { Screen, Chip, Btn } from '@/components/kit'
 import { MEAL_SLOT_LABEL, type MealSlot } from '@/lib/subscription-meal-slots'
 import type { SubscriptionConfig } from '@/lib/subscription-config'
 import type { MenuCategory, PeriodQuote, SelectedLine } from '@/features/subscriptions/lib/subscription-checkout-utils'
@@ -119,14 +119,12 @@ export function SubscriptionBuildPhase({
   }
 
   return (
-    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+76px)]">
-      <div className="mb-1 flex items-start gap-2">
-        <a href="/subscriptions" className="ui-back-button mt-1 shrink-0" aria-label="назад">
-          <IconChevronLeft className="h-5 w-5" />
-        </a>
-        <PageHeader title="рацион" subtitle="день → приёмы → блюда" compact className="min-w-0 flex-1" />
-      </div>
-
+    <Screen
+      title="рацион"
+      subtitle="день → приёмы → блюда"
+      back="/subscriptions"
+      className="!pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+76px)]"
+    >
       <SubscriptionFlowProgress step="build" onStep={(s) => s === 'pay' && allComplete && onOpenPay?.()} payEnabled={allComplete} />
 
       <SubscriptionDayMealNest
@@ -167,29 +165,14 @@ export function SubscriptionBuildPhase({
 
           {pickerCategories.length > 0 ? (
             <div className="sticky top-0 z-[5] -mx-1 mb-2 flex gap-1.5 overflow-x-auto bg-[color:var(--bg)]/95 py-1 backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <button
-                type="button"
-                onClick={() => setActiveCategory('all')}
-                className={cn(
-                  'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
-                  activeCategory === 'all' ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
-                )}
-              >
+              <Chip active={activeCategory === 'all'} onClick={() => setActiveCategory('all')}>
                 всё
-              </button>
+              </Chip>
               {pickerCategories.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setActiveCategory(c.id)}
-                  className={cn(
-                    'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold',
-                    activeCategory === c.id ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-[color:var(--stroke)]'
-                  )}
-                >
+                <Chip key={c.id} active={activeCategory === c.id} onClick={() => setActiveCategory(c.id)}>
                   {c.emoji ? `${c.emoji} ` : ''}
                   {c.name}
-                </button>
+                </Chip>
               ))}
             </div>
           ) : null}
@@ -261,17 +244,12 @@ export function SubscriptionBuildPhase({
               <p className="text-[13px] font-bold leading-tight">добавьте: {missingHint}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onContinue}
-            disabled={!allComplete}
-            className="btn btn-primary h-10 shrink-0 rounded-full px-4 text-[13px] font-bold disabled:opacity-40"
-          >
+          <Btn onClick={onContinue} disabled={!allComplete} className="shrink-0">
             далее
-            <IconChevronUp className="ml-0.5 inline h-4 w-4 rotate-90" />
-          </button>
+            <IconChevronUp className="h-4 w-4 rotate-90" />
+          </Btn>
         </div>
       </div>
-    </main>
+    </Screen>
   )
 }

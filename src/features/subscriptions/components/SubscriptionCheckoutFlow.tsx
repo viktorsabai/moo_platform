@@ -593,10 +593,6 @@ export function SubscriptionCheckoutFlow() {
     )
   }
 
-  function removeLine(target: SelectedLine) {
-    setLines((prev) => prev.filter((x) => lineKey(x) !== lineKey(target)))
-  }
-
   function setLineModifierIds(target: SelectedLine, modifierIds: string[]) {
     const k = lineKey(target)
     setLines((prev) => prev.map((x) => (lineKey(x) === k ? { ...x, modifierIds } : x)))

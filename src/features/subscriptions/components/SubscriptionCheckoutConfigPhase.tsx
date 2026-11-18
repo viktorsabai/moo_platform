@@ -2,7 +2,7 @@
 
 import type { Dish } from '@/types'
 import { formatPrice } from '@/lib/utils'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Card, Btn, Stepper } from '@/components/kit'
 import { periodLabel, type SubscriptionConfig } from '@/lib/subscription-config'
 import { SubscriptionCheckoutSavingsBar } from '@/features/subscriptions/components/SubscriptionCheckoutSavingsBar'
 import { SubscriptionSavingsStrip } from '@/features/subscriptions/components/SubscriptionSavingsStrip'
@@ -18,7 +18,6 @@ import {
   type PeriodQuote,
   type SelectedLine,
 } from '@/features/subscriptions/lib/subscription-checkout-utils'
-import { IconChevronLeft } from '@/components/ui/icons'
 
 type Props = {
   resumeId: string
@@ -90,13 +89,23 @@ export function SubscriptionCheckoutConfigPhase({
   const rationSummary = formatRationCheckoutSummary(lines, selectedDays)
 
   return (
-    <main className="ui-container ui-screen pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+148px)]">
-      <div className="flex items-start gap-2">
-        <button type="button" onClick={onBack} className="ui-back-button mt-1 shrink-0" aria-label="назад">
-          <IconChevronLeft className="h-5 w-5" />
+    <Screen className="!pb-[calc(var(--ufo-bottomnav-h,72px)+env(safe-area-inset-bottom)+148px)]">
+      <header className="mb-3 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="назад"
+          className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-[color:var(--text)]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6" aria-hidden>
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
         </button>
-        <PageHeader title="оформление" subtitle="период и доставка" compact className="min-w-0 flex-1" />
-      </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[18px] font-bold tracking-tight text-[color:var(--text)]">оформление</h1>
+          <div className="mt-0.5 text-[12.5px] text-[color:var(--muted)]">период и доставка</div>
+        </div>
+      </header>
 
       <SubscriptionFlowProgress step="pay" onStep={(s) => s === 'build' && onGoBuild?.()} payEnabled />
 
@@ -112,7 +121,7 @@ export function SubscriptionCheckoutConfigPhase({
         />
       </section>
 
-      <section className="mb-4 rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-3 shadow-[var(--shadow-soft)]">
+      <Card className="mb-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[13px] font-extrabold">доставка</h3>
           <button type="button" onClick={onGoBuild ?? onEditRation} className="text-[12px] font-bold text-[color:var(--muted)] underline-offset-2 hover:underline">
@@ -157,17 +166,11 @@ export function SubscriptionCheckoutConfigPhase({
 
         <div className="mt-3 flex items-center justify-between border-t border-[color:var(--stroke)] pt-3">
           <span className="text-[13px] font-semibold">персоны</span>
-          <div className="inline-flex items-center gap-2">
-            <button type="button" className="btn btn-soft h-8 w-8 rounded-full text-[16px]" onClick={() => onPersonCount(-1)}>
-              −
-            </button>
-            <span className="min-w-[2ch] text-center text-[16px] font-extrabold tabular-nums">{personCount}</span>
-            <button type="button" className="btn btn-soft h-8 w-8 rounded-full text-[16px]" onClick={() => onPersonCount(1)}>
-              +
-            </button>
+          <div className="w-[120px]">
+            <Stepper value={personCount} onChange={(n) => onPersonCount(n - personCount)} min={1} />
           </div>
         </div>
-      </section>
+      </Card>
 
       <SubscriptionRationByDay
         lines={lines}
@@ -179,8 +182,8 @@ export function SubscriptionCheckoutConfigPhase({
         onEditRation={onEditRation}
       />
 
-      <section className="mb-4 rounded-[var(--radius-large)] border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-1">
-        <div className="flex items-center justify-between border-b border-[color:var(--stroke)] py-2.5">
+      <Card className="mb-4 !p-0">
+        <div className="flex items-center justify-between border-b border-[color:var(--stroke)] px-3 py-2.5">
           <span className="text-[13px] text-[color:var(--muted)]">имя</span>
           <input
             type="text"
@@ -190,11 +193,11 @@ export function SubscriptionCheckoutConfigPhase({
             className="w-[60%] border-none bg-transparent p-0 text-right text-[14px] font-semibold outline-none placeholder:text-[color:var(--muted)]"
           />
         </div>
-        <div className="flex items-center justify-between py-2.5">
+        <div className="flex items-center justify-between px-3 py-2.5">
           <span className="text-[13px] text-[color:var(--muted)]">telegram</span>
           <span className="text-right text-[14px] font-semibold">{telegramContact || 'из mini app'}</span>
         </div>
-      </section>
+      </Card>
 
       <div
         className="fixed inset-x-0 z-[115] border-t border-[color:var(--stroke)] bg-[color:var(--surface-strong)] shadow-[0_-12px_32px_rgba(0,0,0,0.08)]"
@@ -210,18 +213,12 @@ export function SubscriptionCheckoutConfigPhase({
           {submitting ? (
             <p className="mb-2 text-center text-[12px] font-semibold text-[color:var(--muted)]">отправляем заявку…</p>
           ) : null}
-          <button
-            type="button"
-            disabled={!canSubmit || submitting}
-            onClick={onSubmit}
-            className="btn btn-primary h-12 w-full text-[16px] font-extrabold disabled:opacity-50"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          >
+          <Btn full size="lg" disabled={!canSubmit || submitting} onClick={onSubmit}>
             {submitting ? '…' : resumeId ? `сохранить за ${formatPrice(totalPrice)}` : `оформить за ${formatPrice(totalPrice)}`}
-          </button>
+          </Btn>
           <p className="mt-1.5 text-center text-[10px] text-[color:var(--muted)]">без скрытых платежей · подтверждение в Telegram</p>
         </div>
       </div>
-    </main>
+    </Screen>
   )
 }
