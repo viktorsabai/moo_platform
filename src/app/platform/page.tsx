@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Card, Btn } from '@/components/kit'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { useVenue } from '@/lib/venue-context'
 
@@ -143,19 +143,17 @@ export default function PlatformPage() {
   }
 
   return (
-    <main className="ui-container ui-screen">
-      <PageHeader backHref="/profile" title="платформа" subtitle="подключение заведений и Telegram‑ботов" />
-
+    <Screen back="/profile" title="платформа" subtitle="подключение заведений и Telegram‑ботов">
       {error ? (
-        <div className="ui-surface-card mb-4 text-[13px] font-semibold text-[color:var(--danger)]">
-          {String(error)}
-        </div>
+        <Card className="mb-4">
+          <div className="text-[13px] font-semibold text-[color:var(--danger)]">{String(error)}</div>
+        </Card>
       ) : null}
 
       {/* create restaurant */}
-      <div className="ui-surface-card">
-        <div className="text-[13px] font-extrabold tracking-tight text-black/70">добавить заведение</div>
-        <div className="mt-1 text-[12px] font-semibold text-black/40">
+      <Card>
+        <div className="text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">добавить заведение</div>
+        <div className="mt-1 text-[12px] font-semibold text-[color:var(--muted)]">
           шаги: заведение → бот → QR. владелец дальше управляет внутри “управление заведением”.
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -176,21 +174,16 @@ export default function PlatformPage() {
           />
           <input className="input input--pill" placeholder="username бота (опционально)" value={botUsername} onChange={(e) => setBotUsername(e.target.value)} />
           <input className="input input--pill" placeholder="token бота (опционально)" value={botToken} onChange={(e) => setBotToken(e.target.value)} />
-          <button
-            type="button"
-            onClick={createRestaurant}
-            disabled={!canCreateRestaurant || loading}
-            className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 text-[14px] font-semibold text-white transition active:opacity-90 disabled:opacity-50"
-          >
+          <Btn full onClick={createRestaurant} disabled={!canCreateRestaurant || loading}>
             создать
-          </button>
+          </Btn>
         </div>
-      </div>
+      </Card>
 
       {/* connect bot */}
-      <div className="ui-surface-card mt-4">
-        <div className="text-[13px] font-extrabold tracking-tight text-black/70">подключить бота</div>
-        <div className="mt-1 text-[12px] font-semibold text-black/40">
+      <Card className="mt-4">
+        <div className="text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">подключить бота</div>
+        <div className="mt-1 text-[12px] font-semibold text-[color:var(--muted)]">
           токен берётся в @BotFather. username нужен, чтобы собрать ссылку и QR для гостей.
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -204,118 +197,111 @@ export default function PlatformPage() {
           <input className="input input--pill" placeholder="username бота" value={botUsername} onChange={(e) => setBotUsername(e.target.value)} />
           <input className="input input--pill" placeholder="token бота" value={botToken} onChange={(e) => setBotToken(e.target.value)} />
         </div>
-        <button
-          type="button"
-          onClick={createBot}
-          disabled={!canCreateBot || loading}
-          className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 text-[14px] font-semibold text-white transition active:opacity-90 disabled:opacity-50"
-        >
+        <Btn full className="mt-3" onClick={createBot} disabled={!canCreateBot || loading}>
           сохранить
-        </button>
-        <div className="mt-2 text-[12px] font-semibold text-black/40">
+        </Btn>
+        <div className="mt-2 text-[12px] font-semibold text-[color:var(--muted)]">
           “код запуска” — это `startapp=...` в ссылке/QR. По нему mini app понимает, какое заведение открыто.
         </div>
-      </div>
+      </Card>
 
       {/* list */}
       <div className="mt-5">
-        <div className="mb-2 text-[13px] font-extrabold tracking-tight text-black/70">заведения</div>
+        <div className="mb-2 text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">заведения</div>
         {activeRestaurantId ? (
-          <div className="mb-2 text-[12px] font-semibold text-black/45">
+          <div className="mb-2 text-[12px] font-semibold text-[color:var(--muted)]">
             активное заведение:{' '}
-            <span className="font-extrabold text-black/70">
+            <span className="font-extrabold text-[color:var(--text)]">
               {restaurants.find((r) => r.id === activeRestaurantId)?.name || activeRestaurantId}
             </span>
           </div>
         ) : null}
         {loading ? (
-          <div className="ui-surface-card p-5 text-[13px] font-semibold text-black/55">
-            загрузка…
-          </div>
+          <Card className="p-5">
+            <div className="text-[13px] font-semibold text-[color:var(--muted)]">загрузка…</div>
+          </Card>
         ) : (
-          <div className="ufo-list">
-            <div className="divide-y divide-black/10">
-              {restaurants.map((r) => (
-                <div key={r.id} className="px-1 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-black/90">
-                        {r.name}
-                        {activeRestaurantId === r.id ? (
-                          <span className="ml-2 rounded-full border border-black/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black/50">
-                            активно
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-0.5 text-[12px] font-semibold text-black/45">
-                        {r.slug} · {r.isActive ? 'active' : 'disabled'} · id {r.id}
-                      </div>
-                      {r.botIntegrations?.length ? (
-                        <div className="mt-2 space-y-2">
-                          {r.botIntegrations.map((b) => {
-                            const link = b.botUsername ? `https://t.me/${b.botUsername}?startapp=${b.startParam}` : null
-                            return (
-                              <div key={b.id} className="rounded-[14px] border border-black/10 bg-white/60 p-3">
-                                <div className="text-[12px] font-semibold text-black/55">
-                                  bot: {b.botUsername || '—'} · startapp={b.startParam}
-                                </div>
-                                {link ? (
-                                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-                                    <a className="text-[12px] font-semibold text-[color:var(--accent)] break-all" href={link} target="_blank" rel="noreferrer">
-                                      {link}
-                                    </a>
-                                    <button
-                                      type="button"
-                                      className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[12px] font-semibold text-black/70 transition active:opacity-80"
-                                      onClick={() => navigator.clipboard?.writeText(link).catch(() => {})}
-                                    >
-                                      копировать
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="mt-1 text-[12px] font-semibold text-black/35">
-                                    добавь bot username — появится готовый deeplink для QR
-                                  </div>
-                                )}
-                                {link ? (
-                                  <div className="mt-3 flex items-start gap-3">
-                                    <img
-                                      alt="qr"
-                                      className="h-24 w-24 rounded-[12px] border border-black/10 bg-white"
-                                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
-                                    />
-                                    <div className="text-[12px] font-semibold text-black/45">
-                                      это QR на вход в бота/mini app. распечатай — и пользователь всегда попадёт в правильное заведение.
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-[12px] font-semibold text-black/35">бот не привязан</div>
-                      )}
+          <div className="divide-y divide-[color:var(--stroke)]">
+            {restaurants.map((r) => (
+              <div key={r.id} className="px-1 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-semibold text-[color:var(--text)]">
+                      {r.name}
+                      {activeRestaurantId === r.id ? (
+                        <span className="ml-2 rounded-full border border-[color:var(--stroke)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
+                          активно
+                        </span>
+                      ) : null}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => switchRestaurant(r.id)}
-                      disabled={loading}
-                      className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[12px] font-semibold text-black/70 transition active:opacity-80 disabled:opacity-50"
-                    >
-                      {activeRestaurantId === r.id ? 'текущее' : 'войти как'}
-                    </button>
+                    <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--muted)]">
+                      {r.slug} · {r.isActive ? 'active' : 'disabled'} · id {r.id}
+                    </div>
+                    {r.botIntegrations?.length ? (
+                      <div className="mt-2 space-y-2">
+                        {r.botIntegrations.map((b) => {
+                          const link = b.botUsername ? `https://t.me/${b.botUsername}?startapp=${b.startParam}` : null
+                          return (
+                            <div key={b.id} className="rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3">
+                              <div className="text-[12px] font-semibold text-[color:var(--muted)]">
+                                bot: {b.botUsername || '—'} · startapp={b.startParam}
+                              </div>
+                              {link ? (
+                                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                                  <a className="text-[12px] font-semibold text-[color:var(--primary)] break-all" href={link} target="_blank" rel="noreferrer">
+                                    {link}
+                                  </a>
+                                  <Btn
+                                    variant="secondary"
+                                    className="h-9 px-4 text-[12px]"
+                                    onClick={() => navigator.clipboard?.writeText(link).catch(() => {})}
+                                  >
+                                    копировать
+                                  </Btn>
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-[12px] font-semibold text-[color:var(--muted)]">
+                                  добавь bot username — появится готовый deeplink для QR
+                                </div>
+                              )}
+                              {link ? (
+                                <div className="mt-3 flex items-start gap-3">
+                                  <img
+                                    alt="qr"
+                                    className="h-24 w-24 rounded-[12px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]"
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
+                                  />
+                                  <div className="text-[12px] font-semibold text-[color:var(--muted)]">
+                                    это QR на вход в бота/mini app. распечатай — и пользователь всегда попадёт в правильное заведение.
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-[12px] font-semibold text-[color:var(--muted)]">бот не привязан</div>
+                    )}
                   </div>
+                  <Btn
+                    variant="secondary"
+                    className="h-9 shrink-0 px-4 text-[12px]"
+                    onClick={() => switchRestaurant(r.id)}
+                    disabled={loading}
+                  >
+                    {activeRestaurantId === r.id ? 'текущее' : 'войти как'}
+                  </Btn>
                 </div>
-              ))}
-              {!restaurants.length ? (
-                <div className="px-1 py-5 text-center text-[13px] font-semibold text-black/45">пока пусто</div>
-              ) : null}
-            </div>
+              </div>
+            ))}
+            {!restaurants.length ? (
+              <div className="px-1 py-5 text-center text-[13px] font-semibold text-[color:var(--muted)]">пока пусто</div>
+            ) : null}
           </div>
         )}
       </div>
-    </main>
+    </Screen>
   )
 }
 

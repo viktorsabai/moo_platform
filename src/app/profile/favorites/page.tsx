@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Card, Btn } from '@/components/kit'
 import { IconTrash } from '@/components/ui/icons'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { useVenue } from '@/lib/venue-context'
@@ -146,24 +146,23 @@ export default function ProfileFavoritesPage() {
   }
 
   return (
-    <main className="ui-container ui-screen !pb-24">
-      <PageHeader backHref="/profile" title="избранное" subtitle="любимые блюда и быстрый возврат в меню" />
+    <Screen back="/profile" title="избранное" subtitle="любимые блюда и быстрый возврат в меню" className="!pb-24">
       {loading ? (
-        <div className="ui-surface p-4 text-[13px] text-[color:var(--muted)]">загрузка...</div>
+        <Card>
+          <div className="text-[13px] text-[color:var(--muted)]">загрузка...</div>
+        </Card>
       ) : error ? (
-        <div className="ui-surface p-4 text-[13px] font-semibold text-[color:var(--danger)]">{error}</div>
+        <Card>
+          <div className="text-[13px] font-semibold text-[color:var(--danger)]">{error}</div>
+        </Card>
       ) : favorites.length === 0 ? (
-        <div className="ui-surface p-5">
+        <Card>
           <div className="text-[16px] font-extrabold text-[color:var(--text)]">Пока пусто</div>
-          <p className="ui-muted mt-1 text-[13px]">Добавляйте блюда сердечком в меню, и они появятся здесь.</p>
-          <Link
-            href="/menu"
-            prefetch={false}
-            className="mt-4 flex h-11 items-center justify-center rounded-full bg-[color:var(--primary)] px-5 text-[14px] font-semibold text-white"
-          >
-            открыть меню
+          <p className="mt-1 text-[13px] text-[color:var(--muted)]">Добавляйте блюда сердечком в меню, и они появятся здесь.</p>
+          <Link href="/menu" prefetch={false}>
+            <Btn full className="mt-4">открыть меню</Btn>
           </Link>
-        </div>
+        </Card>
       ) : (
         <div className="space-y-2">
           {favorites.map((row) => {
@@ -209,6 +208,6 @@ export default function ProfileFavoritesPage() {
           })}
         </div>
       )}
-    </main>
+    </Screen>
   )
 }

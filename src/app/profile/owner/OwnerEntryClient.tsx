@@ -4,9 +4,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState } from 'react'
 import type { OwnerVenue } from '@/lib/restaurant-context'
-import { Button } from '@/components/ui/Button'
+import { Card, Btn } from '@/components/kit'
 import { IconChevronRight, IconHome, IconPlus } from '@/components/ui/icons'
-import { PageHeader } from '@/components/ui/PageHeader'
 
 const COOKIE_NAME = 'ufo_restaurant'
 
@@ -89,56 +88,40 @@ export function OwnerEntryClient({
 
   if (variant === 'onboarding') {
     return (
-      <div className="ui-surface-card">
-        <div className="ui-kicker">MOO для заведений</div>
-        <p className="ui-muted mt-2 text-[13px] leading-snug">
+      <Card>
+        <div className="text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">MOO для заведений</div>
+        <p className="mt-2 text-[13px] leading-snug text-[color:var(--muted)]">
           Вы в клиентском режиме. Подключите своё заведение к платформе: меню, заказы и команда в одном кабинете.
         </p>
-        <Link
-          href="/profile/restaurant/new"
-          prefetch={false}
-          className="btn btn-primary mt-4 flex h-11 w-full items-center justify-center rounded-full px-6 text-[14px] font-semibold transition active:opacity-90"
-          style={{ borderRadius: 'var(--radius-pill)' }}
-        >
-          Подключить заведение
+        <Link href="/profile/restaurant/new" prefetch={false}>
+          <Btn full className="mt-4">Подключить заведение</Btn>
         </Link>
-        <p className="ui-muted mt-3 text-[12px]">
+        <p className="mt-3 text-[12px] text-[color:var(--muted)]">
           Уже есть доступ? После выдачи роли владельца список заведений появится здесь автоматически.
         </p>
-      </div>
+      </Card>
     )
   }
 
   if (variant === 'empty') {
     return (
-      <div className="ui-surface-card">
-        <div className="ui-kicker">кабинет</div>
-        <p className="ui-muted mt-2 text-[13px] leading-snug">
+      <Card>
+        <div className="text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">кабинет</div>
+        <p className="mt-2 text-[13px] leading-snug text-[color:var(--muted)]">
           Не нашли заведение для этого аккаунта. Если вы только что сбросили кэш — откройте список ещё раз или создайте точку.
         </p>
-        <button
-          type="button"
-          onClick={() => router.refresh()}
-          className="btn btn-soft mt-4 h-11 w-full rounded-full text-[14px] font-semibold"
-        >
+        <Btn variant="secondary" full className="mt-4" onClick={() => router.refresh()}>
           обновить список
-        </button>
-        <Link
-          href="/profile/restaurant/new"
-          prefetch={false}
-          className="btn btn-primary mt-3 flex h-11 w-full items-center justify-center rounded-full px-6 text-[14px] font-semibold transition active:opacity-90"
-          style={{ borderRadius: 'var(--radius-pill)' }}
-        >
-          Создать заведение
+        </Btn>
+        <Link href="/profile/restaurant/new" prefetch={false}>
+          <Btn full className="mt-3">Создать заведение</Btn>
         </Link>
-      </div>
+      </Card>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="заведения" subtitle="выберите точку для управления" compact />
-      <div className="ui-surface-card overflow-hidden p-0" style={{ borderRadius: 'var(--radius-large)' }}>
+    <Card className="!p-0 overflow-hidden">
       <p className="px-4 pb-1 pt-4 text-[12px] font-medium leading-snug text-[color:var(--muted)]">
         Выберите заведение, чтобы открыть кабинет владельца.
       </p>
@@ -157,7 +140,7 @@ export function OwnerEntryClient({
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] font-semibold text-[color:var(--text)]">{v.name}</span>
-                  <span className="ui-muted mt-0.5 block truncate text-[12px]">
+                  <span className="mt-0.5 block truncate text-[12px] text-[color:var(--muted)]">
                     {switchingId === v.id ? 'открываем…' : 'кабинет'}
                   </span>
                 </span>
@@ -168,16 +151,15 @@ export function OwnerEntryClient({
             </button>
             {!singleTenant && v.id !== 'default' ? (
               <div className="flex shrink-0 items-center border-l border-[color:var(--stroke)] px-2">
-                <Button
+                <Btn
                   type="button"
                   onClick={() => handleDelete(v)}
                   disabled={deletingId === v.id}
-                  variant="dangerSoft"
-                  size="sm"
+                  variant="danger"
                   className="h-10 rounded-xl px-3 text-[12px]"
                 >
                   {deletingId === v.id ? '…' : 'удалить'}
-                </Button>
+                </Btn>
               </div>
             ) : null}
           </li>
@@ -195,7 +177,7 @@ export function OwnerEntryClient({
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] font-semibold text-[color:var(--text)]">добавить заведение</span>
-                  <span className="ui-muted mt-0.5 block truncate text-[12px]">создать новую точку</span>
+                  <span className="mt-0.5 block truncate text-[12px] text-[color:var(--muted)]">создать новую точку</span>
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
@@ -205,7 +187,6 @@ export function OwnerEntryClient({
           </li>
         ) : null}
       </ul>
-      </div>
-    </div>
+    </Card>
   )
 }

@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getOwnerVenues, getRestaurantContext } from '@/lib/restaurant-context'
 import { prisma } from '@/lib/prisma'
+import { Screen } from '@/components/kit'
 import { OwnerEntryClient, type OwnerEntryVariant } from './OwnerEntryClient'
 
 export default async function ProfileOwnerEntryPage() {
@@ -142,8 +143,8 @@ export default async function ProfileOwnerEntryPage() {
   }
 
   return (
-    <main className="ui-container ui-screen !pb-20">
+    <Screen title={variant === 'list' ? 'заведения' : undefined} subtitle={variant === 'list' ? 'выберите точку для управления' : undefined}>
       <OwnerEntryClient variant={variant} venues={venues} singleTenant />
-    </main>
+    </Screen>
   )
 }

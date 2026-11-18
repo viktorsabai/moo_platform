@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Card, Btn } from '@/components/kit'
 import { formatPrice } from '@/lib/utils'
 import { useVenue } from '@/lib/venue-context'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
@@ -106,21 +106,19 @@ export default function OrderPayPage() {
 
   if (loading) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader backHref="/orders" title="оплата" compact />
-        <div className="ui-muted mt-4 text-[14px]">загрузка…</div>
-      </main>
+      <Screen back="/orders" title="оплата">
+        <div className="mt-4 text-[14px] text-[color:var(--muted)]">загрузка…</div>
+      </Screen>
     )
   }
 
   if (!order) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader backHref="/orders" title="оплата" compact />
-        <Link href="/orders" className="btn btn-primary mt-4 inline-flex" style={{ borderRadius: 'var(--radius-pill)' }}>
-          к заказам
+      <Screen back="/orders" title="оплата">
+        <Link href="/orders">
+          <Btn full className="mt-4">к заказам</Btn>
         </Link>
-      </main>
+      </Screen>
     )
   }
 
@@ -128,10 +126,9 @@ export default function OrderPayPage() {
   if (st !== 'AWAITING_RECEIPT') {
     const uploadedReceipt = String(order.receiptUrl || '').trim()
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader backHref="/orders" title="оплата" compact />
-        <div className="ui-surface-card mt-4 p-4" style={{ borderRadius: 'var(--radius-large)' }}>
-          <p className="ui-body text-[14px] leading-snug">
+      <Screen back="/orders" title="оплата">
+        <Card className="mt-4">
+          <p className="text-[14px] leading-snug text-[color:var(--text)]">
             {st === 'UNDER_REVIEW'
               ? 'Чек уже на проверке у заведения.'
               : st === 'PAID'
@@ -148,30 +145,24 @@ export default function OrderPayPage() {
               открыть загруженный чек
             </a>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-primary mt-4 w-full"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-            onClick={() => router.push('/orders')}
-          >
+          <Btn full className="mt-4" onClick={() => router.push('/orders')}>
             к заказам
-          </button>
-        </div>
-      </main>
+          </Btn>
+        </Card>
+      </Screen>
     )
   }
 
   const qr = payOption?.qrImageUrl?.trim()
 
   return (
-    <main className="ui-container ui-screen pb-8">
-      <PageHeader backHref="/orders" title="оплата" subtitle={order.restaurant?.name || 'заказ'} compact />
+    <Screen back="/orders" title="оплата" subtitle={order.restaurant?.name || 'заказ'}>
       <div className="mt-2 border-t border-[color:var(--stroke)] pt-4">
         <div className="text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">сумма</div>
         <div className="mt-1 text-[22px] font-extrabold tracking-tight text-[color:var(--text)]">{formatPrice(order.totalAmount)}</div>
         {rubLine ? <div className="mt-1 text-[15px] font-semibold text-[color:var(--text)]">{rubLine}</div> : null}
         {payOption?.instruction ? (
-          <p className="ui-muted mt-3 text-[13px] leading-snug">{payOption.instruction}</p>
+          <p className="mt-3 text-[13px] leading-snug text-[color:var(--muted)]">{payOption.instruction}</p>
         ) : null}
         {qr ? (
           <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--surface)] p-3 shadow-[var(--shadow-soft)]">
@@ -179,9 +170,9 @@ export default function OrderPayPage() {
             <img src={qr} alt="" className="mx-auto max-h-[min(52vh,420px)] w-full max-w-sm object-contain" />
           </div>
         ) : (
-          <p className="ui-muted mt-4 text-[13px]">QR не настроен в кабинете заведения.</p>
+          <p className="mt-4 text-[13px] text-[color:var(--muted)]">QR не настроен в кабинете заведения.</p>
         )}
-        <label className="btn btn-primary mt-6 flex h-12 w-full cursor-pointer items-center justify-center text-[15px] font-semibold disabled:opacity-60">
+        <label className="mt-6 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-[color:var(--primary)] px-4 text-[15px] font-semibold text-[color:var(--on-primary)] transition active:opacity-80 disabled:opacity-50">
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
@@ -195,8 +186,8 @@ export default function OrderPayPage() {
           />
           {uploading ? 'отправка…' : 'прикрепить чек (скрин перевода)'}
         </label>
-        <p className="ui-muted mt-2 text-[11px] leading-snug">После загрузки команда проверит платёж в Telegram.</p>
+        <p className="mt-2 text-[11px] leading-snug text-[color:var(--muted)]">После загрузки команда проверит платёж в Telegram.</p>
       </div>
-    </main>
+    </Screen>
   )
 }

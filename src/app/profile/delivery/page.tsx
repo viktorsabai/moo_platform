@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useSession } from 'next-auth/react'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Screen, Btn } from '@/components/kit'
 import { loadDeliveryProfile, saveDeliveryProfile, type DeliveryProfile } from '@/lib/delivery-profile'
 import { formatTelegramContact } from '@/lib/telegram-contact'
 
@@ -50,9 +50,7 @@ export default function ProfileDeliveryPage() {
   }, [profile.name, profile.address])
 
   return (
-    <main className="ui-container ui-screen pb-6">
-      <PageHeader backHref="/profile" title="доставка" subtitle="адрес для чекаута и курьера" />
-
+    <Screen back="/profile" title="доставка" subtitle="адрес для чекаута и курьера" className="pb-6">
       <div className="mt-1 border-t border-[color:var(--stroke)]">
         <section className="border-b border-[color:var(--stroke)] py-3">
           <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">контакт</h3>
@@ -75,10 +73,10 @@ export default function ProfileDeliveryPage() {
 
         <section className="border-b border-[color:var(--stroke)] py-3">
           <h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">адрес</h3>
-          <button
-            type="button"
-            className="btn btn-soft mb-3 h-9 w-full text-[13px] font-semibold"
-            style={{ borderRadius: 'var(--radius-pill)' }}
+          <Btn
+            variant="secondary"
+            full
+            className="mb-3 h-9 text-[13px]"
             disabled={detectingAddress}
             onClick={() => {
               if (!navigator.geolocation) return
@@ -111,7 +109,7 @@ export default function ProfileDeliveryPage() {
             }}
           >
             {detectingAddress ? 'определяем…' : 'по геолокации'}
-          </button>
+          </Btn>
           <label className="block">
             <span className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--muted)]">улица, дом</span>
             <input
@@ -157,10 +155,10 @@ export default function ProfileDeliveryPage() {
         </section>
 
         <div className="pt-4">
-          <button
-            type="button"
-            className="btn btn-primary h-12 w-full text-[15px] font-semibold disabled:pointer-events-none"
-            style={{ borderRadius: 'var(--radius-pill)' }}
+          <Btn
+            full
+            size="lg"
+            className="text-[15px] disabled:pointer-events-none"
             disabled={isEmpty}
             onClick={() => {
               saveDeliveryProfile(profile)
@@ -169,9 +167,9 @@ export default function ProfileDeliveryPage() {
             }}
           >
             {saved ? 'сохранено' : 'сохранить'}
-          </button>
+          </Btn>
         </div>
       </div>
-    </main>
+    </Screen>
   )
 }
