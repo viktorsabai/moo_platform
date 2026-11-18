@@ -156,8 +156,23 @@ function SubscriptionsPageContent() {
       title="подписка"
       right={
         <div className="flex shrink-0 items-center gap-2">
-          <Btn variant="secondary" onClick={() => loadSubscriptions()} disabled={refreshing} aria-label="обновить">
-            {refreshing ? '…' : '↻'}
+          <Btn
+            variant="secondary"
+            className="w-11 px-0"
+            onClick={() => loadSubscriptions()}
+            disabled={refreshing}
+            aria-label="обновить"
+          >
+            {refreshing ? (
+              '…'
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden>
+                <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
+                <path d="M3 21v-5h5" />
+              </svg>
+            )}
           </Btn>
           <Link href="/subscriptions/new" prefetch={false}>
             <Btn>+ новая</Btn>

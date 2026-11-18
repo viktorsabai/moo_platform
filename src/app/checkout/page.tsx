@@ -60,11 +60,19 @@ export default function CheckoutPage() {
 
   const subtotal = useMemo(() => items.reduce((n, it) => n + Number(it.price ?? 0) * Number(it.quantity ?? 0), 0), [items])
 
+  const deliveryAddress = useMemo(
+    () =>
+      address.trim()
+        ? { address: [address, apartment].filter(Boolean).join(', '), city: 'Пхукет', zipCode: '', lat: geo?.lat, lng: geo?.lng }
+        : null,
+    [address, apartment, geo?.lat, geo?.lng]
+  )
+
   const delivery = useGuestDelivery({
     subtotal,
     restaurantHeaders: headers,
     fetchQuote: true,
-    address: address.trim() ? { address: [address, apartment].filter(Boolean).join(', '), city: 'Пхукет', zipCode: '', lat: geo?.lat, lng: geo?.lng } : null,
+    address: deliveryAddress,
   })
   const payOptions = delivery.settings.paymentOptions
   useEffect(() => {

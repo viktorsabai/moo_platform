@@ -88,8 +88,23 @@ export default function ProfilePage() {
     )
   }
 
+  const avatarUrl = typeof user?.image === 'string' ? user.image : null
+
   return (
-    <Screen title={name} subtitle={canOwner ? (memberRole === 'OWNER' ? 'владелец' : 'админ') : undefined}>
+    <Screen
+      title={name}
+      subtitle={canOwner ? (memberRole === 'OWNER' ? 'владелец' : 'админ') : undefined}
+      right={
+        <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[color:var(--surface-strong)] text-[15px] font-bold text-[color:var(--muted)]">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            name.slice(0, 1).toUpperCase()
+          )}
+        </div>
+      }
+    >
       <div className="flex flex-col gap-4">
         {canOwner ? (
           <Link href="/admin" prefetch={false} className="flex h-14 items-center justify-between rounded-[18px] bg-[color:var(--primary)] px-4 text-[15px] font-semibold text-[color:var(--on-primary)]">
