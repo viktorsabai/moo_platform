@@ -36,7 +36,7 @@ export default function ProfilePage() {
   const canOwner = memberRole === 'OWNER' || memberRole === 'ADMIN' || platformRole === 'SUPERADMIN'
   const name = useMemo(() => {
     if (user?.name) return String(user.name)
-    const tg = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user
+    const tg = typeof window !== 'undefined' ? (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user : undefined
     return String(tg?.first_name || tg?.username || 'гость')
   }, [user?.name])
 
