@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Card } from '@/components/ui/Card'
+import { Card, Chip, Btn } from '@/components/kit'
 
 type RegistryEvent = {
   id: string
@@ -90,7 +90,7 @@ export function AdminNotificationsCatalog() {
 
   if (loading) {
     return (
-      <Card variant="surfaceStrong" className="p-5">
+      <Card>
         <div className="text-[14px] text-[color:var(--muted)]">Загрузка каталога уведомлений…</div>
       </Card>
     )
@@ -98,7 +98,7 @@ export function AdminNotificationsCatalog() {
 
   if (!data?.ok) {
     return (
-      <Card variant="surfaceStrong" className="p-5">
+      <Card>
         <div className="text-[14px] font-semibold text-[color:var(--text)]">Не удалось загрузить</div>
         <p className="mt-1 text-[13px] text-[color:var(--muted)]">{data?.error || 'ошибка'}</p>
       </Card>
@@ -107,7 +107,7 @@ export function AdminNotificationsCatalog() {
 
   return (
     <div className="space-y-4 min-w-0">
-      <Card variant="surfaceStrong" className="p-5 space-y-4">
+      <Card className="space-y-4">
         <div>
           <div className="text-[15px] font-semibold text-[color:var(--text)]">Настройка доставки</div>
           <p className="mt-1 text-[13px] text-[color:var(--muted)]">
@@ -141,17 +141,11 @@ export function AdminNotificationsCatalog() {
         </div>
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <Link
-            href="/admin/qr"
-            className="inline-flex h-9 items-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-white"
-          >
-            Бот и интеграция
+          <Link href="/admin/qr">
+            <Btn size="md">Бот и интеграция</Btn>
           </Link>
-          <Link
-            href="/admin/team"
-            className="inline-flex h-9 items-center rounded-full border border-[color:var(--stroke)] px-4 text-[13px] font-medium text-[color:var(--text)]"
-          >
-            Команда
+          <Link href="/admin/team">
+            <Btn variant="secondary" size="md">Команда</Btn>
           </Link>
         </div>
       </Card>
@@ -165,19 +159,9 @@ export function AdminNotificationsCatalog() {
             ['platform', 'Платформа'],
           ] as const
         ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setFilter(id)}
-            className={[
-              'h-8 rounded-full px-3 text-[12px] font-medium transition',
-              filter === id
-                ? 'bg-[color:var(--primary)] text-white'
-                : 'bg-[color:var(--surface)] text-[color:var(--muted)] border border-[color:var(--stroke)]',
-            ].join(' ')}
-          >
+          <Chip key={id} active={filter === id} onClick={() => setFilter(id)}>
             {label}
-          </button>
+          </Chip>
         ))}
       </div>
 
@@ -186,7 +170,7 @@ export function AdminNotificationsCatalog() {
           <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{cat.label}</h2>
           <div className="space-y-2">
             {cat.events.map((event) => (
-              <Card key={event.id} variant="surface" className="p-4 min-w-0">
+              <Card key={event.id} tone="muted" className="min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-semibold text-[color:var(--text)]">{event.title}</div>

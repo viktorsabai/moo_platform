@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CustomSelect } from '@/components/ui/CustomSelect'
-import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { Screen, Card, Btn, Badge } from '@/components/kit'
 
 type Member = {
   id: string
@@ -104,8 +103,8 @@ export default function AdminTeamPage() {
   }
 
   return (
-    <main className="ui-container ui-screen !pb-20">
-      <Card variant="surfaceStrong" className="p-4">
+    <Screen title="команда" back="/admin" className="!pb-20">
+      <Card>
         <div className="text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">добавить сотрудника</div>
         <div className="mt-1 text-[13px] font-medium text-[color:var(--muted)]">
           если пользователь уже заходил в mini app — сразу попадёт в список участников. иначе создаётся приглашение: как
@@ -128,14 +127,9 @@ export default function AdminTeamPage() {
               { value: 'OWNER', label: 'владелец' },
             ]}
           />
-          <Button
-            type="button"
-            onClick={addOrUpdate}
-            disabled={!canAdd || loading}
-            className="h-11 w-full rounded-full text-[14px]"
-          >
+          <Btn full size="lg" onClick={addOrUpdate} disabled={!canAdd || loading}>
             сохранить
-          </Button>
+          </Btn>
         </div>
         {success ? <div className="mt-2 text-[12px] font-semibold text-[color:var(--ok)]">{success}</div> : null}
         {error ? (
@@ -150,7 +144,7 @@ export default function AdminTeamPage() {
       {pendingInvites.length > 0 ? (
         <div className="mt-5">
           <div className="mb-2 text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">ожидают входа</div>
-          <Card variant="surfaceStrong" className="p-0 overflow-hidden">
+          <Card className="!p-0 overflow-hidden">
             <div className="divide-y divide-[color:var(--stroke)]">
               {pendingInvites.map((inv) => (
                 <div key={inv.id} className="px-4 py-3">
@@ -165,9 +159,7 @@ export default function AdminTeamPage() {
                           : ''}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--warn)]">
-                      ожидает
-                    </span>
+                    <Badge tone="warn">ожидает</Badge>
                   </div>
                 </div>
               ))}
@@ -179,21 +171,19 @@ export default function AdminTeamPage() {
       <div className="mt-5">
         <div className="mb-2 text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">участники</div>
         {loading ? (
-          <Card variant="surfaceStrong" className="p-5 text-[13px] font-semibold text-[color:var(--muted)]">
-            загрузка…
-          </Card>
+          <Card className="text-[13px] font-semibold text-[color:var(--muted)]">загрузка…</Card>
         ) : members.length === 0 ? (
-          <Card variant="surfaceStrong" className="p-5 text-center">
+          <Card className="text-center">
             <div className="text-[14px] font-semibold text-[color:var(--text)]">пока никого в команде</div>
             <div className="mt-1 text-[13px] font-medium text-[color:var(--muted)]">
               добавь по Telegram ID выше или дождись, пока примут приглашение
             </div>
           </Card>
         ) : (
-          <div className="ufo-list">
+          <Card className="!p-0">
             <div className="divide-y divide-[color:var(--stroke)]">
               {members.map((m) => (
-                <div key={m.id} className="px-1 py-3">
+                <div key={m.id} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[14px] font-semibold text-[color:var(--text)]">
@@ -204,20 +194,18 @@ export default function AdminTeamPage() {
                         {m.role === 'OWNER' ? 'владелец' : m.role === 'ADMIN' ? 'админ' : 'персонал'}
                       </div>
                     </div>
-                    <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface)] px-3 py-1 text-[12px] font-semibold text-[color:var(--text)]">
-                      {m.role === 'OWNER' ? 'владелец' : m.role === 'ADMIN' ? 'админ' : 'персонал'}
-                    </span>
+                    <Badge tone="muted">{m.role === 'OWNER' ? 'владелец' : m.role === 'ADMIN' ? 'админ' : 'персонал'}</Badge>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
       </div>
 
       <div className="mt-5">
         <div className="mb-2 text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">уведомления и доступ</div>
-        <Card variant="surfaceStrong" className="p-4">
+        <Card>
           <div className="space-y-2 text-[12px]">
             <div className="font-semibold text-[color:var(--text)]">получение уведомлений</div>
             <div className="text-[color:var(--muted)]">• новые заказы и обновления подписок: OWNER / ADMIN / STAFF (кто в команде и с telegram id)</div>
@@ -232,7 +220,7 @@ export default function AdminTeamPage() {
       {!loading && settledInvites.length > 0 ? (
         <div className="mt-5">
           <div className="mb-2 text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">история приглашений</div>
-          <Card variant="surfaceStrong" className="p-0 overflow-hidden">
+          <Card className="!p-0 overflow-hidden">
             <div className="divide-y divide-[color:var(--stroke)]">
               {settledInvites.map((inv) => (
                 <div key={inv.id} className="px-4 py-2.5">
@@ -246,6 +234,6 @@ export default function AdminTeamPage() {
           </Card>
         </div>
       ) : null}
-    </main>
+    </Screen>
   )
 }
