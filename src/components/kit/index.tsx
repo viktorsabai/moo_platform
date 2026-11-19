@@ -174,7 +174,7 @@ export function Chip({ active, children, onClick, className }: { active?: boolea
   )
 }
 
-export function Badge({ tone = 'ok', children }: { tone?: 'ok' | 'warn' | 'danger' | 'muted'; children: ReactNode }) {
+export function Badge({ tone = 'ok', children }: { tone?: 'ok' | 'warn' | 'danger' | 'muted' | 'solid'; children: ReactNode }) {
   const t =
     tone === 'ok'
       ? 'bg-[color:var(--ok-bg)] text-[color:var(--ok)]'
@@ -182,7 +182,9 @@ export function Badge({ tone = 'ok', children }: { tone?: 'ok' | 'warn' | 'dange
         ? 'bg-[color:var(--warn-bg)] text-[color:var(--warn)]'
         : tone === 'danger'
           ? 'bg-[color:var(--danger-bg)] text-[color:var(--danger)]'
-          : 'bg-[color:var(--surface)] text-[color:var(--muted)]'
+          : tone === 'solid'
+            ? 'bg-[color:var(--primary)] text-[color:var(--on-primary)]'
+            : 'bg-[color:var(--surface)] text-[color:var(--muted)]'
   return <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold', t)}>{children}</span>
 }
 

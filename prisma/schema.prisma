@@ -48,6 +48,10 @@ model Restaurant {
   name      String
   slug      String   @unique
   address   String?  @db.Text
+  /// обложка на главной гостя (широкое фото зала/блюд)
+  coverImage String? @db.Text
+  /// логотип: круг поверх обложки
+  logoImage  String? @db.Text
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
