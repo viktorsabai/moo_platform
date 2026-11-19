@@ -393,7 +393,7 @@ function DaySheet({
               без доставки
             </Btn>
           ) : null}
-          <Btn full onClick={onClose}>
+          <Btn className="flex-1" onClick={onClose}>
             готово
           </Btn>
         </div>
@@ -406,32 +406,42 @@ function DaySheet({
         </p>
       ) : (
         <>
+          {/* один ряд приёмов: тап — какой приём заполняем; «+ ужин» — вернуть приём в этот день */}
           {enabledSlots.length > 1 ? (
             <div className="mb-3">
-              <div className="mb-1.5 text-[12.5px] font-semibold text-[color:var(--muted)]">
-                приёмы в этот день
-              </div>
               <div className="flex flex-wrap gap-1.5">
-                {enabledSlots.map(s => (
-                  <Chip
-                    key={s}
-                    active={slotsForActiveDay.includes(s)}
-                    onClick={() => onToggleMealSlot(s)}
-                  >
-                    {MEAL_SLOT_LABEL[s]}
-                  </Chip>
-                ))}
+                {enabledSlots.map(s => {
+                  const on = slotsForActiveDay.includes(s)
+                  const count = lines.filter(l => l.dayOfWeek === js && l.mealSlot === s).length
+                  return on ? (
+                    <Chip key={s} active={activeSlot === s} onClick={() => onActiveSlot(s)}>
+                      {MEAL_SLOT_LABEL[s]}
+                      {count ? ` · ${count}` : ''}
+                    </Chip>
+                  ) : (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        onToggleMealSlot(s)
+                        onActiveSlot(s)
+                      }}
+                      className="h-11 rounded-full border border-dashed border-[color:var(--stroke-strong)] px-4 text-[14px] text-[color:var(--muted)]"
+                    >
+                      + {MEAL_SLOT_LABEL[s]}
+                    </button>
+                  )
+                })}
               </div>
-            </div>
-          ) : null}
-
-          {slotsForActiveDay.length > 1 ? (
-            <div className="mb-3">
-              <Segmented
-                value={activeSlot}
-                onChange={v => onActiveSlot(v as MealSlot)}
-                options={slotsForActiveDay.map(s => ({ value: s, label: MEAL_SLOT_LABEL[s] }))}
-              />
+              {slotsForActiveDay.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleMealSlot(activeSlot)}
+                  className="mt-1.5 text-[12.5px] font-medium text-[color:var(--muted)] underline-offset-2 hover:underline"
+                >
+                  {MEAL_SLOT_LABEL[activeSlot]} в этот день не нужен
+                </button>
+              ) : null}
             </div>
           ) : null}
 
