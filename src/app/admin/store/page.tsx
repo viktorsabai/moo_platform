@@ -8,6 +8,8 @@ import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { cn } from '@/lib/utils'
 import { MenuCategories, type MenuCat } from '@/features/admin/menu/MenuCategories'
 import { MenuOptions, type OptGroup } from '@/features/admin/menu/MenuOptions'
+import { MenuImport } from '@/features/admin/menu/MenuImport'
+import { StoreProductSheet, type StoreProduct } from '@/features/admin/menu/StoreProductSheet'
 
 type Cat = { key: string; id: string; name: string; kind: 'dish' | 'store' }
 type Item = {
@@ -29,7 +31,7 @@ type Item = {
 /** привязка значения опции к блюду; costPrice/subscriptionEligible храним, чтобы не затереть при сохранении */
 type DishOpt = { optionValueId: string; priceAdjust: number; isAvailable: boolean; subscriptionEligible?: boolean; costPrice?: number | null }
 type Filter = 'all' | 'stop' | 'nocost'
-type Section = 'dishes' | 'cats' | 'options'
+type Section = 'dishes' | 'cats' | 'options' | 'import'
 
 const TAGS = [
   { value: 'hit', label: 'хит' },
@@ -54,10 +56,18 @@ export default function AdminMenuPage() {
   const [section, setSection] = useState<Section>('dishes')
   const [groups, setGroups] = useState<OptGroup[]>([])
   const [dishCats, setDishCats] = useState<MenuCat[]>([])
+  const [storeCats, setStoreCats] = useState<MenuCat[]>([])
+  const [products, setProducts] = useState<StoreProduct[]>([])
+  const [storeEnabled, setStoreEnabled] = useState(false)
+  const [productEdit, setProductEdit] = useState<StoreProduct | 'new' | null>(null)
 
   const load = useCallback(async () => {
     const get = (u: string) => fetch(u, { cache: 'no-store', credentials: 'include' }).then((r) => r.json()).catch(() => null)
-    const [c, d, sp, og] = await Promise.all([get('/api/admin/menu/categories'), get('/api/admin/menu/dishes'), get('/api/admin/store/products'), get('/api/admin/menu/options')])
+    const [c, d, sp, og, st] = await Promise.all([get('/api/admin/menu/categories'), get('/api/admin/menu/dishes'), get('/api/admin/store/products'), get('/api/admin/menu/options'), get('/api/admin/settings')])
+    const rawProducts = (sp?.products ?? []) as any[]
+    setStoreEnabled(st?.settings?.storeEnabled !== false && (st?.settings?.storeEnabled === true || rawProducts.length > 0))
+    setProducts(rawProducts.map((x) => ({ id: x.id, name: x.name, description: x.description ?? '', image: x.image ?? null, categoryId: x.categoryId, isActive: x.isActive !== false, variants: (x.variants ?? []).map((v: any) => ({ id: v.id, name: v.name ?? '', price: Number(v.price ?? 0), qty: Number(v.qty ?? 0), isActive: v.isActive !== false })) })))
+    setStoreCats(((sp?.categories ?? []) as any[]).map((x) => ({ id: x.id, name: x.name, order: Number(x.order ?? 0), dishCount: rawProducts.filter((pp) => pp.categoryId === x.id).length })))
     setGroups(((og?.groups ?? []) as any[]).map((g) => ({ id: g.id, name: g.name, isActive: g.isActive !== false, values: (g.values ?? []).map((v: any) => ({ id: v.id, name: v.name, isActive: v.isActive !== false })) })))
     const dishList = (d?.dishes ?? []) as any[]
     setDishCats(((c?.categories ?? []) as any[]).map((x) => ({ id: x.id, name: x.name, order: Number(x.order ?? 0), dishCount: dishList.filter((dd) => dd.categoryId === x.id).length })))
@@ -154,12 +164,24 @@ export default function AdminMenuPage() {
             { value: 'dishes', label: 'блюда' },
             { value: 'cats', label: 'категории' },
             { value: 'options', label: 'опции' },
+            { value: 'import', label: 'таблица' },
           ]}
         />
       </div>
 
-      {section === 'cats' ? <MenuCategories cats={dishCats} onChanged={load} /> : null}
+      {section === 'cats' ? (
+        <div className="flex flex-col gap-5">
+          <MenuCategories cats={dishCats} onChanged={load} />
+          {storeEnabled ? (
+            <section>
+              <h2 className="mb-2 px-1 text-[15px] font-semibold text-[color:var(--text)]">категории магазина</h2>
+              <MenuCategories cats={storeCats} onChanged={load} endpoint="/api/admin/store/categories" hint="товары с остатками идут у гостей после блюд" unit="product" />
+            </section>
+          ) : null}
+        </div>
+      ) : null}
       {section === 'options' ? <MenuOptions groups={groups} onChanged={load} /> : null}
+      {section === 'import' ? <MenuImport storeEnabled={storeEnabled} onImported={load} /> : null}
 
       {section === 'dishes' ? (
       <>
@@ -176,6 +198,11 @@ export default function AdminMenuPage() {
       </div>
       <div className="mb-2 flex items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="найти" className="h-10 min-w-0 flex-1 rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none" />
+        {storeEnabled ? (
+          <button type="button" onClick={() => setProductEdit('new')} className="h-10 shrink-0 rounded-full border border-[color:var(--stroke)] px-3.5 text-[13px] font-semibold text-[color:var(--text)]">
+            + товар
+          </button>
+        ) : null}
       </div>
       {cats.length > 1 ? (
         <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
@@ -217,7 +244,15 @@ export default function AdminMenuPage() {
       </>
       ) : null}
 
-      <DishSheet item={edit} cats={cats.filter((c) => c.kind === 'dish')} groups={groups} onClose={() => setEdit(null)} onSaved={load} />
+      {edit && edit !== 'new' && edit.kind === 'store' ? (
+        (() => {
+          const prod = products.find((x) => x.id === edit.id)
+          return prod ? <StoreProductSheet product={prod} cats={storeCats} onClose={() => setEdit(null)} onSaved={load} /> : null
+        })()
+      ) : (
+        <DishSheet item={edit} cats={cats.filter((c) => c.kind === 'dish')} groups={groups} onClose={() => setEdit(null)} onSaved={load} />
+      )}
+      {productEdit ? <StoreProductSheet product={productEdit} cats={storeCats} onClose={() => setProductEdit(null)} onSaved={load} /> : null}
     </Screen>
   )
 }
@@ -256,13 +291,7 @@ function DishSheet({ item, cats, groups, onClose, onSaved }: { item: Item | 'new
   }, [item, it, cats])
 
   if (!item) return null
-  if (it?.kind === 'store') {
-    return (
-      <Sheet open onClose={onClose} title={it.name} footer={<Link href="/admin/store/full" prefetch={false} className="flex h-[52px] items-center justify-center rounded-[16px] bg-[color:var(--primary)] text-[16px] font-semibold text-[color:var(--on-primary)]">открыть редактор товаров</Link>}>
-        <p className="text-[14px] text-[color:var(--muted)]">Варианты, остатки и цены товара редактируются в полном редакторе.</p>
-      </Sheet>
-    )
-  }
+  if (it?.kind === 'store') return null
 
   const p = Number(price)
   const c = cost.trim() ? Number(cost) : null
