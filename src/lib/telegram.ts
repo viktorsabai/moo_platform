@@ -36,6 +36,10 @@ function getPublicBaseUrl(): string {
   // Prefer explicit app url, then NextAuth, then Vercel runtime env.
   const direct = process.env.APP_URL || process.env.NEXTAUTH_URL
   if (direct) return sanitizeBase(sanitizePath(direct))
+  // VERCEL_URL — адрес КОНКРЕТНОГО деплоя (ufo-delivery-abc123.vercel.app): кнопка с ним
+  // навсегда открывает ту сборку. Для прода берём постоянный домен проекта.
+  const prodUrl = process.env.VERCEL_ENV === 'production' ? process.env.VERCEL_PROJECT_PRODUCTION_URL : ''
+  if (prodUrl) return sanitizeBase(`https://${sanitizePath(prodUrl)}`)
   const vercelUrl = process.env.VERCEL_URL
   if (vercelUrl) return sanitizeBase(`https://${sanitizePath(vercelUrl)}`)
   return 'https://ufo-delivery.vercel.app'
