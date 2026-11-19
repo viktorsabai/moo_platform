@@ -4,6 +4,7 @@ import { Providers } from '@/components/providers'
 import Script from 'next/script'
 import BottomNavbar from '@/components/bottom-navbar'
 import { StickyCartBar } from '@/components/StickyCartBar'
+import { VersionGuard } from '@/components/VersionGuard'
 import { ScrollToTopOnRoute } from '@/components/ScrollToTopOnRoute'
 import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
@@ -86,6 +87,7 @@ export default async function RootLayout({
             >
               <div className="w-full">{children}</div>
               <StickyCartBar />
+              <VersionGuard />
             </main>
 
             <BottomNavbar />
