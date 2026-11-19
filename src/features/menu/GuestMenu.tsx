@@ -8,6 +8,8 @@ import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { Badge, Btn, Chip, Empty, Sheet, Stepper, fmtThb } from '@/components/kit'
 import { cn } from '@/lib/utils'
+import { useDeliveryHint } from '@/store/delivery-hint-store'
+import { DishRail, PromoRail, type PromoCard, type RailDish } from './home-rails'
 
 /* ---------- единая модель позиции: блюдо или товар ---------- */
 
@@ -36,7 +38,6 @@ type Item = {
 }
 
 type Cat = { key: string; name: string }
-type Banner = { id: string; title: string; href: string; type: string }
 type ActiveOrder = { id: string; status: string; etaLabel?: string }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -65,7 +66,11 @@ export function GuestMenu() {
 
   const [items, setItems] = useState<Item[]>([])
   const [cats, setCats] = useState<Cat[]>([])
-  const [banners, setBanners] = useState<Banner[]>([])
+  const [promos, setPromos] = useState<PromoCard[]>([])
+  const [freeFrom, setFreeFrom] = useState<number | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const setDeliveryHint = useDeliveryHint((s) => s.set)
+  const tabsRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState<{ isOpen: boolean; until: string } | null>(null)
   const [deliveryFrom, setDeliveryFrom] = useState<number | null>(null)
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
@@ -156,7 +161,11 @@ export function GuestMenu() {
 
     setCats(nextCats.filter((x) => next.some((it) => it.categoryKey === x.key)))
     setItems(next)
-    setBanners((b?.banners ?? []).filter((x: Banner) => x.type === 'chip').slice(0, 4))
+    const promoCards: PromoCard[] = (b?.banners ?? []).filter((x: PromoCard) => x?.id && x?.title)
+    if (settings.subscriptionEnabled && !promoCards.some((x) => x.href?.startsWith('/subscriptions'))) {
+      promoCards.unshift({ id: 'subscription', title: 'Рацион на неделю', description: 'дешевле, чем заказывать из меню', href: '/subscriptions', cta: 'собрать рацион', type: 'chip' })
+    }
+    setPromos(promoCards.slice(0, 8))
 
     const st = s?.settings ?? {}
     const openTime = String(st.openTime ?? '10:00')
@@ -172,13 +181,17 @@ export function GuestMenu() {
       return a <= z ? m >= a && m < z : m >= a || m < z
     })()
     setOpen({ isOpen, until: closeTime })
-    setDeliveryFrom(Number.isFinite(Number(st.deliveryFee)) ? Number(st.deliveryFee) : null)
+    const fee = Number.isFinite(Number(st.deliveryFee)) ? Number(st.deliveryFee) : null
+    const free = Number(st.freeDeliveryFrom) > 0 ? Number(st.freeDeliveryFrom) : null
+    setDeliveryFrom(fee)
+    setFreeFrom(free)
+    setDeliveryHint(fee, free)
 
     const orders: any[] = o?.orders ?? []
     const live = orders.find((x) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'].includes(x.status))
     setActiveOrder(live ? { id: live.id, status: live.status } : null)
     setLoading(false)
-  }, [headers, settings.storeEnabled, venueLoading])
+  }, [headers, settings.storeEnabled, settings.subscriptionEnabled, venueLoading, setDeliveryHint])
 
   useEffect(() => {
     void load()
@@ -206,8 +219,8 @@ export function GuestMenu() {
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return items.filter((it) => (cat === 'all' || it.categoryKey === cat) && (!needle || it.name.toLowerCase().includes(needle)))
-  }, [items, cat, q])
+    return needle ? items.filter((it) => it.name.toLowerCase().includes(needle)) : items
+  }, [items, q])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Item[]>()
@@ -248,38 +261,104 @@ export function GuestMenu() {
   }
 
   const scrollToCat = (key: string) => {
-    setCat('all')
-    setTimeout(() => sectionRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30)
+    setCat(key)
+    sectionRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  /* активная вкладка категории следует за прокруткой */
+  useEffect(() => {
+    if (q.trim() || grouped.length < 2) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+        const key = (top?.target as HTMLElement | undefined)?.dataset.cat
+        if (key) setCat(key)
+      },
+      { rootMargin: '-64px 0px -65% 0px' }
+    )
+    sectionRefs.current.forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [grouped, q])
+
+  /* активную вкладку держим в зоне видимости строки категорий */
+  useEffect(() => {
+    const row = tabsRef.current
+    const chip = row?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(cat)}"]`)
+    if (!row || !chip) return
+    const left = chip.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2
+    row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+  }, [cat])
+
+  const searching = Boolean(q.trim())
+  const toRail = useCallback(
+    (list: Item[]): RailDish[] =>
+      list.slice(0, 12).map((it) => ({ key: it.key, name: it.name, price: it.price, image: it.image, weightLabel: it.weightLabel, off: !it.available || Boolean(open && !open.isOpen), qty: qtyOfItem(it) })),
+    [open, qtyOfItem]
+  )
+  const hits = useMemo(() => toRail(items.filter((it) => it.available && it.tags.some((t) => t === 'hit' || t === 'popular' || t === 'chef-choice'))), [items, toRail])
+  const fresh = useMemo(() => toRail(items.filter((it) => it.available && it.tags.includes('new'))), [items, toRail])
+  const byKey = useMemo(() => new Map(items.map((it) => [it.key, it])), [items])
+  const openKey = (key: string) => { const it = byKey.get(key); if (it) setFocused(it) }
+  const addKey = (key: string) => { const it = byKey.get(key); if (it) quickAdd(it) }
 
   const closed = open && !open.isOpen
 
   return (
-    <main className="mx-auto w-full max-w-md px-4 pb-28 pt-3">
-      <header className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-[22px] font-bold tracking-tight text-[color:var(--text)]">{venueName || '—'}</h1>
-          <div className={cn('mt-0.5 text-[12.5px] font-semibold', closed ? 'text-[color:var(--danger)]' : 'text-[color:var(--ok)]')}>
-            {open ? (open.isOpen ? `открыто до ${open.until}` : 'сейчас закрыто') : ' '}
-            {deliveryFrom !== null && open?.isOpen ? <span className="font-normal text-[color:var(--muted)]"> · доставка от {fmtThb(deliveryFrom)}</span> : null}
+    <main className="mx-auto w-full max-w-md px-4 pb-36 pt-3">
+      <header className="mb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-[26px] font-extrabold leading-tight tracking-tight text-[color:var(--text)]">{venueName || '—'}</h1>
+            <div className={cn('mt-0.5 text-[13px] font-semibold', closed ? 'text-[color:var(--danger)]' : 'text-[color:var(--ok)]')}>
+              {open ? (open.isOpen ? `открыто до ${open.until}` : 'сейчас закрыто') : ' '}
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setQ('') }}
+            aria-label={searchOpen ? 'закрыть поиск' : 'поиск по меню'}
+            aria-expanded={searchOpen}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-strong)] text-[color:var(--text)] shadow-[var(--shadow-card)]"
+          >
+            {searchOpen ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
+            )}
+          </button>
         </div>
-        <label className="relative shrink-0">
-          <span className="sr-only">поиск по меню</span>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="найти"
-            className="h-11 w-[120px] rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:w-[160px] focus:outline-none"
-          />
-        </label>
+        {deliveryFrom !== null && !closed ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[color:var(--surface-strong)] px-3 text-[13px] font-medium text-[color:var(--text)]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-[color:var(--muted)]" aria-hidden><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7" /><circle cx="7" cy="17.5" r="1.5" /><circle cx="17" cy="17.5" r="1.5" /></svg>
+              доставка {deliveryFrom > 0 ? fmtThb(deliveryFrom) : 'бесплатно'}
+            </span>
+            {freeFrom && deliveryFrom > 0 ? (
+              <span className="inline-flex h-8 items-center rounded-full bg-[color:var(--ok-bg)] px-3 text-[13px] font-semibold text-[color:var(--ok)]">
+                бесплатно от {fmtThb(freeFrom)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {searchOpen ? (
+          <label className="mt-3 block">
+            <span className="sr-only">поиск по меню</span>
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="блюдо или продукт"
+              className="h-12 w-full rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 text-[15px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none"
+            />
+          </label>
+        ) : null}
       </header>
 
       {activeOrder ? (
         <Link
           href="/orders"
           prefetch={false}
-          className="mb-2 flex items-center gap-3 rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2.5"
+          className="mb-4 flex items-center gap-3 rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3 py-2.5"
         >
           <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--warn)]" aria-hidden />
           <span className="flex-1 text-[13px] text-[color:var(--text)]">
@@ -289,28 +368,20 @@ export function GuestMenu() {
         </Link>
       ) : null}
 
-      {banners.length || settings.subscriptionEnabled ? (
-        <div className="-mx-4 mb-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-          {settings.subscriptionEnabled ? (
-            <Link href="/subscriptions" prefetch={false} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[color:var(--ok-bg)] px-3.5 text-[13px] font-semibold text-[color:var(--ok)]">
-              собрать на неделю · дешевле меню
-            </Link>
-          ) : null}
-          {banners.map((b) => (
-            <Link key={b.id} href={b.href || '/'} prefetch={false} className="flex h-9 shrink-0 items-center rounded-full bg-[color:var(--surface)] px-3.5 text-[13px] font-medium text-[color:var(--text)]">
-              {b.title}
-            </Link>
-          ))}
-        </div>
+      {!searching && !loading ? (
+        <>
+          <PromoRail cards={promos} />
+          <DishRail title="Хиты" items={hits} onOpen={openKey} onAdd={addKey} />
+          <DishRail title="Новинки" items={fresh} onOpen={openKey} onAdd={addKey} />
+        </>
       ) : null}
 
-      {cats.length > 1 ? (
-        <div className="sticky top-0 z-10 -mx-4 mb-2 flex gap-2 overflow-x-auto bg-[color:var(--bg)] px-4 py-2 [scrollbar-width:none]">
-          <Chip active={cat === 'all'} onClick={() => setCat('all')}>всё</Chip>
+      {cats.length > 1 && !searching ? (
+        <div ref={tabsRef} className="sticky top-0 z-10 -mx-4 mb-3 flex gap-2 overflow-x-auto bg-[color:var(--bg)] px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {cats.map((c) => (
-            <Chip key={c.key} active={cat === c.key} onClick={() => (cat === c.key ? setCat('all') : scrollToCat(c.key))}>
-              {c.name}
-            </Chip>
+            <span key={c.key} data-tab={c.key} className="shrink-0">
+              <Chip active={cat === c.key} onClick={() => scrollToCat(c.key)}>{c.name}</Chip>
+            </span>
           ))}
         </div>
       ) : null}
@@ -324,11 +395,11 @@ export function GuestMenu() {
       ) : !items.length ? (
         <Empty title="меню пока пустое" hint="владелец ещё добавляет блюда" />
       ) : !visible.length ? (
-        <Empty title="ничего не нашли" action={<Btn variant="secondary" onClick={() => { setQ(''); setCat('all') }}>показать всё</Btn>} />
+        <Empty title="ничего не нашли" action={<Btn variant="secondary" onClick={() => setQ('')}>показать всё</Btn>} />
       ) : (
         grouped.map(({ cat: c, items: list }) => (
-          <section key={c.key} ref={(el) => { if (el) sectionRefs.current.set(c.key, el) }} className="mb-4 scroll-mt-16">
-            {grouped.length > 1 ? <h2 className="mb-2 text-[16px] font-bold text-[color:var(--text)]">{c.name}</h2> : null}
+          <section key={c.key} data-cat={c.key} ref={(el) => { if (el) sectionRefs.current.set(c.key, el); else sectionRefs.current.delete(c.key) }} className="mb-5 scroll-mt-16">
+            {grouped.length > 1 ? <h2 className="mb-2 text-[19px] font-bold tracking-tight text-[color:var(--text)]">{c.name}</h2> : null}
             <div className="grid grid-cols-2 gap-2.5">
               {list.map((it) => {
                 const n = qtyOfItem(it)
@@ -378,6 +449,10 @@ export function GuestMenu() {
 
 function itemTagBadges(tags: string[], long = false) {
   const out: JSX.Element[] = []
+  if (!long) {
+    if (tags.includes('hit') || tags.includes('popular')) out.push(<Badge key="hit" tone="danger">хит</Badge>)
+    else if (tags.includes('new')) out.push(<Badge key="new" tone="solid">новинка</Badge>)
+  }
   if (tags.includes('vegan')) out.push(<Badge key="vegan" tone="ok">веган</Badge>)
   else if (tags.includes('vegetarian')) out.push(<Badge key="veg" tone="ok">{long ? 'вегетарианское' : 'вег'}</Badge>)
   if (tags.includes('spicy')) out.push(<Badge key="spicy" tone="warn">остро</Badge>)
