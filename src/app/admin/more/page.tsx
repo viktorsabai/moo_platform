@@ -15,7 +15,7 @@ export default function AdminMorePage() {
         </RowGroup>
         <RowGroup>
           <Row first href="/admin/restaurant" label="ресторан" hint="часы, пауза, зоны доставки, оплата, бот, команда" />
-          <Row href="/admin/store/full" label="полный редактор меню" hint="категории, опции, импорт, товары" />
+          <Row href="/admin/store/full" label="товары и импорт меню" hint="товары магазина, загрузка меню из таблицы" />
         </RowGroup>
         <Link href="/profile" prefetch={false} className="py-3 text-center text-[14px] font-semibold text-[color:var(--muted)]">в профиль гостя</Link>
       </div>
