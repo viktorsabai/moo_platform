@@ -99,7 +99,7 @@ export function AdminLeadsClient() {
   }), [leads])
 
   return (
-    <Screen title="заявки" subtitle="кейтеринг, банкеты, корпоративы и особые запросы" back="/admin" className="!pb-20">
+    <Screen title="заявки" subtitle="кейтеринг, банкеты, корпоративы и особые запросы" back="/admin/more" className="!pb-20">
       {loading ? (
         <Card className="text-[13px] text-[color:var(--muted)]">загрузка...</Card>
       ) : error ? (

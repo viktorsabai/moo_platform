@@ -6,7 +6,7 @@ export default function AdminNotificationsPage() {
     <Screen
       title="уведомления"
       subtitle="каталог Telegram-событий: кто получает, когда срабатывает и что нужно настроить"
-      back="/admin"
+      back="/admin/more"
       className="!pb-20 min-w-0 max-w-full overflow-x-hidden"
     >
       <AdminNotificationsCatalog />
