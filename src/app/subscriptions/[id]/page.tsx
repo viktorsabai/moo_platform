@@ -8,26 +8,30 @@ import { formatPrice, getNearestEventLabel } from '@/lib/utils'
 import { SUBSCRIPTION_STATUSES } from '@/lib/constants'
 import { canEditSubscription, getDeliveryCutoff } from '@/lib/subscription-rules'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
-import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { Screen, Card, Btn, Badge, Empty } from '@/components/kit'
 
-const WEEKDAYS_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
-
-function ItemLine({ it }: { it: any }) {
+function itemLabel(it: any) {
   const qty = Math.max(1, Number(it?.quantity ?? 1))
-  const name = it?.dish?.name ?? 'блюдо'
-  const src = typeof it?.dish?.image === 'string' ? it.dish.image.trim() : ''
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-black/[0.04]">
-        {src ? <OptimizedImage src={src} alt="" className="object-cover" sizes={IMAGE_SIZES.checkoutThumb} /> : null}
-      </span>
-      <span className="min-w-0 truncate">
-        {qty > 1 ? `${qty}× ` : ''}
-        {name}
-      </span>
-    </span>
-  )
+  return `${it?.dish?.name ?? 'блюдо'}${qty > 1 ? ` ×${qty}` : ''}`
+}
+
+const MON_FIRST = [1, 2, 3, 4, 5, 6, 0]
+const DAY_LOWER = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
+
+function plural(n: number, one: string, few: string, many: string) {
+  const a = n % 10
+  const b = n % 100
+  if (a === 1 && b !== 11) return one
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return few
+  return many
+}
+
+function periodShort(days?: number) {
+  if (!days) return ''
+  if (days === 7) return 'неделя'
+  if (days === 14) return '2 недели'
+  if (days === 28) return '4 недели'
+  return `${days} дн.`
 }
 
 /** Группировка items по dayOfWeek. dayOfWeek null = для всех дней (показываем как "одна доставка"). */
@@ -56,7 +60,10 @@ export default function SubscriptionDetailsPage() {
   const [loaded, setLoaded] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [fetchedById, setFetchedById] = useState(false)
-  const subscription = useMemo(() => (id ? getSubscription(id) : undefined), [id, getSubscription])
+  // subscriptions в зависимостях: иначе при прямом заходе (из уведомления бота) рацион, пришедший
+  // в стор после загрузки, не подхватывался и страница показывала «не найдена»
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const subscription = useMemo(() => (id ? getSubscription(id) : undefined), [id, getSubscription, subscriptions])
 
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
 
@@ -166,7 +173,6 @@ export default function SubscriptionDetailsPage() {
   const timeLabel = subscription.deliveryTime ? String(subscription.deliveryTime) : null
   const items = Array.isArray(subscription.items) ? subscription.items : []
   const itemsByDay = groupItemsByDay(items)
-  const itemsCount = items.reduce((sum, it) => sum + Math.max(0, Number(it?.quantity ?? 0)), 0)
   const canChange = canEditSubscription(
     { status: subscription.status, nextDelivery: subscription.nextDelivery },
     new Date()
@@ -186,277 +192,154 @@ export default function SubscriptionDetailsPage() {
   const totalDeliveries = received.length + inProgress.length
   const progressPercent = totalDeliveries > 0 ? (received.length / totalDeliveries) * 100 : 0
 
-  const deliveryCards = [
-    ...inProgress.sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()),
-    ...received.sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime()),
-  ]
-
-  const todayDay = new Date().getDay()
+  const upcoming = [...inProgress].sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
   const nextDay = nextDate?.getDay() ?? -1
+  const periodDays = Number((subscription as any)?.periodDays ?? 0)
+  const personCount = Number((subscription as any)?.personCount ?? 1)
+  const statusTone = subscription.status === 'ACTIVE' ? 'ok' : subscription.status === 'PENDING' ? 'warn' : 'muted'
 
   return (
-    <Screen
-      title={subscription.name}
-      back="/subscriptions"
-      right={
-        <div className="flex flex-col items-end gap-0.5">
-          <Badge tone="muted">{statusLabel}</Badge>
-          <span className="text-[13px] font-bold tabular-nums text-[color:var(--text)]">{formatPrice(subscription.price)}</span>
-        </div>
-      }
-    >
-      {subscription.status === 'PENDING' ? (
-        <div className="mt-3 rounded-2xl border border-[color:var(--stroke-strong)] bg-[color:var(--warn-bg)] px-4 py-3">
-          <p className="text-[14px] font-bold text-[color:var(--warn)]">Ожидает подтверждения заведения</p>
-          <p className="mt-1 text-[12px] text-[color:var(--warn)]">
-            Можно изменить рацион, пока владелец не подтвердил заявку.
-          </p>
-          {canChange ? (
-            <Link
-              href={`/subscriptions/new?resume=${id}`}
-              className="mt-2 inline-flex text-[13px] font-semibold text-[color:var(--primary)] underline"
-            >
-              изменить заявку
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
+    <Screen title={subscription.name} back="/subscriptions">
+      <div className="flex flex-col gap-2.5">
+        <Card>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-semibold text-[color:var(--muted)]">
+                {subscription.status === 'ACTIVE' || subscription.status === 'PAUSED' ? nearestEvent : 'рацион'}
+              </div>
+              <div className="mt-0.5 text-[26px] font-bold tracking-tight text-[color:var(--text)]">{formatPrice(subscription.price)}</div>
+            </div>
+            <Badge tone={statusTone}>{String(statusLabel).toLowerCase()}</Badge>
+          </div>
+          <div className="mt-0.5 text-[12.5px] text-[color:var(--muted)]">
+            {[periodShort(periodDays), `${days.length} ${plural(days.length, 'день', 'дня', 'дней')} в неделю`, timeLabel, personCount > 1 ? `${personCount} персоны` : '']
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+        </Card>
 
-      {/* Визуальный timeline: дни недели, доставки, следующий, выходные */}
-      <Card className="mt-4">
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">расписание</p>
-        <div className="flex justify-between gap-1">
-          {[0, 1, 2, 3, 4, 5, 6].map((d) => {
-            const isDeliveryDay = days.includes(d)
-            const isNext = nextDay === d
-            const isToday = todayDay === d
+        {subscription.status === 'PENDING' ? (
+          <div className="rounded-[20px] bg-[color:var(--warn-bg)] px-3.5 py-3">
+            <div className="text-[14px] font-semibold text-[color:var(--warn)]">ждёт подтверждения ресторана</div>
+            <div className="mt-0.5 text-[12.5px] text-[color:var(--warn)] opacity-90">ответ придёт в Telegram. пока заявку не подтвердили, её можно изменить.</div>
+            {canChange ? (
+              <Link href={`/subscriptions/new?resume=${id}`} prefetch={false} className="mt-2 inline-block">
+                <Btn variant="secondary">изменить заявку</Btn>
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* неделя строками, как в конструкторе */}
+        <Card className="!px-3.5 !py-1.5">
+          {MON_FIRST.map((d, i) => {
+            const on = days.includes(d)
+            const dayItems = on ? (itemsByDay ? itemsByDay.get(d) ?? [] : items) : []
+            const isNext = on && nextDay === d && (subscription.status === 'ACTIVE' || subscription.status === 'PAUSED')
             return (
-              <div
-                key={d}
-                className="flex flex-1 flex-col items-center gap-1 rounded-lg py-2"
-                style={{
-                  background: isNext
-                    ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
-                    : isDeliveryDay
-                      ? 'color-mix(in srgb, var(--text) 4%, transparent)'
-                      : 'transparent',
-                  borderRadius: 'var(--radius-small)',
-                }}
-              >
-                <span
-                  className="text-[11px] font-semibold"
-                  style={{
-                    color: isNext ? 'var(--accent)' : isDeliveryDay ? 'var(--text)' : 'var(--muted)',
-                  }}
-                >
-                  {WEEKDAYS_SHORT[d]}
+              <div key={d} className={i > 0 ? 'flex min-h-[52px] items-center gap-2.5 border-t border-[color:var(--stroke)] py-1.5' : 'flex min-h-[52px] items-center gap-2.5 py-1.5'}>
+                <span className={on ? 'w-8 shrink-0 text-[13px] font-semibold text-[color:var(--text)]' : 'w-8 shrink-0 text-[13px] font-semibold text-[color:var(--muted)]'}>
+                  {DAY_LOWER[d]}
                 </span>
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{
-                    background: isDeliveryDay
-                      ? isNext
-                        ? 'var(--accent)'
-                        : 'var(--text)'
-                      : 'transparent',
-                  }}
-                />
-                {!isDeliveryDay && (
-                  <span className="text-[9px]" style={{ color: 'var(--muted)' }}>
-                    —
-                  </span>
-                )}
+                <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                  {!on ? (
+                    <span className="text-[13px] text-[color:var(--muted)]">без доставки</span>
+                  ) : dayItems.length ? (
+                    dayItems.map((it: any, k: number) => (
+                      <span key={it?.id ?? `${it?.dishId}-${k}`} className="max-w-full truncate rounded-full bg-[color:var(--bg)] px-3 py-1.5 text-[13px] text-[color:var(--text)]">
+                        {itemLabel(it)}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[13px] text-[color:var(--muted)]">доставка</span>
+                  )}
+                </span>
+                {isNext ? <Badge tone="ok">ближайшая</Badge> : null}
               </div>
             )
           })}
-        </div>
-        <p className="mt-2 text-[12px] text-[color:var(--muted)]">
-          {nearestEvent}
-          {timeLabel ? ` · ${timeLabel}` : ''}
-        </p>
-      </Card>
+        </Card>
 
-      {/* Прогресс: нативный прогресс-бар */}
-      {totalDeliveries > 0 && (
-        <section className="mt-4" aria-label="прогресс">
+        {totalDeliveries > 0 ? (
           <Card>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] font-bold text-[color:var(--text)]">прогресс</p>
-              <span className="tabular-nums" style={{ color: 'var(--text)' }}>
-                <span className="font-bold" style={{ color: 'var(--accent)' }}>{received.length}</span>
-                <span className="text-[12px] text-[color:var(--muted)]">/{totalDeliveries}</span>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[14px] font-semibold text-[color:var(--text)]">получено</span>
+              <span className="text-[14px] font-semibold tabular-nums text-[color:var(--text)]">
+                {received.length} <span className="font-normal text-[color:var(--muted)]">из {totalDeliveries}</span>
               </span>
             </div>
-            <div
-              className="mt-2 h-2 w-full overflow-hidden rounded-full"
-              style={{
-                background: 'color-mix(in srgb, var(--stroke) 60%, transparent)',
-                borderRadius: 'var(--radius-pill)',
-              }}
-            >
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${progressPercent}%`,
-                  background: 'linear-gradient(90deg, var(--accent), var(--accent-strong))',
-                  borderRadius: 'var(--radius-pill)',
-                }}
-              />
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--surface)]">
+              <div className="h-full rounded-full bg-[color:var(--ok)] transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
             </div>
-          </Card>
-        </section>
-      )}
-
-      {/* Карусель: дата + состав (по дням если есть рационность) */}
-      <section className="mt-4" aria-label="доставки и состав">
-        <p className="mb-2 text-[13px] font-bold text-[color:var(--text)]">
-          {itemsByDay
-            ? `рацион по дням · ${itemsCount} порц.`
-            : items.length > 0
-              ? `состав доставки · ${itemsCount} порц.`
-              : 'доставки'}
-        </p>
-        {deliveryCards.length > 0 ? (
-          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
-            {deliveryCards.map((d: any) => {
-              const date = new Date(d.scheduledDate)
-              const dayNum = date.getDay()
-              const isDelivered = d.status === 'DELIVERED'
-              const dayItems = itemsByDay ? (itemsByDay.get(dayNum) ?? items) : items
-              return (
-                <div
-                  key={d.id}
-                  className="flex min-w-[160px] max-w-[180px] shrink-0 flex-col overflow-hidden rounded-2xl border p-3"
-                  style={{
-                    borderRadius: 'var(--radius-large)',
-                    borderColor: isDelivered ? 'color-mix(in srgb, var(--accent) 35%, transparent)' : 'var(--stroke)',
-                    background: isDelivered ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)',
-                  }}
-                >
-                  <p
-                    className="text-[11px] font-bold uppercase tracking-wide"
-                    style={{ color: 'var(--muted)' }}
-                  >
-                    {date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                  </p>
-                  <p className="mt-0.5 text-[14px] font-semibold">{WEEKDAYS_SHORT[dayNum]}</p>
-                  <p
-                    className="mt-1 text-[11px] font-semibold"
-                    style={{ color: isDelivered ? 'var(--accent)' : 'var(--muted)' }}
-                  >
-                    {isDelivered ? 'получено' : 'ожидается'}
-                  </p>
-                  {dayItems.length > 0 && (
-                    <ul className="mt-2 space-y-0.5 border-t pt-2" style={{ borderColor: 'var(--stroke)' }}>
-                      {dayItems.slice(0, 3).map((it) => (
-                          <li
-                            key={(it as any)?.id ?? (it as any)?.dishId ?? Math.random()}
-                            className="text-[12px]"
-                            style={{ color: 'var(--text)' }}
-                          >
-                            <ItemLine it={it} />
-                          </li>
-                        ))}
-                      {dayItems.length > 3 && (
-                        <li className="text-[11px]" style={{ color: 'var(--muted)' }}>
-                          +{dayItems.length - 3}
-                        </li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        ) : items.length > 0 ? (
-          <Card>
-            {itemsByDay ? (
-              <div className="space-y-4">
-                {Array.from(itemsByDay.entries())
-                  .sort(([a], [b]) => a - b)
-                  .map(([dayNum, dayItems]) => (
-                    <div key={dayNum}>
-                      <p className="text-[11px] font-semibold uppercase" style={{ color: 'var(--muted)' }}>
-                        {WEEKDAYS_SHORT[dayNum]}
-                      </p>
-                      <ul className="mt-1 space-y-1.5">
-                        {dayItems.map((it) => (
-                            <li key={(it as any)?.id ?? (it as any)?.dishId} className="text-[14px]">
-                              <ItemLine it={it} />
-                            </li>
-                          ))}
-                      </ul>
+            {upcoming.length ? (
+              <div className="mt-3 border-t border-[color:var(--stroke)] pt-1">
+                {upcoming.slice(0, 5).map((dl: any, i: number) => {
+                  const date = new Date(dl.scheduledDate)
+                  return (
+                    <div key={dl.id} className={i > 0 ? 'flex min-h-[40px] items-center justify-between border-t border-[color:var(--stroke)]' : 'flex min-h-[40px] items-center justify-between'}>
+                      <span className="text-[13.5px] text-[color:var(--text)]">
+                        {date.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}
+                      </span>
+                      <span className="text-[12.5px] text-[color:var(--muted)]">{dl.status === 'CONFIRMED' ? 'готовим' : 'запланирована'}</span>
                     </div>
-                  ))}
+                  )
+                })}
+                {upcoming.length > 5 ? <div className="pt-1 text-[12.5px] text-[color:var(--muted)]">и ещё {upcoming.length - 5}</div> : null}
               </div>
-            ) : (
-              <ul className="space-y-1.5">
-                {items.map((it) => (
-                    <li key={(it as any)?.id ?? (it as any)?.dishId} className="text-[14px]">
-                      <ItemLine it={it} />
-                    </li>
-                  ))}
-              </ul>
-            )}
+            ) : null}
           </Card>
         ) : null}
-      </section>
 
-      {canChange && (
-        <p className="mt-4 text-[12px] text-[color:var(--muted)]">
-          {cutoffHint
-            ? `${cutoffHint}. Изменения применяются к будущим доставкам.`
-            : 'Изменения применяются только к будущим доставкам.'}
-        </p>
-      )}
+        {canChange ? (
+          <p className="px-1 text-[12.5px] text-[color:var(--muted)]">
+            {cutoffHint ? `${cutoffHint}. изменения применяются к будущим доставкам.` : 'изменения применяются только к будущим доставкам.'}
+          </p>
+        ) : null}
 
-      <div className="mt-6 flex flex-col gap-3">
-        {canChange && (
-          <Link href={`/subscriptions/new?composition=${subscription.id}`} prefetch={false} scroll={false}>
-            <Btn variant="secondary" full>
-              изменить состав
-            </Btn>
-          </Link>
-        )}
-
-        {subscription.status === 'ACTIVE' && (
-          <Btn
-            variant="secondary"
-            full
-            disabled={cancelLoading}
-            onClick={async () => {
-              if (!confirm('Отменить подписку? Изменения вступают в силу после текущего периода.')) return
-              setCancelLoading(true)
-              try {
-                const res = await fetch(`/api/subscriptions/${subscription.id}`, {
-                  method: 'PATCH',
-                  credentials: 'include',
-                  headers: { 'content-type': 'application/json', ...telegramInitHeaderRecord() },
-                  body: JSON.stringify({ status: 'CANCELLED' }),
-                })
-                const data = await res.json().catch(() => null)
-                if (res.ok && data?.ok) {
-                  updateSubscription(subscription.id, { status: 'CANCELLED' })
-                  router.push('/subscriptions')
-                } else {
-                  alert(data?.error || 'Не удалось отменить')
+        <div className="mt-1 flex flex-col gap-2">
+          {canChange && subscription.status !== 'PENDING' ? (
+            <Link href={`/subscriptions/new?composition=${subscription.id}`} prefetch={false} scroll={false}>
+              <Btn full>изменить блюда</Btn>
+            </Link>
+          ) : null}
+          {subscription.status === 'ACTIVE' || subscription.status === 'EXPIRED' ? (
+            <Link href="/subscriptions/new" prefetch={false} scroll={false}>
+              <Btn variant="secondary" full>{subscription.status === 'EXPIRED' ? 'собрать заново' : 'собрать ещё один'}</Btn>
+            </Link>
+          ) : null}
+          {subscription.status === 'ACTIVE' ? (
+            <button
+              type="button"
+              disabled={cancelLoading}
+              className="h-11 text-[13.5px] font-semibold text-[color:var(--danger)] disabled:opacity-50"
+              onClick={async () => {
+                if (!confirm('Отменить подписку? Изменения вступают в силу после текущего периода.')) return
+                setCancelLoading(true)
+                try {
+                  const res = await fetch(`/api/subscriptions/${subscription.id}`, {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'content-type': 'application/json', ...telegramInitHeaderRecord() },
+                    body: JSON.stringify({ status: 'CANCELLED' }),
+                  })
+                  const data = await res.json().catch(() => null)
+                  if (res.ok && data?.ok) {
+                    updateSubscription(subscription.id, { status: 'CANCELLED' })
+                    router.push('/subscriptions')
+                  } else {
+                    alert(data?.error || 'Не удалось отменить')
+                  }
+                } catch {
+                  alert('Ошибка сети')
+                } finally {
+                  setCancelLoading(false)
                 }
-              } catch {
-                alert('Ошибка сети')
-              } finally {
-                setCancelLoading(false)
-              }
-            }}
-          >
-            {cancelLoading ? 'отмена…' : 'отменить подписку'}
-          </Btn>
-        )}
-
-        {(subscription.status === 'ACTIVE' || subscription.status === 'EXPIRED') && (
-          <Link href="/subscriptions/new" prefetch={false} scroll={false}>
-            <Btn full>продлить / оформить заново</Btn>
-          </Link>
-        )}
+              }}
+            >
+              {cancelLoading ? 'отменяем…' : 'отменить подписку'}
+            </button>
+          ) : null}
+        </div>
       </div>
     </Screen>
   )

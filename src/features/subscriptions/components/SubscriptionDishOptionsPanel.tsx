@@ -82,7 +82,7 @@ export function SubscriptionDishOptionsPanel({
       <p
         className={cn(
           'py-4 text-center leading-snug',
-          isSheet ? 'text-[15px] font-medium text-neutral-700' : 'text-[14px] text-[color:var(--muted)]'
+          isSheet ? 'text-[15px] font-medium text-[color:var(--muted)]' : 'text-[14px] text-[color:var(--muted)]'
         )}
       >
         {emptyHint ?? 'Нет доступных опций для этого блюда.'}
@@ -95,7 +95,7 @@ export function SubscriptionDishOptionsPanel({
       <div className="space-y-5 pb-2">
         {groupsFiltered.map((g) => (
           <div key={g.id}>
-            <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-neutral-800">{g.name}</p>
+            <p className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">{g.name}</p>
             <div className="flex flex-col gap-2">
               {(g.values || []).map((v) => {
                 const checked = selected.has(v.id)
@@ -107,17 +107,17 @@ export function SubscriptionDishOptionsPanel({
                     className={cn(
                       'flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition active:scale-[0.99]',
                       checked
-                        ? 'border-neutral-900 bg-neutral-900 text-white'
-                        : 'border-neutral-200 bg-white text-neutral-900'
+                        ? 'border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--on-primary)]'
+                        : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[color:var(--text)]'
                     )}
                   >
                     <span className="text-[16px] font-bold leading-tight">{v.name}</span>
                     {v.priceAdjust > 0 ? (
-                      <span className={cn('shrink-0 text-[14px] font-bold tabular-nums', checked ? 'text-white/90' : 'text-neutral-600')}>
+                      <span className={cn('shrink-0 text-[14px] font-bold tabular-nums', checked ? 'opacity-90' : 'text-[color:var(--muted)]')}>
                         +{formatPrice(v.priceAdjust)}
                       </span>
                     ) : (
-                      <span className={cn('shrink-0 text-[12px] font-semibold', checked ? 'text-white/80' : 'text-neutral-500')}>
+                      <span className={cn('shrink-0 text-[12px] font-semibold', checked ? 'opacity-80' : 'text-[color:var(--muted)]')}>
                         {checked ? 'выбрано' : 'выбрать'}
                       </span>
                     )}
@@ -130,7 +130,7 @@ export function SubscriptionDishOptionsPanel({
 
         {optionModifiersFiltered.length > 0 && (
           <div>
-            <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-neutral-800">вариант</p>
+            <p className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">вариант</p>
             <div className="flex flex-col gap-2">
               {optionModifiersFiltered.map((mod) => {
                 const checked = selectedOptionId === mod.id
@@ -141,7 +141,7 @@ export function SubscriptionDishOptionsPanel({
                     onClick={() => setSelectedOption(checked ? null : mod.id)}
                     className={cn(
                       'flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3.5 text-[16px] font-bold',
-                      checked ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-900'
+                      checked ? 'border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--on-primary)]' : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[color:var(--text)]'
                     )}
                   >
                     <span>{mod.name}</span>
@@ -155,7 +155,7 @@ export function SubscriptionDishOptionsPanel({
 
         {extraModifiersFiltered.length > 0 && (
           <div>
-            <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-neutral-800">добавить</p>
+            <p className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">добавить</p>
             <div className="flex flex-col gap-2">
               {extraModifiersFiltered.map((mod) => {
                 const checked = selected.has(mod.id)
@@ -166,7 +166,7 @@ export function SubscriptionDishOptionsPanel({
                     onClick={() => toggleExtra(mod.id)}
                     className={cn(
                       'flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3.5 text-[16px] font-bold',
-                      checked ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-900'
+                      checked ? 'border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--on-primary)]' : 'border-[color:var(--stroke)] bg-[color:var(--surface-strong)] text-[color:var(--text)]'
                     )}
                   >
                     <span>{mod.name}</span>

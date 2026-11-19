@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import type { SubscriptionPlan, SubscriptionStatus } from '@/types'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Btn, Empty, Screen } from '@/components/kit'
 import { telegramInitHeaderRecord } from '@/lib/tg-webapp-client'
 import {
   defaultSubscriptionConfig,
@@ -47,8 +47,13 @@ export function SubscriptionCheckoutFlow() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const resumeId = searchParams.get('resume') || ''
+  /** изменение блюд у уже оформленного рациона (?composition=<id>): те же экраны, сохранение PATCH */
+  const editId = searchParams.get('composition') || searchParams.get('edit') || ''
   const { restaurantId } = useVenue()
   const addSubscription = useSubscriptionStore((s) => s.addSubscription)
+  const updateSubscription = useSubscriptionStore((s) => s.updateSubscription)
+  const [editLoaded, setEditLoaded] = useState(!editId)
+  const [editError, setEditError] = useState<string | null>(null)
   const draftHydratedRef = useRef(false)
 
   const [phase, setPhase] = useState<Phase>(resumeId ? 'checkout' : 'build')
@@ -209,17 +214,48 @@ export function SubscriptionCheckoutFlow() {
   }
 
   useEffect(() => {
-    if (!resumeId || loading) return
+    const loadId = resumeId || editId
+    if (!loadId || loading) return
     let cancelled = false
-    fetch(`/api/subscriptions/${resumeId}`, {
+    fetch(`/api/subscriptions/${loadId}`, {
       cache: 'no-store',
       credentials: 'include',
       headers: { ...telegramInitHeaderRecord() },
     })
       .then((r) => r.json())
       .then((data) => {
-        if (cancelled || !data?.ok || !data.subscription) return
+        if (cancelled) return
+        if (!data?.ok || !data.subscription) {
+          if (editId) setEditError(data?.error || 'рацион не найден')
+          return
+        }
         const s = data.subscription
+        if (editId) {
+          // старые рационы хранят блюда без дня недели — раскладываем их на все дни доставки
+          const days: number[] = Array.isArray(s.deliveryDays) ? s.deliveryDays.map((d: number) => Number(d)).filter((d: number) => d >= 0 && d <= 6) : []
+          const wiz = Array.from(new Set(days.map((d) => jsDayToWizard(d)))).sort((a, b) => a - b)
+          setSelectedDays(wiz)
+          setActiveWizardDay(wiz[0] ?? 0)
+          const raw: any[] = Array.isArray(s.items) ? s.items : []
+          setLines(
+            raw.flatMap((it: any) => {
+              const base = {
+                dishId: String(it.dishId ?? it.dish?.id ?? ''),
+                quantity: Math.max(1, Number(it.quantity ?? 1)),
+                mealSlot: parseMealSlot(it.mealSlot) ?? enabledSlots[0] ?? 'lunch',
+                modifierIds: Array.isArray(it.modifierIds) ? it.modifierIds : [],
+              }
+              if (!base.dishId) return []
+              const dw = it.dayOfWeek
+              if (dw != null && Number(dw) >= 0 && Number(dw) <= 6) return [{ ...base, dayOfWeek: Number(dw) }]
+              return days.map((d) => ({ ...base, dayOfWeek: d }))
+            })
+          )
+          if (s.periodDays) setPeriodDays(Number(s.periodDays))
+          if (s.personCount) setPersonCount(Number(s.personCount))
+          setName(String(s.name || ''))
+          return
+        }
         if (s.status !== 'PENDING' && s.status !== 'DRAFT') return
         setPhase('checkout')
         setName(String(s.name || ''))
@@ -250,14 +286,21 @@ export function SubscriptionCheckoutFlow() {
           )
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled && editId) setEditError('ошибка сети — попробуйте ещё раз')
+      })
+      .finally(() => {
+        if (!cancelled) setEditLoaded(true)
+      })
     return () => {
       cancelled = true
     }
-  }, [resumeId, loading])
+    // enabledSlots читаем один раз при загрузке рациона
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeId, editId, loading])
 
   useEffect(() => {
-    if (loading || resumeId || draftHydratedRef.current) return
+    if (loading || resumeId || editId || draftHydratedRef.current) return
     const draft = loadSubscriptionBuilderDraft(restaurantId)
     if (!draft?.lines?.length) return
     draftHydratedRef.current = true
@@ -279,10 +322,10 @@ export function SubscriptionCheckoutFlow() {
     }
     if (draft.name) setName(draft.name)
     if (draft.phase === 'checkout') setPhase('checkout')
-  }, [loading, resumeId, restaurantId])
+  }, [loading, resumeId, editId, restaurantId])
 
   useEffect(() => {
-    if (loading || resumeId) return
+    if (loading || resumeId || editId) return
     const t = setTimeout(() => {
       if (!lines.length && !selectedDays.length) return
       saveSubscriptionBuilderDraft(restaurantId, {
@@ -311,6 +354,7 @@ export function SubscriptionCheckoutFlow() {
   }, [
     loading,
     resumeId,
+    editId,
     restaurantId,
     phase,
     lines,
@@ -395,12 +439,6 @@ export function SubscriptionCheckoutFlow() {
     return list
   }, [catalogDishes, subConfig, activeSlot])
 
-  const recommendedDishIds = useMemo(() => {
-    const sc = subConfig.mealSlots[activeSlot]
-    const defs = sc?.defaultDishIds?.length ? sc.defaultDishIds : (sc?.dishIds ?? []).slice(0, 4)
-    return defs.filter((id) => dishesForSlot.some((d) => d.id === id))
-  }, [subConfig, activeSlot, dishesForSlot])
-
   const activeQuote = quotesByPeriod[periodDays] ?? null
 
   function toggleDay(day: number) {
@@ -448,10 +486,10 @@ export function SubscriptionCheckoutFlow() {
   }, [slotsForActiveDay, activeSlot])
 
   useEffect(() => {
-    if (phase !== 'build' || loading || draftHydratedRef.current || lines.length > 0 || selectedDays.length < minDays)
+    if (editId || phase !== 'build' || loading || draftHydratedRef.current || lines.length > 0 || selectedDays.length < minDays)
       return
     applyPrefillForDays(selectedDays, subConfig, dishes)
-  }, [phase, loading, lines.length, selectedDays, minDays, subConfig, dishes])
+  }, [editId, phase, loading, lines.length, selectedDays, minDays, subConfig, dishes])
 
   function removeLine(line: SelectedLine) {
     const k = lineKey(line)
@@ -502,15 +540,15 @@ export function SubscriptionCheckoutFlow() {
     toggleDay(wizardDay)
   }
 
-  function copyActiveDayToAllWeek() {
-    const fromJs = wizardDayToJs(activeWizardDay)
+  function copyDayToAllWeek(fromDay: number = activeWizardDay) {
+    const fromJs = wizardDayToJs(fromDay)
     const template = lines.filter((l) => l.dayOfWeek === fromJs)
     if (!template.length) {
-      toast.error(`сначала добавьте блюда на ${WEEKDAYS[activeWizardDay]}`)
+      toast.error(`сначала добавьте блюда на ${WEEKDAYS[fromDay]}`)
       return
     }
     const jsSet = new Set(selectedDays.map(wizardDayToJs))
-    const templateSlots = slotsByWizardDay[activeWizardDay] ?? [...enabledSlots]
+    const templateSlots = slotsByWizardDay[fromDay] ?? [...enabledSlots]
     setLines((prev) => {
       const other = prev.filter((l) => !jsSet.has(l.dayOfWeek))
       const expanded = selectedDays.flatMap((d) =>
@@ -528,39 +566,6 @@ export function SubscriptionCheckoutFlow() {
       return next
     })
     toast.success('меню и приёмы скопированы на все дни')
-  }
-
-  function clearActiveDay() {
-    const js = wizardDayToJs(activeWizardDay)
-    setLines((prev) => prev.filter((l) => l.dayOfWeek !== js))
-  }
-
-  function copyFromPreviousDay() {
-    const idx = selectedDays.indexOf(activeWizardDay)
-    if (idx <= 0) {
-      toast.error('нет предыдущего дня доставки')
-      return
-    }
-    const prevW = selectedDays[idx - 1]!
-    const fromJs = wizardDayToJs(prevW)
-    const toJs = wizardDayToJs(activeWizardDay)
-    const template = lines.filter((l) => l.dayOfWeek === fromJs)
-    if (!template.length) {
-      toast.error(`сначала заполните ${WEEKDAYS[prevW]}`)
-      return
-    }
-    const templateSlots = slotsByWizardDay[prevW] ?? [...enabledSlots]
-    setLines((prev) => {
-      const other = prev.filter((l) => l.dayOfWeek !== toJs)
-      const copied = template.map((l) => ({
-        ...l,
-        dayOfWeek: toJs,
-        modifierIds: [...(l.modifierIds ?? [])],
-      }))
-      return [...other, ...copied]
-    })
-    setSlotsByWizardDay((prev) => ({ ...prev, [activeWizardDay]: [...templateSlots] }))
-    toast.success(`скопировано с ${WEEKDAYS[prevW]}`)
   }
 
   function daySlotsComplete(wizardDay: number) {
@@ -610,6 +615,41 @@ export function SubscriptionCheckoutFlow() {
         modifierIds: l.modifierIds,
       }
     })
+  }
+
+  /** сохранить новые блюда и дни у оформленного рациона; цена текущего периода не меняется (так решает сервер) */
+  async function saveEdit() {
+    for (const d of selectedDays) {
+      if (!daySlotsComplete(d)) {
+        setActiveWizardDay(d)
+        toast.error(`на ${WEEKDAYS[d]} не хватает блюд`)
+        return
+      }
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/subscriptions/${editId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json', ...telegramInitHeaderRecord() },
+        body: JSON.stringify({ items: itemsPayload(), deliveryDays: selectedDays.map(wizardDayToJs) }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) {
+        toast.error(data?.error || 'не удалось сохранить')
+        return
+      }
+      updateSubscription(editId, {
+        deliveryDays: selectedDays.map(wizardDayToJs),
+        items: lines.map((l) => ({ ...l, dish: dishes.find((d) => d.id === l.dishId) })),
+      } as any)
+      toast.success('блюда обновлены')
+      router.push(`/subscriptions/${editId}`)
+    } catch {
+      toast.error('ошибка сети — попробуйте ещё раз')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function submit() {
@@ -727,12 +767,19 @@ export function SubscriptionCheckoutFlow() {
     }
   }
 
-  if (loading) {
+  if (loading || !editLoaded) {
     return (
-      <main className="ui-container ui-screen">
-        <PageHeader backHref="/subscriptions" title="новая подписка" subtitle="загрузка" />
-        <p className="text-[13px] text-[color:var(--muted)]">загрузка…</p>
-      </main>
+      <Screen title="рацион" back={editId ? `/subscriptions/${editId}` : '/subscriptions'}>
+        <div className="h-[420px] animate-pulse rounded-[20px] bg-[color:var(--surface)]" aria-busy />
+      </Screen>
+    )
+  }
+
+  if (editId && editError) {
+    return (
+      <Screen title="рацион" back="/subscriptions">
+        <Empty title={editError} action={<Btn variant="secondary" onClick={() => router.push('/subscriptions')}>к рационам</Btn>} />
+      </Screen>
     )
   }
 
@@ -746,15 +793,16 @@ export function SubscriptionCheckoutFlow() {
         slotsForActiveDay={slotsForActiveDay}
         slotsByWizardDay={slotsByWizardDay}
         enabledSlots={enabledSlots}
+        dishes={catalogDishes}
         pickerDishes={dishesForSlot}
         lines={lines}
-        recommendedDishIds={recommendedDishIds}
         menuCategories={menuCategories}
         subConfig={subConfig}
         minDays={minDays}
         maxDays={maxDays}
         quotesByPeriod={quotesByPeriod}
         periodDays={periodDays}
+        onPeriodDays={setPeriodDays}
         onDayCell={handleDayCell}
         onRemoveDayDelivery={handleRemoveDayDelivery}
         onToggleMealSlot={toggleMealSlotForDay}
@@ -762,11 +810,10 @@ export function SubscriptionCheckoutFlow() {
         onAddDish={addDish}
         onEditLine={(line) => setEditingLine(line)}
         onRemoveLine={removeLine}
-        onCopyToAllWeek={copyActiveDayToAllWeek}
-        onCopyFromPrevDay={copyFromPreviousDay}
-        onClearDay={clearActiveDay}
-        onContinue={goToCheckout}
-        onOpenPay={goToCheckout}
+        onCopyDayToAll={copyDayToAllWeek}
+        onContinue={editId ? () => void saveEdit() : goToCheckout}
+        editingId={editId || undefined}
+        saving={submitting}
       />
       {editingLine ? (
         (() => {
