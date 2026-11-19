@@ -69,6 +69,7 @@ export function GuestMenu() {
   const [promos, setPromos] = useState<PromoCard[]>([])
   const [freeFrom, setFreeFrom] = useState<number | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [brand, setBrand] = useState<{ cover: string | null; logo: string | null }>({ cover: null, logo: null })
   const setDeliveryHint = useDeliveryHint((s) => s.set)
   const tabsRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState<{ isOpen: boolean; until: string } | null>(null)
@@ -91,7 +92,7 @@ export function GuestMenu() {
   const load = useCallback(async () => {
     if (venueLoading) return
     const get = (url: string) => fetch(url, { cache: 'no-store', credentials: 'include', headers }).then((r) => r.json()).catch(() => null)
-    const [c, d, sc, sp, b, s, o] = await Promise.all([
+    const [c, d, sc, sp, b, s, o, r] = await Promise.all([
       get('/api/categories'),
       get('/api/dishes'),
       settings.storeEnabled ? get('/api/store/categories') : null,
@@ -99,7 +100,9 @@ export function GuestMenu() {
       get('/api/banners?placement=home'),
       get('/api/settings'),
       get('/api/orders'),
+      get('/api/restaurant'),
     ])
+    setBrand({ cover: r?.restaurant?.coverImage ?? null, logo: r?.restaurant?.logoImage ?? null })
 
     const nextCats: Cat[] = []
     for (const x of Array.isArray(c) ? c : c?.categories ?? []) nextCats.push({ key: `d:${x.id}`, name: x.name })
@@ -303,29 +306,47 @@ export function GuestMenu() {
 
   const closed = open && !open.isOpen
 
+  const searchButton = (
+    <button
+      type="button"
+      onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setQ('') }}
+      aria-label={searchOpen ? 'закрыть поиск' : 'поиск по меню'}
+      aria-expanded={searchOpen}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-strong)] text-[color:var(--text)] shadow-[var(--shadow-card)] backdrop-blur-md"
+    >
+      {searchOpen ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
+      )}
+    </button>
+  )
+
   return (
     <main className="mx-auto w-full max-w-md px-4 pb-36 pt-3">
       <header className="mb-4">
+        {brand.cover ? (
+          <div className="relative -mx-4 -mt-3 mb-3 aspect-[16/9] overflow-hidden bg-[color:var(--surface)]">
+            <OptimizedImage src={brand.cover} alt="" sizes="(max-width: 448px) 100vw, 448px" priority quality={82} className="object-cover" />
+            <span aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/10" />
+            <div className="absolute right-4 top-3">{searchButton}</div>
+          </div>
+        ) : null}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-[26px] font-extrabold leading-tight tracking-tight text-[color:var(--text)]">{venueName || '—'}</h1>
-            <div className={cn('mt-0.5 text-[13px] font-semibold', closed ? 'text-[color:var(--danger)]' : 'text-[color:var(--ok)]')}>
-              {open ? (open.isOpen ? `открыто до ${open.until}` : 'сейчас закрыто') : ' '}
+          <div className="flex min-w-0 items-center gap-3">
+            {brand.logo ? (
+              <span className={cn('relative block h-14 w-14 shrink-0 overflow-hidden rounded-full bg-[color:var(--surface-strong)] shadow-[var(--shadow-card)]', brand.cover && '-mt-10 h-[72px] w-[72px] ring-4 ring-[color:var(--bg)]')}>
+                <OptimizedImage src={brand.logo} alt="" sizes="80px" className="object-cover" />
+              </span>
+            ) : null}
+            <div className="min-w-0">
+              <h1 className="truncate text-[26px] font-extrabold leading-tight tracking-tight text-[color:var(--text)]">{venueName || '—'}</h1>
+              <div className={cn('mt-0.5 text-[13px] font-semibold', closed ? 'text-[color:var(--danger)]' : 'text-[color:var(--ok)]')}>
+                {open ? (open.isOpen ? `открыто до ${open.until}` : 'сейчас закрыто') : ' '}
+              </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setQ('') }}
-            aria-label={searchOpen ? 'закрыть поиск' : 'поиск по меню'}
-            aria-expanded={searchOpen}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-strong)] text-[color:var(--text)] shadow-[var(--shadow-card)]"
-          >
-            {searchOpen ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
-            )}
-          </button>
+          {brand.cover ? null : searchButton}
         </div>
         {deliveryFrom !== null && !closed ? (
           <div className="mt-3 flex flex-wrap gap-1.5">

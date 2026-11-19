@@ -20,10 +20,16 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
     }
     const body = await request.json().catch(() => ({} as any))
-    const data: { name?: string; address?: string | null } = {}
+    const data: { name?: string; address?: string | null; coverImage?: string | null; logoImage?: string | null } = {}
     if (typeof body?.name === 'string' && body.name.trim()) data.name = body.name.trim()
     if ('address' in body) data.address = typeof body.address === 'string' ? body.address.trim() || null : null
-    if (Object.keys(data).length === 0) return NextResponse.json({ ok: false, error: 'name or address required' }, { status: 400 })
+    for (const key of ['coverImage', 'logoImage'] as const) {
+      if (!(key in body)) continue
+      const v = typeof body[key] === 'string' ? body[key].trim() : ''
+      if (v && !/^(https:\/\/|\/uploads\/)/.test(v)) return NextResponse.json({ ok: false, error: 'bad image url' }, { status: 400 })
+      data[key] = v || null
+    }
+    if (Object.keys(data).length === 0) return NextResponse.json({ ok: false, error: 'nothing to update' }, { status: 400 })
     const updated = await prisma.restaurant.update({
       where: { id },
       data,
@@ -40,6 +46,11 @@ export async function PATCH(
     return res
   } catch (e: any) {
     const status = Number(e?.statusCode || 500)
+    const msg = String(e?.message ?? '')
+    if (/coverImage|logoImage/.test(msg) && /column|Unknown/i.test(msg)) {
+      console.error('[restaurant] run: npm run db:migrate:prod — branding columns missing')
+      return NextResponse.json({ ok: false, error: 'Обложка пока недоступна: нужна миграция базы' }, { status: 503 })
+    }
     return NextResponse.json({ ok: false, error: status === 403 ? 'forbidden' : 'Ошибка' }, { status })
   }
 }

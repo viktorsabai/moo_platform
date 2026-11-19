@@ -7,11 +7,13 @@ import { useVenue } from '@/lib/venue-context'
 import { AdminDeliveryConfig } from '@/components/admin/AdminDeliveryConfig'
 import { AdminPaymentMethods } from '@/components/admin/AdminPaymentMethods'
 import { Btn, Card, Chip, Row, RowGroup, Screen, Toggle } from '@/components/kit'
+import { OptimizedImage } from '@/components/ui/OptimizedImage'
 
 type Settings = { openTime: string; closeTime: string; isOpenOverride: boolean | null; deliveryFee: number; freeDeliveryFrom: number; storeEnabled: boolean }
 
 const SECTIONS = [
   { id: 'main', label: 'основное' },
+  { id: 'brand', label: 'оформление' },
   { id: 'delivery', label: 'доставка' },
   { id: 'payments', label: 'оплата' },
   { id: 'bot', label: 'бот и команда' },
@@ -22,6 +24,8 @@ export default function AdminRestaurantPage() {
   const [rid, setRid] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
+  const [cover, setCover] = useState<string | null>(null)
+  const [logo, setLogo] = useState<string | null>(null)
   const [s, setS] = useState<Settings | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -35,6 +39,8 @@ export default function AdminRestaurantPage() {
       setRid(r.restaurant.id)
       setName(r.restaurant.name ?? '')
       setAddress(r.restaurant.address ?? '')
+      setCover(r.restaurant.coverImage ?? null)
+      setLogo(r.restaurant.logoImage ?? null)
     }
     if (st?.ok) {
       const raw = st.settings ?? {}
@@ -90,6 +96,21 @@ export default function AdminRestaurantPage() {
     }
   }
 
+  /** фото сохраняется сразу после загрузки — отдельной кнопки не нужно */
+  const saveImage = async (key: 'coverImage' | 'logoImage', url: string | null) => {
+    if (!rid) return false
+    const res = await fetch(`/api/restaurant/${encodeURIComponent(rid)}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ [key]: url }) })
+    const data = await res.json().catch(() => null)
+    if (!res.ok || !data?.ok) {
+      toast.error(data?.error || 'не сохранилось')
+      return false
+    }
+    if (key === 'coverImage') setCover(url)
+    else setLogo(url)
+    toast.success(url ? 'фото обновлено' : 'фото убрано')
+    return true
+  }
+
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   if (!s) return <Screen title="ресторан" back="/admin/more"><div className="h-40 animate-pulse rounded-[20px] bg-[color:var(--surface)]" aria-busy /></Screen>
@@ -129,6 +150,27 @@ export default function AdminRestaurantPage() {
           </Card>
         </section>
 
+        <section id="brand" className="scroll-mt-4">
+          <h2 className="mb-2 px-1 text-[12.5px] font-semibold text-[color:var(--muted)]">оформление главной</h2>
+          <Card>
+            <ImagePicker
+              label="обложка"
+              hint="широкое фото зала или блюд, 16:9 — гость видит его первым"
+              value={cover}
+              shape="wide"
+              onChange={(url) => saveImage('coverImage', url)}
+            />
+            <ImagePicker
+              className="mt-4"
+              label="логотип"
+              hint="квадратный, лучше на однотонном фоне"
+              value={logo}
+              shape="round"
+              onChange={(url) => saveImage('logoImage', url)}
+            />
+          </Card>
+        </section>
+
         <section id="delivery" className="scroll-mt-4">
           <h2 className="mb-2 px-1 text-[12.5px] font-semibold text-[color:var(--muted)]">доставка</h2>
           <Card>
@@ -165,3 +207,50 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 const inp = 'h-11 w-full rounded-[14px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3.5 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--stroke-strong)]'
+
+function ImagePicker({ label, hint, value, shape, onChange, className }: { label: string; hint: string; value: string | null; shape: 'wide' | 'round'; onChange: (url: string | null) => Promise<boolean>; className?: string }) {
+  const [busy, setBusy] = useState(false)
+  const upload = async (file: File | undefined) => {
+    if (!file) return
+    setBusy(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/admin/uploads/menu-image', { method: 'POST', credentials: 'include', body: form })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.url) {
+        toast.error(data?.error || 'не загрузилось')
+        return
+      }
+      await onChange(String(data.url))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className={className}>
+      <div className="mb-1 text-[12.5px] font-semibold text-[color:var(--muted)]">{label}</div>
+      <div className={shape === 'wide' ? 'flex flex-col gap-2' : 'flex items-center gap-3'}>
+        <div
+          className={
+            shape === 'wide'
+              ? 'relative aspect-[16/9] w-full overflow-hidden rounded-[16px] bg-[color:var(--surface)]'
+              : 'relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-[color:var(--surface)]'
+          }
+        >
+          {value ? <OptimizedImage src={value} alt="" sizes={shape === 'wide' ? '420px' : '64px'} className="object-cover" /> : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[12.5px] text-[color:var(--muted)]">{hint}</div>
+          <div className="mt-2 flex gap-2">
+            <label className="inline-flex h-10 cursor-pointer items-center rounded-full bg-[color:var(--primary)] px-4 text-[13px] font-semibold text-[color:var(--on-primary)]">
+              {busy ? 'загружаем…' : value ? 'заменить' : 'загрузить'}
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = '' }} />
+            </label>
+            {value ? <Btn variant="secondary" onClick={() => void onChange(null)}>убрать</Btn> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
