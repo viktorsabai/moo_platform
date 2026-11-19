@@ -92,8 +92,9 @@ const ALL_ITEMS: NavItem[] = [
   { href: '/profile', label: 'профиль', icon: (p) => <IconUser {...p} /> },
 ]
 
+/** Кабинет — только внутри /admin. Выбор заведения (/profile/owner) — ещё шаг гостевого профиля. */
 function isOwnerContext(pathname: string) {
-  return pathname.startsWith('/admin') || pathname === '/profile/owner'
+  return pathname.startsWith('/admin')
 }
 
 /** Редактор подписок — своя шапка с «сохранить», нижняя панель не нужна. */
