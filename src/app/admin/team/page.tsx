@@ -103,7 +103,7 @@ export default function AdminTeamPage() {
   }
 
   return (
-    <Screen title="команда" back="/admin" className="!pb-20">
+    <Screen title="команда" back="/admin/more" className="!pb-20">
       <Card>
         <div className="text-[13px] font-extrabold tracking-tight text-[color:var(--text)]">добавить сотрудника</div>
         <div className="mt-1 text-[13px] font-medium text-[color:var(--muted)]">

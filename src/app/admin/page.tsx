@@ -324,8 +324,8 @@ export default async function AdminHomePage() {
   const checklist = [
     { done: true, label: 'бот и заведение' },
     { done: availableDishesCount > 0, label: 'есть доступные блюда', href: '/admin/store' },
-    { done: zonesCount > 0, label: 'зона доставки', href: '/admin/restaurant' },
-    { done: hasQr, label: 'QR для оплаты', href: '/admin/qr' },
+    { done: zonesCount > 0, label: 'зона доставки', href: '/admin/restaurant/delivery' },
+    { done: hasQr, label: 'QR для оплаты', href: '/admin/restaurant/payments' },
     { done: ordersTotal > 0, label: 'тестовый заказ', href: '/' },
   ]
   const doneCount = checklist.filter((c) => c.done).length

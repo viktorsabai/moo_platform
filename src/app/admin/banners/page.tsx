@@ -375,7 +375,7 @@ export default function AdminBannersPage() {
   }
 
   return (
-    <Screen title="Акции и баннеры">
+    <Screen title="акции" subtitle="баннеры на главной и промокоды" back="/admin/more">
       <div className="mb-4">
         <Segmented
           value={section}

@@ -83,7 +83,7 @@ export default function AdminQrPage() {
   }
 
   return (
-    <Screen title="QR и бот" back="/admin" className="!pb-20">
+    <Screen title="бот и QR" back="/admin/more" className="!pb-20">
       {loading ? (
         <Card className="text-[13px] font-semibold text-[color:var(--muted)]">загрузка…</Card>
       ) : error ? (
