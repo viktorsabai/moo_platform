@@ -61,6 +61,7 @@ function serializeDish(d: any) {
     optionValues: (d.optionValues || []).map((ov: any) => ({
       ...ov,
       priceAdjust: Number(ov.priceAdjust),
+      ...(ov.costPrice !== undefined ? { costPrice: ov.costPrice == null ? null : Number(ov.costPrice) } : {}),
     })),
   }
 }
@@ -156,7 +157,8 @@ export async function GET() {
     }
     const optionGroupSelect = { select: { id: true, name: true, order: true } as const }
     // В ЛК показываем все привязки, даже если группа/значение скрыты в справочнике — иначе чипы «исчезают».
-    const adminOptionValues = (includeValueImage: boolean) => ({
+    // includeExtra: себестоимость и «в рацион» у опции — нужны редактору, чтобы при сохранении их не затереть
+    const adminOptionValues = (includeValueImage: boolean, includeExtra = false) => ({
       optionValues: {
         orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
         select: {
@@ -164,6 +166,7 @@ export async function GET() {
           priceAdjust: true,
           order: true,
           isAvailable: true,
+          ...(includeExtra ? { subscriptionEligible: true, costPrice: true } : {}),
           optionValue: {
             select: includeValueImage
               ? {
@@ -187,7 +190,8 @@ export async function GET() {
         const core = { ...dishFields, modifiers }
         const withWeight = { ...core, weightLabel: true }
         const ov = adminOptionValues(includeValueImage)
-        selectAttempts.push({ ...withWeight, ...ov }, { ...core, ...ov }, withWeight, core)
+        const ovExtra = adminOptionValues(includeValueImage, true)
+        selectAttempts.push({ ...withWeight, ...ovExtra }, { ...withWeight, ...ov }, { ...core, ...ov }, withWeight, core)
       }
     }
     let dishes: any[] | null = null

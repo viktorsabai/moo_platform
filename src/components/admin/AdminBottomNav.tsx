@@ -15,15 +15,15 @@ const svg = (children: ReactNode) => (
 const TABS: Tab[] = [
   {
     href: '/admin',
-    label: 'сегодня',
-    match: (p) => p === '/admin',
-    icon: svg(<><path d="M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5z" /><path d="M4 13h4l1.5 2.5h5L16 13h4" /></>),
+    label: 'заказы',
+    match: (p) => p === '/admin' || p.startsWith('/admin/orders'),
+    icon: svg(<><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" /><path d="M9 8h6M9 12h6" /></>),
   },
   {
-    href: '/admin/orders',
-    label: 'заказы',
-    match: (p) => p.startsWith('/admin/orders'),
-    icon: svg(<><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" /><path d="M9 8h6M9 12h6" /></>),
+    href: '/admin/kitchen',
+    label: 'кухня',
+    match: (p) => p.startsWith('/admin/kitchen'),
+    icon: svg(<><path d="M6 13a6 6 0 0 1 12 0v1H6v-1z" /><path d="M4 17h16M12 7V5M10 5h4" /></>),
   },
   {
     href: '/admin/store',
@@ -35,7 +35,7 @@ const TABS: Tab[] = [
     href: '/admin/more',
     label: 'ещё',
     match: (p) =>
-      p !== '/admin' && !p.startsWith('/admin/orders') && !p.startsWith('/admin/store'),
+      p !== '/admin' && !p.startsWith('/admin/orders') && !p.startsWith('/admin/kitchen') && !p.startsWith('/admin/store'),
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6" aria-hidden>
         <circle cx="5" cy="12" r="1.8" />

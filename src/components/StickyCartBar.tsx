@@ -30,7 +30,7 @@ export function StickyCartBar() {
     return { count, total }
   }, [items])
 
-  const hide = pathname.startsWith('/checkout') || pathname.startsWith('/cart') || pathname.startsWith('/admin') || pathname.startsWith('/subscriptions/new') || pathname.startsWith('/requests')
+  const hide = pathname.startsWith('/checkout') || pathname.startsWith('/cart') || pathname.startsWith('/admin') || pathname.startsWith('/profile/owner') || pathname.startsWith('/profile/restaurant') || pathname.startsWith('/platform') || pathname.startsWith('/subscriptions/new') || pathname.startsWith('/requests')
   if (hide || !mounted || count === 0) return null
 
   const word = count === 1 ? 'позиция' : count < 5 ? 'позиции' : 'позиций'

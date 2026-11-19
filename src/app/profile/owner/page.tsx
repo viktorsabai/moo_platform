@@ -129,6 +129,9 @@ export default async function ProfileOwnerEntryPage() {
     } catch {
       // keep label
     }
+    // сюда попадаем, только если в БД не нашлось ни членства, ни заведения по cookie/сессии —
+    // в логах Vercel видно, на чём сломалось (подробности: /api/owner/whoami)
+    console.warn('[profile/owner] fallback venue', { userId, currentRestaurantId, platformRole, memberRole, nameFound: fallbackName !== 'кабинет заведения' })
     venues = [{ id: currentRestaurantId, name: fallbackName }]
   }
   const hasVenues = venues.length > 0
@@ -143,7 +146,7 @@ export default async function ProfileOwnerEntryPage() {
   }
 
   return (
-    <Screen title={variant === 'list' ? 'заведения' : undefined} subtitle={variant === 'list' ? 'выберите точку для управления' : undefined}>
+    <Screen back="/profile" title={variant === 'list' ? 'заведения' : 'кабинет'} subtitle={variant === 'list' ? 'выберите точку для управления' : undefined}>
       <OwnerEntryClient variant={variant} venues={venues} singleTenant />
     </Screen>
   )

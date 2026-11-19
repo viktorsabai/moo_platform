@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantContext, requireRestaurantAdmin } from '@/lib/restaurant-context'
 import { parsePaymentMethodsJson } from '@/lib/payment-methods'
-import { AdminOwnerInbox } from '@/components/admin/AdminOwnerInbox'
 import { countHotGuestsFromActivity, inboxPendingTotal } from '@/lib/admin-dashboard-metrics'
-import { AdminKitchenToday } from '@/components/admin/AdminKitchenToday'
+import { AdminWaiting } from '@/features/admin/AdminWaiting'
+import { AdminOrdersBoard } from '@/features/admin/AdminOrdersBoard'
 import { AdminOpenToggle } from '@/components/admin/AdminOpenToggle'
 import { Screen, Card, Btn } from '@/components/kit'
 
@@ -332,48 +332,57 @@ export default async function AdminHomePage() {
   const nextStep = checklist.find((c) => !c.done)
   const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ')
 
+  // статус для владельца простыми словами: пауза ≠ «закрыто по часам»
+  const paused = resolvedSettings.isOpenOverride === false
+  const statusLine = paused
+    ? 'на паузе — гости видят «закрыто»'
+    : isOpenNow
+      ? `открыто до ${resolvedSettings.closeTime}`
+      : `закрыто по часам · откроемся в ${resolvedSettings.openTime}`
+
   return (
     <Screen
       title={dashboardData.restaurantName}
       subtitle={
-        <>
-          {isOpenNow ? `открыто до ${resolvedSettings.closeTime}` : 'сейчас закрыто'}
-          {' · '}
-          <Link href="/admin/restaurant" prefetch={false} className="underline underline-offset-2">часы и пауза</Link>
-        </>
+        <Link href="/admin/restaurant" prefetch={false} className={paused ? 'text-[color:var(--warn)]' : isOpenNow ? 'text-[color:var(--ok)]' : undefined}>
+          {statusLine} ›
+        </Link>
       }
-      right={<AdminOpenToggle initialOpen={isOpenNow} />}
+      right={<AdminOpenToggle initialOpen={!paused} />}
       className="!pb-24 min-w-0 max-w-full overflow-x-hidden"
     >
-      {doneCount < checklist.length && nextStep ? (
-        <Card className="mb-4">
-          <div className="flex items-baseline justify-between">
-            <div className="text-[15px] font-semibold text-[color:var(--text)]">до первого заказа — {checklist.length - doneCount} шага</div>
-            <div className="text-[12.5px] text-[color:var(--muted)]">{doneCount} из {checklist.length}</div>
-          </div>
-          <div className="mt-3 flex gap-1" aria-hidden>
-            {checklist.map((c, i) => (
-              <div key={i} className={`h-1.5 flex-1 rounded-full ${c.done ? 'bg-[color:var(--ok)]' : 'bg-[color:var(--stroke)]'}`} />
-            ))}
-          </div>
-          <ul className="mt-3 space-y-1 text-[13px] text-[color:var(--muted)]">
-            {checklist.map((c) => (
-              <li key={c.label}>{c.done ? '✓ ' : '○ '}{c.label}</li>
-            ))}
-          </ul>
-          <Link href={nextStep.href ?? '/admin/restaurant'} prefetch={false}>
-            <Btn full className="mt-3">{nextStep.label}</Btn>
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Card>
+            <div className="text-[12.5px] font-semibold text-[color:var(--muted)]">сегодня</div>
+            <div className="mt-0.5 text-[20px] font-bold tracking-tight text-[color:var(--text)]">{fmt(stats.revenueToday)} ฿</div>
+            <div className="text-[12.5px] text-[color:var(--muted)]">{stats.ordersToday} заказов · {activeOrdersCount} в работе</div>
+          </Card>
+          <Card>
+            <div className="text-[12.5px] font-semibold text-[color:var(--muted)]">7 дней</div>
+            <div className="mt-0.5 text-[20px] font-bold tracking-tight text-[color:var(--text)]">{fmt(stats.revenueWeek)} ฿</div>
+            <div className="text-[12.5px] text-[color:var(--muted)]">{stats.ordersWeek} заказов</div>
+          </Card>
+        </div>
+
+        {doneCount < checklist.length && nextStep ? (
+          <Link href={nextStep.href ?? '/admin/restaurant'} prefetch={false} className="flex items-center gap-3 rounded-[20px] bg-[color:var(--warn-bg)] px-3.5 py-3">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-semibold text-[color:var(--warn)]">
+                до первого заказа: {checklist.length - doneCount} {checklist.length - doneCount === 1 ? 'шаг' : 'шага'}
+              </span>
+              <span className="block truncate text-[12.5px] text-[color:var(--warn)] opacity-90">
+                дальше: {nextStep.label} · готово {doneCount} из {checklist.length}
+              </span>
+            </span>
+            <span className="text-[18px] text-[color:var(--warn)]" aria-hidden>›</span>
           </Link>
-        </Card>
-      ) : null}
+        ) : null}
 
-      <AdminOwnerInbox subscriptionRequestLeads={newLeadsCount} />
+        <AdminWaiting subscriptionRequestLeads={newLeadsCount} />
 
-      <AdminKitchenToday />
-
-      <p className="mt-4 text-center text-[12.5px] text-[color:var(--muted)]">
-        сегодня: {stats.ordersToday} заказов · {fmt(stats.revenueToday)} ฿ · {activeOrdersCount} в работе
-      </p>
+        <AdminOrdersBoard />
+      </div>
     </Screen>
   )
 }

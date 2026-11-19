@@ -6,6 +6,8 @@ import toast from 'react-hot-toast'
 import { Badge, Btn, Chip, Empty, Screen, Segmented, Sheet, Toggle, fmtThb } from '@/components/kit'
 import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { cn } from '@/lib/utils'
+import { MenuCategories, type MenuCat } from '@/features/admin/menu/MenuCategories'
+import { MenuOptions, type OptGroup } from '@/features/admin/menu/MenuOptions'
 
 type Cat = { key: string; id: string; name: string; kind: 'dish' | 'store' }
 type Item = {
@@ -20,8 +22,25 @@ type Item = {
   categoryId: string
   available: boolean
   eligible: boolean
+  weight: string
+  tags: string[]
+  opts: DishOpt[]
 }
+/** привязка значения опции к блюду; costPrice/subscriptionEligible храним, чтобы не затереть при сохранении */
+type DishOpt = { optionValueId: string; priceAdjust: number; isAvailable: boolean; subscriptionEligible?: boolean; costPrice?: number | null }
 type Filter = 'all' | 'stop' | 'nocost'
+type Section = 'dishes' | 'cats' | 'options'
+
+const TAGS = [
+  { value: 'hit', label: 'хит' },
+  { value: 'new', label: 'новинка' },
+  { value: 'popular', label: 'популярное' },
+  { value: 'chef-choice', label: 'выбор шефа' },
+  { value: 'vegan', label: 'веган' },
+  { value: 'vegetarian', label: 'вегетарианское' },
+  { value: 'spicy', label: 'острое' },
+  { value: 'healthy', label: 'лайт' },
+]
 
 const marginOf = (it: Item) => (it.cost && it.price > 0 ? Math.round((1 - it.cost / it.price) * 100) : null)
 
@@ -32,10 +51,16 @@ export default function AdminMenuPage() {
   const [cat, setCat] = useState<string>('all')
   const [q, setQ] = useState('')
   const [edit, setEdit] = useState<Item | 'new' | null>(null)
+  const [section, setSection] = useState<Section>('dishes')
+  const [groups, setGroups] = useState<OptGroup[]>([])
+  const [dishCats, setDishCats] = useState<MenuCat[]>([])
 
   const load = useCallback(async () => {
     const get = (u: string) => fetch(u, { cache: 'no-store', credentials: 'include' }).then((r) => r.json()).catch(() => null)
-    const [c, d, sp] = await Promise.all([get('/api/admin/menu/categories'), get('/api/admin/menu/dishes'), get('/api/admin/store/products')])
+    const [c, d, sp, og] = await Promise.all([get('/api/admin/menu/categories'), get('/api/admin/menu/dishes'), get('/api/admin/store/products'), get('/api/admin/menu/options')])
+    setGroups(((og?.groups ?? []) as any[]).map((g) => ({ id: g.id, name: g.name, isActive: g.isActive !== false, values: (g.values ?? []).map((v: any) => ({ id: v.id, name: v.name, isActive: v.isActive !== false })) })))
+    const dishList = (d?.dishes ?? []) as any[]
+    setDishCats(((c?.categories ?? []) as any[]).map((x) => ({ id: x.id, name: x.name, order: Number(x.order ?? 0), dishCount: dishList.filter((dd) => dd.categoryId === x.id).length })))
     const nextCats: Cat[] = [
       ...((c?.categories ?? []) as any[]).map((x) => ({ key: `d:${x.id}`, id: x.id, name: x.name, kind: 'dish' as const })),
       ...((sp?.categories ?? []) as any[]).map((x) => ({ key: `s:${x.id}`, id: x.id, name: x.name, kind: 'store' as const })),
@@ -53,6 +78,15 @@ export default function AdminMenuPage() {
         categoryId: x.categoryId,
         available: x.isAvailable !== false,
         eligible: x.subscriptionEligible !== false,
+        weight: x.weightLabel ?? '',
+        tags: Array.isArray(x.tags) ? x.tags : [],
+        opts: ((x.optionValues ?? []) as any[]).map((ov) => ({
+          optionValueId: ov.optionValue?.id ?? ov.optionValueId,
+          priceAdjust: Number(ov.priceAdjust ?? 0),
+          isAvailable: ov.isAvailable !== false,
+          ...(ov.subscriptionEligible !== undefined ? { subscriptionEligible: ov.subscriptionEligible !== false } : {}),
+          ...(ov.costPrice !== undefined ? { costPrice: ov.costPrice } : {}),
+        })).filter((o) => o.optionValueId),
       })),
       ...((sp?.products ?? []) as any[]).map((x) => ({
         key: `s:${x.id}`,
@@ -66,6 +100,9 @@ export default function AdminMenuPage() {
         categoryId: x.categoryId,
         available: x.isActive !== false,
         eligible: false,
+        weight: '',
+        tags: [],
+        opts: [],
       })),
     ]
     setCats(nextCats)
@@ -103,12 +140,29 @@ export default function AdminMenuPage() {
     <Screen
       title="меню"
       right={
-        <Btn onClick={() => setEdit('new')}>
+        section !== 'dishes' ? null : <Btn onClick={() => setEdit('new')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
           блюдо
         </Btn>
       }
     >
+      <div className="mb-3">
+        <Segmented
+          value={section}
+          onChange={setSection}
+          options={[
+            { value: 'dishes', label: 'блюда' },
+            { value: 'cats', label: 'категории' },
+            { value: 'options', label: 'опции' },
+          ]}
+        />
+      </div>
+
+      {section === 'cats' ? <MenuCategories cats={dishCats} onChanged={load} /> : null}
+      {section === 'options' ? <MenuOptions groups={groups} onChanged={load} /> : null}
+
+      {section === 'dishes' ? (
+      <>
       <div className="mb-2">
         <Segmented
           value={filter}
@@ -122,7 +176,6 @@ export default function AdminMenuPage() {
       </div>
       <div className="mb-2 flex items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="найти" className="h-10 min-w-0 flex-1 rounded-full border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-4 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none" />
-        <Link href="/admin/store/full" prefetch={false} className="shrink-0 text-[13px] font-semibold text-[color:var(--muted)] underline underline-offset-4">категории и опции</Link>
       </div>
       {cats.length > 1 ? (
         <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
@@ -161,14 +214,17 @@ export default function AdminMenuPage() {
         </div>
       )}
 
-      <DishSheet item={edit} cats={cats.filter((c) => c.kind === 'dish')} onClose={() => setEdit(null)} onSaved={load} />
+      </>
+      ) : null}
+
+      <DishSheet item={edit} cats={cats.filter((c) => c.kind === 'dish')} groups={groups} onClose={() => setEdit(null)} onSaved={load} />
     </Screen>
   )
 }
 
 /* ---------- быстрое редактирование блюда ---------- */
 
-function DishSheet({ item, cats, onClose, onSaved }: { item: Item | 'new' | null; cats: Cat[]; onClose: () => void; onSaved: () => void }) {
+function DishSheet({ item, cats, groups, onClose, onSaved }: { item: Item | 'new' | null; cats: Cat[]; groups: OptGroup[]; onClose: () => void; onSaved: () => void }) {
   const isNew = item === 'new'
   const it = item && item !== 'new' ? item : null
   const [name, setName] = useState('')
@@ -178,6 +234,10 @@ function DishSheet({ item, cats, onClose, onSaved }: { item: Item | 'new' | null
   const [catId, setCatId] = useState('')
   const [eligible, setEligible] = useState(true)
   const [image, setImage] = useState<string | null>(null)
+  const [weight, setWeight] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [opts, setOpts] = useState<DishOpt[]>([])
+  const [optsDirty, setOptsDirty] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -189,6 +249,10 @@ function DishSheet({ item, cats, onClose, onSaved }: { item: Item | 'new' | null
     setCatId(it?.categoryId ?? cats[0]?.id ?? '')
     setEligible(it?.eligible ?? true)
     setImage(it?.image ?? null)
+    setWeight(it?.weight ?? '')
+    setTags(it?.tags ?? [])
+    setOpts(it?.opts ?? [])
+    setOptsDirty(false)
   }, [item, it, cats])
 
   if (!item) return null
@@ -218,15 +282,21 @@ function DishSheet({ item, cats, onClose, onSaved }: { item: Item | 'new' | null
     if (!valid) return
     setBusy(true)
     try {
-      const body: Record<string, unknown> = { name: name.trim(), price: p, costPrice: c, description: desc.trim(), categoryId: catId, subscriptionEligible: eligible, image: image ?? '' }
+      const body: Record<string, unknown> = { name: name.trim(), price: p, costPrice: c, description: desc.trim(), categoryId: catId, subscriptionEligible: eligible, image: image ?? '', weightLabel: weight.trim(), tags }
+      const optionValues = opts.map((o, i) => ({ ...o, order: i, subscriptionEligible: o.subscriptionEligible ?? true, costPrice: o.costPrice ?? null }))
       const res = await fetch('/api/admin/menu/dishes', {
         method: isNew ? 'POST' : 'PATCH',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(isNew ? body : { id: it!.id, ...body }),
+        // опции отправляем только если их меняли: PATCH перезаписывает привязки целиком
+        body: JSON.stringify(isNew ? body : { id: it!.id, ...body, ...(optsDirty ? { optionValues } : {}) }),
       })
       const d = await res.json().catch(() => null)
       if (!res.ok || d?.ok === false) throw new Error(d?.error || 'не сохранилось')
+      if (isNew && opts.length && d?.dish?.id) {
+        const r2 = await fetch('/api/admin/menu/dishes', { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: d.dish.id, optionValues }) })
+        if (!r2.ok) toast.error('блюдо создано, но опции не сохранились')
+      }
       toast.success(isNew ? 'блюдо добавлено' : 'сохранено')
       onSaved()
       onClose()
@@ -258,8 +328,7 @@ function DishSheet({ item, cats, onClose, onSaved }: { item: Item | 'new' | null
         <div className="flex flex-col gap-1">
           <Btn size="lg" full disabled={!valid || busy} onClick={save}>{busy ? 'сохраняем…' : 'сохранить'}</Btn>
           {!isNew ? (
-            <div className="flex justify-between">
-              <Link href={`/admin/store/full?dish=${it!.id}`} prefetch={false} className="h-9 px-1 text-[13px] font-semibold leading-9 text-[color:var(--muted)]">опции и теги</Link>
+            <div className="flex justify-end">
               <Btn variant="danger" onClick={remove} disabled={busy}>удалить</Btn>
             </div>
           ) : null}
@@ -287,7 +356,77 @@ function DishSheet({ item, cats, onClose, onSaved }: { item: Item | 'new' | null
             ))}
           </div>
         </Field>
+        <Field label="вес или объём"><input value={weight} onChange={(e) => setWeight(e.target.value)} className={inp} placeholder="например, 250 г" /></Field>
         <Field label="описание"><textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} className={cn(inp, 'h-auto py-2.5')} /></Field>
+        <div>
+          <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">метки на фото у гостя</span>
+          <div className="flex flex-wrap gap-1.5">
+            {TAGS.map((t) => (
+              <Chip key={t.value} active={tags.includes(t.value)} onClick={() => setTags((prev) => (prev.includes(t.value) ? prev.filter((x) => x !== t.value) : [...prev, t.value]))}>
+                {t.label}
+              </Chip>
+            ))}
+          </div>
+          <p className="mt-1 text-[12px] text-[color:var(--muted)]">«хит», «популярное», «выбор шефа» попадают в подборку «Хиты» на главной, «новинка» — в «Новинки»</p>
+        </div>
+        {groups.some((g) => g.isActive && g.values.some((v) => v.isActive)) ? (
+          <div>
+            <span className="mb-1 block text-[12.5px] font-semibold text-[color:var(--muted)]">опции у этого блюда</span>
+            <div className="flex flex-col gap-2.5">
+              {groups.filter((g) => g.isActive && g.values.some((v) => v.isActive)).map((g) => (
+                <div key={g.id}>
+                  <div className="mb-1 text-[13px] text-[color:var(--text)]">{g.name}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.values.filter((v) => v.isActive).map((v) => {
+                      const on = opts.some((o) => o.optionValueId === v.id)
+                      return (
+                        <Chip
+                          key={v.id}
+                          active={on}
+                          onClick={() => {
+                            setOptsDirty(true)
+                            setOpts((prev) => (on ? prev.filter((o) => o.optionValueId !== v.id) : [...prev, { optionValueId: v.id, priceAdjust: 0, isAvailable: true }]))
+                          }}
+                        >
+                          {v.name}
+                        </Chip>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {opts.length ? (
+              <div className="mt-2.5 rounded-[14px] bg-[color:var(--surface)] px-3 py-1">
+                {opts.map((o, i) => {
+                  const v = groups.flatMap((g) => g.values).find((x) => x.id === o.optionValueId)
+                  return (
+                    <div key={o.optionValueId} className={cn('flex min-h-[44px] items-center justify-between gap-2', i > 0 && 'border-t border-[color:var(--stroke)]')}>
+                      <span className="min-w-0 truncate text-[14px] text-[color:var(--text)]">{v?.name ?? 'опция'}</span>
+                      <label className="flex shrink-0 items-center gap-1 text-[13px] text-[color:var(--muted)]">
+                        +
+                        <input
+                          value={String(o.priceAdjust)}
+                          inputMode="decimal"
+                          aria-label={`доплата за ${v?.name ?? 'опцию'}`}
+                          onChange={(e) => {
+                            const n = Number(e.target.value.replace(',', '.'))
+                            setOptsDirty(true)
+                            setOpts((prev) => prev.map((x) => (x.optionValueId === o.optionValueId ? { ...x, priceAdjust: Number.isFinite(n) ? n : 0 } : x)))
+                          }}
+                          className="h-9 w-16 rounded-[10px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-2 text-right text-[14px] text-[color:var(--text)] focus:outline-none"
+                        />
+                        ฿
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-[12.5px] text-[color:var(--muted)]">опций пока нет — их можно завести во вкладке «опции»</p>
+        )}
         <div className="flex items-center justify-between rounded-[14px] bg-[color:var(--surface)] px-3 py-2.5">
           <div>
             <div className="text-[14px] font-semibold text-[color:var(--text)]">можно в рацион</div>
