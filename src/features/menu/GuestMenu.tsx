@@ -334,22 +334,21 @@ export function GuestMenu() {
                 const n = qtyOfItem(it)
                 const off = !it.available || Boolean(closed)
                 return (
-                  <article key={it.key} className={cn('flex flex-col gap-1.5 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] p-2 pb-3', off && 'opacity-60')}>
-                    <button type="button" onClick={() => setFocused(it)} className="relative block aspect-[4/3] w-full overflow-hidden rounded-[12px] bg-[color:var(--surface)] text-left" aria-label={it.name}>
+                  <article key={it.key} className={cn('flex flex-col gap-1.5 overflow-hidden rounded-[18px] bg-[color:var(--surface-strong)] pb-3', off && 'opacity-60')}>
+                    <button type="button" onClick={() => setFocused(it)} className="relative block aspect-[4/3] w-full overflow-hidden bg-[color:var(--surface)] text-left" aria-label={it.name}>
                       {it.image ? (
                         <OptimizedImage src={it.image} alt="" sizes={IMAGE_SIZES.menuGrid} className="object-cover" />
                       ) : null}
+                      <TagBadges tags={it.tags} className="absolute bottom-2 left-2 right-2" />
                     </button>
-                    <button type="button" onClick={() => setFocused(it)} className="px-1 text-left">
+                    <button type="button" onClick={() => setFocused(it)} className="px-3 text-left">
                       <div className="line-clamp-2 text-[14px] font-semibold leading-tight text-[color:var(--text)]">{it.name}</div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[color:var(--muted)]">
                         <span className="text-[color:var(--text)]">{fmtThb(it.price)}</span>
                         {it.weightLabel ? <span>· {it.weightLabel}</span> : null}
-                        {it.tags.includes('vegan') ? <span>· веган</span> : it.tags.includes('vegetarian') ? <span>· вег</span> : null}
-                        {it.tags.includes('spicy') ? <span>· остро</span> : null}
                       </div>
                     </button>
-                    <div className="px-0.5">
+                    <div className="px-2.5">
                       {off ? (
                         <div className="flex h-11 items-center justify-center rounded-[14px] bg-[color:var(--surface)] text-[13px] font-semibold text-[color:var(--muted)]">
                           {closed ? 'закрыто' : 'на сегодня нет'}
@@ -373,6 +372,22 @@ export function GuestMenu() {
       <ItemSheet item={focused} onClose={() => setFocused(null)} restaurantId={restaurantId} closed={Boolean(closed)} />
     </main>
   )
+}
+
+/* ---------- теги позиции: одни и те же бейджи в сетке и в шторке ---------- */
+
+function itemTagBadges(tags: string[], long = false) {
+  const out: JSX.Element[] = []
+  if (tags.includes('vegan')) out.push(<Badge key="vegan" tone="ok">веган</Badge>)
+  else if (tags.includes('vegetarian')) out.push(<Badge key="veg" tone="ok">{long ? 'вегетарианское' : 'вег'}</Badge>)
+  if (tags.includes('spicy')) out.push(<Badge key="spicy" tone="warn">остро</Badge>)
+  return out
+}
+
+function TagBadges({ tags, className }: { tags: string[]; className?: string }) {
+  const badges = itemTagBadges(tags)
+  if (!badges.length) return null
+  return <div className={cn('pointer-events-none flex flex-wrap gap-1', className)}>{badges}</div>
 }
 
 /* ---------- шторка позиции: описание, опции, количество ---------- */
@@ -440,9 +455,7 @@ function ItemSheet({ item, onClose, restaurantId, closed }: { item: Item | null;
       {item.weightLabel || item.tags.length ? (
         <div className="mt-1 flex flex-wrap gap-1.5">
           {item.weightLabel ? <Badge tone="muted">{item.weightLabel}</Badge> : null}
-          {item.tags.includes('vegan') ? <Badge tone="ok">веган</Badge> : null}
-          {item.tags.includes('vegetarian') ? <Badge tone="ok">вегетарианское</Badge> : null}
-          {item.tags.includes('spicy') ? <Badge tone="warn">остро</Badge> : null}
+          {itemTagBadges(item.tags, true)}
         </div>
       ) : null}
       {item.description ? <p className="mt-2 text-[14px] leading-relaxed text-[color:var(--muted)]">{item.description}</p> : null}
