@@ -60,7 +60,7 @@ export default function AdminOrderPage() {
 
   if (!o) {
     return (
-      <Screen title="заказ" back="/admin/orders">
+      <Screen title="заказ" back="/admin">
         <div className="h-40 animate-pulse rounded-[20px] bg-[color:var(--surface)]" aria-busy />
       </Screen>
     )
@@ -82,7 +82,7 @@ export default function AdminOrderPage() {
     <Screen
       title={`заказ #${o.id.slice(-4)}`}
       subtitle={`${new Date(o.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${o.source === 'subscription' ? ' · из рациона' : ''}`}
-      back="/admin/orders"
+      back="/admin"
       right={<Badge tone={st.tone}>{st.label}</Badge>}
     >
       <div className="flex flex-col gap-2.5">

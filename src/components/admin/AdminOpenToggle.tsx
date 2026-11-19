@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 
+/** Пауза приёма заказов. Вкл = работаем по расписанию (isOpenOverride=null), выкл = пауза (false). */
 export function AdminOpenToggle({ initialOpen }: { initialOpen: boolean }) {
+  const router = useRouter()
   const [open, setOpen] = useState(initialOpen)
   const [saving, setSaving] = useState(false)
 
@@ -17,12 +20,14 @@ export function AdminOpenToggle({ initialOpen }: { initialOpen: boolean }) {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ isOpenOverride: next }),
+        body: JSON.stringify({ isOpenOverride: next ? null : false }),
       })
       const data = await res.json().catch(() => null)
       if (res.ok && data?.ok) {
         setOpen(next)
-        toast.success(next ? 'Приём заказов включён' : 'Приём заказов на паузе')
+        toast.success(next ? 'принимаем заказы по расписанию' : 'приём заказов на паузе')
+        // статус в шапке считается на сервере — обновляем страницу
+        router.refresh()
       } else {
         toast.error(data?.error || 'Не удалось сохранить')
       }

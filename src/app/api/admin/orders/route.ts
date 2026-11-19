@@ -40,6 +40,8 @@ export async function GET(request: Request) {
     }
     const { searchParams } = new URL(request.url)
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || DEFAULT_LIMIT))
+    /** ?items=1 — названия и количество позиций (для экрана «кухня») */
+    const withItems = searchParams.get('items') === '1'
 
     const orders = await prisma.order.findMany({
       where: { restaurantId: ctx.restaurantId },
@@ -63,7 +65,9 @@ export async function GET(request: Request) {
         address: {
           select: { street: true, city: true },
         },
-        items: { select: { id: true } },
+        items: withItems
+          ? { select: { id: true, quantity: true, dish: { select: { name: true } }, storeVariant: { select: { name: true, product: { select: { name: true } } } } } }
+          : { select: { id: true } },
       },
     })
 
@@ -106,6 +110,14 @@ export async function GET(request: Request) {
         lastStatusChangeAt: lastLogByOrder.get(o.id)?.createdAt ?? o.createdAt,
         userName: o.user?.name ?? o.user?.telegramFirstName ?? '—',
         address: o.address,
+        ...(withItems
+          ? {
+              lines: (o.items as any[]).map((it) => ({
+                name: it.dish?.name ?? ([it.storeVariant?.product?.name, it.storeVariant?.name].filter(Boolean).join(' · ') || 'позиция'),
+                qty: Number(it.quantity ?? 1),
+              })),
+            }
+          : {}),
       })),
     })
   } catch (e: any) {
