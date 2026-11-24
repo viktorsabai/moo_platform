@@ -115,7 +115,7 @@ export default function ProfilePage() {
         <RowGroup title="доставка">
           <Row first href="/profile/delivery" label="адрес" hint={addressLine ?? 'ещё не указан'} />
           <Row href="/orders" label="заказы" />
-          {settings.subscriptionEnabled ? <Row href="/subscriptions" label="рационы" /> : null}
+          {settings.subscriptionEnabled ? <Row href="/subscriptions" label="мой рацион" /> : null}
           <Row href="/profile/favorites" label="избранное" />
           <Row href="/profile/promocodes" label="промокоды" />
         </RowGroup>

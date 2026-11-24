@@ -138,13 +138,13 @@ export default function AdminMenuPage() {
     return (items ?? []).filter(
       (it) =>
         (cat === 'all' || `${it.kind === 'dish' ? 'd' : 's'}:${it.categoryId}` === cat) &&
-        (filter === 'all' ? true : filter === 'stop' ? !it.available : it.kind === 'dish' && !it.cost) &&
+        (filter === 'all' ? true : filter === 'stop' ? !it.available : it.kind === 'dish' && it.eligible && !it.cost) &&
         (!needle || it.name.toLowerCase().includes(needle))
     )
   }, [items, cat, filter, q])
 
   const stopCount = (items ?? []).filter((x) => !x.available).length
-  const noCostCount = (items ?? []).filter((x) => x.kind === 'dish' && !x.cost).length
+  const noCostCount = (items ?? []).filter((x) => x.kind === 'dish' && x.eligible && !x.cost).length
 
   return (
     <Screen

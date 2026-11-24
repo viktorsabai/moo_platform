@@ -9,7 +9,8 @@ import type { OwnerInboxItemClient } from '@/lib/owner-inbox-client'
  * «Ждут ответа»: заявки на рацион и запросы гостей. Заказы сюда не попадают —
  * они в живом списке ниже. Пусто — блока нет.
  */
-export function AdminWaiting({ subscriptionRequestLeads = 0 }: { subscriptionRequestLeads?: number }) {
+/** noCostDishes — блюда «в рацион» без себестоимости: гость их в рацион не добавит */
+export function AdminWaiting({ subscriptionRequestLeads = 0, noCostDishes = 0 }: { subscriptionRequestLeads?: number; noCostDishes?: number }) {
   const [items, setItems] = useState<OwnerInboxItemClient[]>([])
 
   useEffect(() => {
@@ -30,7 +31,10 @@ export function AdminWaiting({ subscriptionRequestLeads = 0 }: { subscriptionReq
       ? [{ key: 'sub-leads', href: '/admin/rations', label: `хотят рацион · ${subscriptionRequestLeads}`, hint: 'гость оставил запрос на подписку' }]
       : []),
     ...items.map((i) => ({ key: `${i.kind}:${i.id}`, href: i.href, label: i.label, hint: i.subtitle ?? '' })),
-  ].slice(0, 6)
+    ...(noCostDishes > 0
+      ? [{ key: 'no-cost', href: '/admin/store?filter=nocost', label: `${noCostDishes} ${noCostDishes % 10 === 1 && noCostDishes % 100 !== 11 ? 'блюдо' : noCostDishes % 10 >= 2 && noCostDishes % 10 <= 4 && (noCostDishes % 100 < 12 || noCostDishes % 100 > 14) ? 'блюда' : 'блюд'} без себестоимости`, hint: 'гость не сможет взять их в рацион · заполнить' }]
+      : []),
+  ].slice(0, 7)
 
   if (!rows.length) return null
 

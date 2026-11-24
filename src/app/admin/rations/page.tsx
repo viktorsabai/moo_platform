@@ -32,7 +32,7 @@ const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { week
 
 export default function AdminRationsPage() {
   return (
-    <Suspense fallback={<Screen title="рационы"><div className="h-40 animate-pulse rounded-[20px] bg-[color:var(--surface)]" /></Screen>}>
+    <Suspense fallback={<Screen title="рационы гостей"><div className="h-40 animate-pulse rounded-[20px] bg-[color:var(--surface)]" /></Screen>}>
       <Rations />
     </Suspense>
   )
@@ -68,7 +68,7 @@ function Rations() {
   }
 
   return (
-    <Screen title="рационы" back="/admin/more" right={enabled === null ? null : <Toggle checked={enabled} onChange={toggleEnabled} label="рационы включены у гостей" />}>
+    <Screen title="рационы гостей" back="/admin/more" right={enabled === null ? null : <Toggle checked={enabled} onChange={toggleEnabled} label="рационы включены у гостей" />}>
       <div className="mb-3">
         <Segmented value={tab} onChange={setTab} options={[{ value: 'requests', label: 'подписчики' }, { value: 'pricing', label: 'цены' }]} />
       </div>

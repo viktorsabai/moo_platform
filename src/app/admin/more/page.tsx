@@ -10,7 +10,7 @@ export default function AdminMorePage() {
       </Link>
       <div className="flex flex-col gap-4">
         <RowGroup title="продажи">
-          <Row first href="/admin/rations" label="рационы" hint="подписчики и цены" />
+          <Row first href="/admin/rations" label="рационы гостей" hint="подписчики, заявки, цены" />
           <Row href="/admin/banners" label="акции" hint="баннеры на главной и промокоды" />
           <Row href="/admin/requests" label="запросы гостей" hint="банкеты, кейтеринг, особые" />
         </RowGroup>

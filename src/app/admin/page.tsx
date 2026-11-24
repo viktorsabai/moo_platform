@@ -78,6 +78,7 @@ export default async function AdminHomePage() {
     newVisitorsCount: number
     visitorsCount: number
     cartEventsCount: number
+    noCostDishesCount: number
   }
   type ActivityEventRow = {
     id: string
@@ -133,7 +134,9 @@ export default async function AdminHomePage() {
          (SELECT COUNT(*) FILTER (WHERE "type" = 'VIEW_PAGE')::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '24 hours') AS "newVisitsCount",
          (SELECT COUNT(DISTINCT COALESCE("userId", "telegramId"))::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '24 hours' AND "type" = 'VIEW_PAGE' AND COALESCE("userId", "telegramId") IS NOT NULL) AS "newVisitorsCount",
          (SELECT COUNT(DISTINCT COALESCE("userId", "telegramId")) FILTER (WHERE COALESCE("userId", "telegramId") IS NOT NULL)::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '7 days') AS "visitorsCount",
-         (SELECT COUNT(*) FILTER (WHERE "type" IN ('CART_WITH_ITEMS', 'ADD_TO_CART', 'START_CHECKOUT'))::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '7 days') AS "cartEventsCount"`,
+         (SELECT COUNT(*) FILTER (WHERE "type" IN ('CART_WITH_ITEMS', 'ADD_TO_CART', 'START_CHECKOUT'))::int FROM "UserActivityEvent" WHERE "restaurantId" = $1 AND "createdAt" >= now() - INTERVAL '7 days') AS "cartEventsCount",
+         (SELECT COUNT(*)::int FROM "Dish" d JOIN "Category" c ON c."id" = d."categoryId"
+            WHERE d."restaurantId" = $1 AND d."costPrice" IS NULL AND d."subscriptionEligible" = true AND c."slug" <> $2) AS "noCostDishesCount"`,
       admin.restaurantId,
       ARCHIVE_CATEGORY_SLUG
     ),
@@ -379,7 +382,10 @@ export default async function AdminHomePage() {
           </Link>
         ) : null}
 
-        <AdminWaiting subscriptionRequestLeads={newLeadsCount} />
+        <AdminWaiting
+          subscriptionRequestLeads={newLeadsCount}
+          noCostDishes={resolvedSettings.subscriptionEnabled ? Number(counts?.noCostDishesCount ?? 0) : 0}
+        />
 
         <AdminOrdersBoard />
       </div>
