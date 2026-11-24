@@ -9,6 +9,8 @@ import { IMAGE_SIZES, OptimizedImage } from '@/components/ui/OptimizedImage'
 import { Badge, Btn, Chip, Empty, Sheet, Stepper, fmtThb } from '@/components/kit'
 import { cn } from '@/lib/utils'
 import { useDeliveryHint } from '@/store/delivery-hint-store'
+import toast from 'react-hot-toast'
+import { loadSubscriptionBuilderDraft } from '@/lib/subscription-builder-draft'
 import { DishRail, PromoRail, type PromoCard, type RailDish } from './home-rails'
 
 /* ---------- единая модель позиции: блюдо или товар ---------- */
@@ -39,6 +41,11 @@ type Item = {
 
 type Cat = { key: string; name: string }
 type ActiveOrder = { id: string; status: string; etaLabel?: string }
+type LastOrder = {
+  id: string
+  total: number
+  items: { dishId: string | null; variantId: string | null; name: string; quantity: number; price: number; modifierIds: string[]; modifierLabels: string[] }[]
+}
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'ждёт подтверждения',
@@ -75,6 +82,10 @@ export function GuestMenu() {
   const [open, setOpen] = useState<{ isOpen: boolean; until: string } | null>(null)
   const [deliveryFrom, setDeliveryFrom] = useState<number | null>(null)
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
+  /** прошлый доставленный заказ — для «повторить» (только у гостя без рациона) */
+  const [lastOrder, setLastOrder] = useState<LastOrder | null>(null)
+  const [favIds, setFavIds] = useState<Set<string>>(new Set())
+  const [now, setNow] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [cat, setCat] = useState<string>('all')
   const [q, setQ] = useState('')
@@ -92,7 +103,7 @@ export function GuestMenu() {
   const load = useCallback(async () => {
     if (venueLoading) return
     const get = (url: string) => fetch(url, { cache: 'no-store', credentials: 'include', headers }).then((r) => r.json()).catch(() => null)
-    const [c, d, sc, sp, b, s, o, r] = await Promise.all([
+    const [c, d, sc, sp, b, s, o, r, fv, sb] = await Promise.all([
       get('/api/categories'),
       get('/api/dishes'),
       settings.storeEnabled ? get('/api/store/categories') : null,
@@ -101,8 +112,11 @@ export function GuestMenu() {
       get('/api/settings'),
       get('/api/orders'),
       get('/api/restaurant'),
+      get('/api/favorites'),
+      settings.subscriptionEnabled ? get('/api/subscriptions') : null,
     ])
     setBrand({ cover: r?.restaurant?.coverImage ?? null, logo: r?.restaurant?.logoImage ?? null })
+    if (Array.isArray(fv?.ids)) setFavIds(new Set(fv.ids.map(String)))
 
     const nextCats: Cat[] = []
     for (const x of Array.isArray(c) ? c : c?.categories ?? []) nextCats.push({ key: `d:${x.id}`, name: x.name })
@@ -164,8 +178,12 @@ export function GuestMenu() {
 
     setCats(nextCats.filter((x) => next.some((it) => it.categoryKey === x.key)))
     setItems(next)
-    const promoCards: PromoCard[] = (b?.banners ?? []).filter((x: PromoCard) => x?.id && x?.title)
-    if (settings.subscriptionEnabled && !promoCards.some((x) => x.href?.startsWith('/subscriptions'))) {
+    let promoCards: PromoCard[] = (b?.banners ?? []).filter((x: PromoCard) => x?.id && x?.title)
+    // рацион гостя: у кого он уже есть — статус вместо рекламы «собрать на неделю»
+    const subCard = settings.subscriptionEnabled ? subscriptionCard(sb?.subscriptions ?? [], restaurantId) : null
+    if (subCard) {
+      promoCards = [subCard, ...promoCards.filter((x) => !x.href?.startsWith('/subscriptions'))]
+    } else if (settings.subscriptionEnabled && !promoCards.some((x) => x.href?.startsWith('/subscriptions'))) {
       promoCards.unshift({ id: 'subscription', title: 'Рацион на неделю', description: 'дешевле, чем заказывать из меню', href: '/subscriptions', cta: 'собрать рацион', type: 'chip' })
     }
     setPromos(promoCards.slice(0, 8))
@@ -193,8 +211,26 @@ export function GuestMenu() {
     const orders: any[] = o?.orders ?? []
     const live = orders.find((x) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'].includes(x.status))
     setActiveOrder(live ? { id: live.id, status: live.status } : null)
+    const done = subCard ? null : orders.find((x) => x.status === 'DELIVERED' && Array.isArray(x.items) && x.items.length)
+    setLastOrder(
+      done
+        ? {
+            id: done.id,
+            total: Number(done.totalAmount ?? 0),
+            items: done.items.map((it: any) => ({
+              dishId: it.dish?.id ?? null,
+              variantId: it.storeVariant?.id ?? null,
+              name: it.dish?.name ?? it.storeVariant?.name ?? 'позиция',
+              quantity: Math.max(1, Number(it.quantity ?? 1)),
+              price: Number(it.price ?? 0),
+              modifierIds: Array.isArray(it.modifierIds) ? it.modifierIds : [],
+              modifierLabels: Array.isArray(it.modifierLabels) ? it.modifierLabels : [],
+            })),
+          }
+        : null
+    )
     setLoading(false)
-  }, [headers, settings.storeEnabled, settings.subscriptionEnabled, venueLoading, setDeliveryHint])
+  }, [headers, settings.storeEnabled, settings.subscriptionEnabled, venueLoading, setDeliveryHint, restaurantId])
 
   useEffect(() => {
     void load()
@@ -262,6 +298,65 @@ export function GuestMenu() {
     else if (cur === 0) quickAdd(it)
     else updateQuantity(id, nextQty, it.kind)
   }
+
+  /** повторить прошлый заказ: всё, что сегодня есть в меню, — в корзину по текущим ценам опций заказа */
+  const reorder = () => {
+    if (!lastOrder) return
+    let added = 0
+    let missing = 0
+    for (const line of lastOrder.items) {
+      if (line.dishId) {
+        const it = items.find((x) => x.kind === 'dish' && x.id === line.dishId)
+        if (!it || !it.available) { missing += 1; continue }
+        addItem({ dishId: it.id, name: it.name, description: it.description, price: line.price || it.price, quantity: line.quantity, imageUrl: it.image, modifierIds: line.modifierIds, modifierLabels: line.modifierLabels }, restaurantId)
+        added += 1
+      } else if (line.variantId) {
+        const it = items.find((x) => x.kind === 'store' && x.variants.some((v) => v.id === line.variantId))
+        const v = it?.variants.find((x) => x.id === line.variantId)
+        if (!it || !v || !v.isActive || v.qty <= 0) { missing += 1; continue }
+        addItem({ storeVariantId: v.id, productId: it.id, name: it.name, variantName: v.name || undefined, price: v.price, quantity: Math.min(line.quantity, v.qty), imageUrl: it.image }, restaurantId)
+        added += 1
+      }
+    }
+    if (added === 0) toast.error('из прошлого заказа сегодня ничего нет')
+    else toast.success(missing ? `в корзине · ${missing} ${missing === 1 ? 'позиции' : 'позиций'} сегодня нет` : 'прошлый заказ в корзине')
+  }
+
+  /** избранное: сразу меняем сердечко, при ошибке возвращаем */
+  const toggleFav = async (dishId: string) => {
+    const on = !favIds.has(dishId)
+    const flip = (v: boolean) => setFavIds((prev) => { const next = new Set(prev); if (v) next.add(dishId); else next.delete(dishId); return next })
+    flip(on)
+    try {
+      const res = await fetch(on ? '/api/favorites' : `/api/favorites?dishId=${encodeURIComponent(dishId)}`, {
+        method: on ? 'POST' : 'DELETE',
+        credentials: 'include',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: on ? JSON.stringify({ dishId }) : undefined,
+      })
+      if (!res.ok) throw new Error(res.status === 401 ? 'войдите через Telegram, чтобы сохранять избранное' : 'не сохранилось')
+    } catch (e) {
+      flip(!on)
+      toast.error(e instanceof Error ? e.message : 'не сохранилось')
+    }
+  }
+
+  // часы для «закроется через N мин»
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+  const minutesToClose = useMemo(() => {
+    if (!open?.isOpen) return null
+    const [h, m] = open.until.split(':').map(Number)
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+    const d = new Date(now)
+    d.setHours(h, m, 0, 0)
+    let diff = (d.getTime() - now) / 60000
+    if (diff < 0) diff += 24 * 60
+    return Math.ceil(diff)
+  }, [open, now])
+  const closingSoon = minutesToClose !== null && minutesToClose <= 30
 
   const scrollToCat = (key: string) => {
     setCat(key)
@@ -341,8 +436,8 @@ export function GuestMenu() {
             ) : null}
             <div className="min-w-0">
               <h1 className="truncate text-[26px] font-extrabold leading-tight tracking-tight text-[color:var(--text)]">{venueName || '—'}</h1>
-              <div className={cn('mt-0.5 text-[13px] font-semibold', closed ? 'text-[color:var(--danger)]' : 'text-[color:var(--ok)]')}>
-                {open ? (open.isOpen ? `открыто до ${open.until}` : 'сейчас закрыто') : ' '}
+              <div className={cn('mt-0.5 text-[13px] font-semibold', closed ? 'text-[color:var(--danger)]' : closingSoon ? 'text-[color:var(--warn)]' : 'text-[color:var(--ok)]')}>
+                {open ? (open.isOpen ? (closingSoon ? `закроется через ${minutesToClose} мин — успейте заказать` : `открыто до ${open.until}`) : 'сейчас закрыто') : ' '}
               </div>
             </div>
           </div>
@@ -389,6 +484,18 @@ export function GuestMenu() {
         </Link>
       ) : null}
 
+      {lastOrder && !searching && !loading && !activeOrder ? (
+        <div className="mb-4 flex items-center gap-3 rounded-[18px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)] px-3.5 py-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-semibold text-[color:var(--text)]">повторить прошлый заказ</div>
+            <div className="truncate text-[12.5px] text-[color:var(--muted)]">
+              {lastOrder.items.map((l) => (l.quantity > 1 ? `${l.name} ×${l.quantity}` : l.name)).join(', ')} · {fmtThb(lastOrder.total)}
+            </div>
+          </div>
+          <Btn onClick={reorder} disabled={Boolean(closed)}>повторить</Btn>
+        </div>
+      ) : null}
+
       {!searching && !loading ? (
         <>
           <PromoRail cards={promos} />
@@ -426,7 +533,8 @@ export function GuestMenu() {
                 const n = qtyOfItem(it)
                 const off = !it.available || Boolean(closed)
                 return (
-                  <article key={it.key} className={cn('flex flex-col gap-1.5 overflow-hidden rounded-[18px] bg-[color:var(--surface-strong)] pb-3', off && 'opacity-60')}>
+                  <article key={it.key} className={cn('relative flex flex-col gap-1.5 overflow-hidden rounded-[18px] bg-[color:var(--surface-strong)] pb-3', off && 'opacity-60')}>
+                    {it.kind === 'dish' ? <FavButton on={favIds.has(it.id)} name={it.name} onClick={() => void toggleFav(it.id)} className="absolute right-2 top-2 z-[1]" /> : null}
                     <button type="button" onClick={() => setFocused(it)} className="relative block aspect-[4/3] w-full overflow-hidden bg-[color:var(--surface)] text-left" aria-label={it.name}>
                       {it.image ? (
                         <OptimizedImage src={it.image} alt="" sizes={IMAGE_SIZES.menuGrid} className="object-cover" />
@@ -461,7 +569,7 @@ export function GuestMenu() {
         ))
       )}
 
-      <ItemSheet item={focused} onClose={() => setFocused(null)} restaurantId={restaurantId} closed={Boolean(closed)} />
+      <ItemSheet item={focused} onClose={() => setFocused(null)} restaurantId={restaurantId} closed={Boolean(closed)} fav={focused ? favIds.has(focused.id) : false} onFav={focused?.kind === 'dish' ? () => void toggleFav(focused.id) : undefined} />
     </main>
   )
 }
@@ -488,7 +596,7 @@ function TagBadges({ tags, className }: { tags: string[]; className?: string }) 
 
 /* ---------- шторка позиции: описание, опции, количество ---------- */
 
-function ItemSheet({ item, onClose, restaurantId, closed }: { item: Item | null; onClose: () => void; restaurantId: string; closed: boolean }) {
+function ItemSheet({ item, onClose, restaurantId, closed, fav, onFav }: { item: Item | null; onClose: () => void; restaurantId: string; closed: boolean; fav: boolean; onFav?: () => void }) {
   const addItem = useCartStore((s) => s.addItem)
   const [sel, setSel] = useState<Record<string, string>>({})
   const [mod, setMod] = useState<string | null>(null)
@@ -545,8 +653,11 @@ function ItemSheet({ item, onClose, restaurantId, closed }: { item: Item | null;
         </div>
       ) : null}
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-[20px] font-bold leading-tight text-[color:var(--text)]">{item.name}</h2>
-        <div className="shrink-0 text-[18px] font-bold text-[color:var(--text)]">{fmtThb(unit)}</div>
+        <h2 className="min-w-0 text-[20px] font-bold leading-tight text-[color:var(--text)]">{item.name}</h2>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="text-[18px] font-bold text-[color:var(--text)]">{fmtThb(unit)}</span>
+          {onFav ? <FavButton on={fav} name={item.name} onClick={onFav} plain /> : null}
+        </div>
       </div>
       {item.weightLabel || item.tags.length ? (
         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -566,22 +677,10 @@ function ItemSheet({ item, onClose, restaurantId, closed }: { item: Item | null;
         </OptionRow>
       ) : null}
       {item.optionGroups.filter((g) => g.values.length).map((g) => (
-        <OptionRow key={g.id} title={g.name}>
-          {g.values.map((v) => (
-            <Chip key={v.id} active={sel[g.id] === v.id} onClick={() => setSel((s) => ({ ...s, [g.id]: v.id }))}>
-              {v.name}{v.priceAdjust ? ` +${fmtThb(v.priceAdjust)}` : ''}
-            </Chip>
-          ))}
-        </OptionRow>
+        <OptionList key={g.id} title={g.name} values={g.values} selected={sel[g.id] ?? null} onSelect={(id) => setSel((s) => ({ ...s, [g.id]: id }))} />
       ))}
       {item.modifiers.length ? (
-        <OptionRow title="на выбор">
-          {item.modifiers.map((m) => (
-            <Chip key={m.id} active={mod === m.id} onClick={() => setMod(mod === m.id ? null : m.id)}>
-              {m.name}{m.priceAdjust ? ` +${fmtThb(m.priceAdjust)}` : ''}
-            </Chip>
-          ))}
-        </OptionRow>
+        <OptionList title="на выбор" hint="по желанию" values={item.modifiers} selected={mod} onSelect={(id) => setMod(mod === id ? null : id)} />
       ) : null}
     </Sheet>
   )
@@ -594,4 +693,83 @@ function OptionRow({ title, children }: { title: string; children: React.ReactNo
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   )
+}
+
+/** Варианты одной группы — строки на всю ширину: название слева, доплата справа. Строка не рвётся, как чипы. */
+function OptionList({ title, hint, values, selected, onSelect }: { title: string; hint?: string; values: OptionValue[]; selected: string | null; onSelect: (id: string) => void }) {
+  return (
+    <fieldset className="mt-4">
+      <legend className="mb-2 text-[12.5px] font-semibold text-[color:var(--muted)]">
+        {title}
+        {hint ? <span className="font-normal"> · {hint}</span> : null}
+      </legend>
+      <div className="overflow-hidden rounded-[16px] border border-[color:var(--stroke)] bg-[color:var(--surface-strong)]">
+        {values.map((v, i) => {
+          const on = selected === v.id
+          return (
+            <button
+              key={v.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onSelect(v.id)}
+              className={cn('flex min-h-[48px] w-full items-center gap-3 px-3.5 py-2 text-left transition', i > 0 && 'border-t border-[color:var(--stroke)]', on && 'bg-[color:var(--surface)]')}
+            >
+              <span
+                className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2', on ? 'border-[color:var(--primary)] bg-[color:var(--primary)]' : 'border-[color:var(--stroke-strong)]')}
+                aria-hidden
+              >
+                {on ? <span className="h-2 w-2 rounded-full bg-[color:var(--on-primary)]" /> : null}
+              </span>
+              <span className={cn('min-w-0 flex-1 text-[15px] text-[color:var(--text)]', on && 'font-semibold')}>{v.name}</span>
+              {v.priceAdjust ? <span className="shrink-0 text-[14px] text-[color:var(--muted)]">+{fmtThb(v.priceAdjust)}</span> : null}
+            </button>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
+
+/** Сердечко избранного: на фото (круглая подложка) или в шторке (plain). */
+function FavButton({ on, name, onClick, className, plain }: { on: boolean; name: string; onClick: () => void; className?: string; plain?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      aria-label={on ? `убрать ${name} из избранного` : `добавить ${name} в избранное`}
+      className={cn('flex h-11 w-11 items-center justify-center rounded-full', !plain && 'bg-[color:var(--surface-strong)]/90 shadow-[var(--shadow-card)] backdrop-blur-sm', className)}
+    >
+      <svg viewBox="0 0 24 24" className={cn('h-5 w-5', on ? 'text-[color:var(--danger)]' : 'text-[color:var(--text)]')} fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
+        <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+      </svg>
+    </button>
+  )
+}
+
+/** Карточка рациона гостя для карусели: активен / ждёт / не доделан. null — рациона нет. */
+function subscriptionCard(subs: any[], restaurantId: string): PromoCard | null {
+  const pick = (st: string) => subs.find((x) => x?.status === st)
+  const live = pick('ACTIVE') ?? pick('PAUSED')
+  if (live) {
+    const next = live.nextDelivery ? new Date(live.nextDelivery) : null
+    const when = next && !Number.isNaN(next.getTime()) ? next.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric' }) : null
+    return {
+      id: 'sub-status',
+      title: live.status === 'PAUSED' ? 'рацион на паузе' : 'рацион активен',
+      description: when ? `следующая доставка ${when}${live.deliveryTime ? `, ${live.deliveryTime}` : ''}` : live.name,
+      href: `/subscriptions/${live.id}`,
+      cta: 'открыть',
+      type: 'chip',
+    }
+  }
+  const pending = pick('PENDING')
+  if (pending) return { id: 'sub-status', title: 'рацион ждёт подтверждения', description: 'ответ придёт в Telegram', href: `/subscriptions/${pending.id}`, cta: 'открыть', type: 'chip' }
+  const draft = loadSubscriptionBuilderDraft(restaurantId)
+  if (draft?.lines?.length || pick('DRAFT')) {
+    const n = draft?.lines?.length ?? 0
+    return { id: 'sub-status', title: 'рацион не доделан', description: n ? `${n} блюд выбрано — осталось оформить` : 'вернитесь, чтобы закончить', href: '/subscriptions/new', cta: 'продолжить', type: 'chip' }
+  }
+  return null
 }
